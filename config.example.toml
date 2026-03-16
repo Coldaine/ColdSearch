@@ -1,0 +1,26 @@
+# Example configuration for usearch
+# Copy to ~/.config/usearch/config.toml and customize
+
+[capabilities.basic_search]
+# Providers that back the basic_search capability, in preference order
+# Phase 1: Single provider (Tavily)
+providers = ["tavily"]
+
+[providers.tavily]
+[providers.tavily.keyPool]
+# Key references - supports env: prefix for environment variables
+keys = ["env:TAVILY_API_KEY"]
+# Rotation strategy (optional, defaults to round-robin)
+strategy = "round-robin"
+
+# Future: Additional providers for multi-provider fanout (Phase 2)
+# [capabilities.basic_search]
+# providers = ["tavily", "brave", "exa"]
+#
+# [providers.brave]
+# [providers.brave.keyPool]
+# keys = ["env:BRAVE_API_KEY"]
+#
+# [providers.exa]
+# [providers.exa.keyPool]
+# keys = ["env:EXA_API_KEY"]
