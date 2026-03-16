@@ -1,0 +1,1 @@
+{"version":3,"file":"serper.d.ts","sourceRoot":"","sources":["../../src/adapters/serper.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,aAAa,EAAE,gBAAgB,EAAE,MAAM,aAAa,CAAC;AAgBnE;;;;GAIG;AACH,qBAAa,aAAc,YAAW,aAAa;IACjD,IAAI,SAAY;IAChB,YAAY,WAAoB;IAE1B,MAAM,CAAC,KAAK,EAAE,MAAM,EAAE,MAAM,EAAE,MAAM,GAAG,OAAO,CAAC,gBAAgB,EAAE,CAAC;CA8BzE"}

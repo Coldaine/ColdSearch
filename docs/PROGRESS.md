@@ -9,22 +9,65 @@ status: living
 
 ## Current Status
 
-**Phase 1: Single-provider CLI.** ✅ Complete.
+**Phase 2 & 4: Multi-provider fanout + Search Agent.** ✅ Complete.
 
-The CLI+skill delivery model works end to end. An agent can read SKILL.md, call `usearch "query"`, and get back JSON results. One provider (Tavily), one adapter, no fanout, no rerank, no search agent. Just the vertical slice from CLI invocation to normalized results on stdout.
+Both modes are now implemented:
+- **Mode 1 (Fanout + Rerank)**: Parallel search across multiple providers with RRF reranking
+- **Mode 2 (Search Agent)**: ReAct-style agent for multi-step research
 
 ## Phases
 
-1. **Single-provider CLI.** ✅ Done. One adapter, one capability, CLI invocation works, SKILL.md written, agent can call it. No fanout, no rerank, no search agent. Proves the CLI+skill delivery model.
-2. **Multi-provider fanout.** Two or more adapters, key pooling, parallel fanout, basic reranker. Mode 1 works end to end.
-3. **Capability taxonomy.** Survey what the wired-up adapters actually expose. Define the real capability names.
-4. **Search agent.** Mode 2. Internal agent orchestrates multi-step search across all providers.
-5. **Harden.** Quota-aware key rotation, graceful degradation when a provider is down, error handling across provider failures.
+1. **Single-provider CLI.** ✅ Done.
+2. **Multi-provider fanout.** ✅ Done. 
+   - Multiple adapters (Tavily, Brave, Exa, Serper)
+   - Parallel fanout with key pooling
+   - Reranker with RRF strategy
+   - Mode 1 works end to end
+3. **Capability taxonomy.** ⏸️ Deferred. Basic taxonomy established (`basic_search`).
+4. **Search agent.** ✅ Done.
+   - ReAct-style agent with tool use
+   - Multi-step research workflow
+   - Source tracking and citation
+   - LLM abstraction (Claude, OpenAI)
+5. **Harden.** ⏸️ Not started. Quota-aware rotation, graceful degradation.
+
+## What's Implemented
+
+### Adapters
+- ✅ Tavily
+- ✅ Brave Search
+- ✅ Exa (Metaphor)
+- ✅ Serper.dev
+
+### Mode 1: Fanout + Rerank
+- ✅ Parallel provider queries
+- ✅ Thread-safe key pooling
+- ✅ RRF reranking
+- ✅ Score normalization reranking
+- ✅ Deduplication by URL
+- ✅ Graceful partial failure
+
+### Mode 2: Search Agent
+- ✅ ReAct reasoning loop
+- ✅ Tool registry (search, fetch, refine)
+- ✅ Context management
+- ✅ Source tracking
+- ✅ LLM abstraction (Claude, OpenAI)
+- ✅ HTML content extraction
+
+### CLI
+- ✅ Mode selection (`--agent`)
+- ✅ Provider filtering (`--providers`)
+- ✅ Rerank strategy (`--rerank`)
+- ✅ Agent configuration (`--llm`, `--model`, `--max-steps`)
 
 ## Next Steps
 
-Do not start Phase 2 without discussion. The current implementation proves the core delivery model. Before expanding:
+**Phase 5: Harden**
+- Quota-aware key rotation
+- Rate limiting
+- Better error recovery
+- Result caching
+- Streaming responses
 
-- Validate the SKILL.md works for agents without additional prompting
-- Consider if the result schema needs adjustment based on real usage
-- Decide which providers to add for Phase 2
+Do not start Phase 5 without discussion.

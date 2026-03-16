@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-import { loadConfig, getNextKey, getProviderConfig } from "./config.js";
-import { TavilyAdapter } from "./adapters/tavily.js";
+import { loadConfig } from "./config.js";
+import { FanoutEngine } from "./engine/fanout.js";
+import { SearchAgent } from "./agent/agent.js";
+import { createAdapter } from "./adapters/index.js";
 /**
  * Parse command line arguments into CLIOptions.
  */
@@ -10,6 +12,7 @@ function parseArgs(args) {
         limit: 10,
         pretty: false,
         json: false,
+        rerank: "rrf",
     };
     let i = 0;
     while (i < args.length) {
@@ -37,6 +40,42 @@ function parseArgs(args) {
                 i++;
                 options.config = args[i];
                 break;
+            case "--agent":
+            case "-a":
+                options.agent = true;
+                break;
+            case "--providers":
+                i++;
+                options.providers = args[i].split(",").map((p) => p.trim());
+                break;
+            case "--rerank":
+                i++;
+                const strategy = args[i];
+                if (!["rrf", "score", "none"].includes(strategy)) {
+                    throw new Error(`Invalid rerank strategy: ${strategy}`);
+                }
+                options.rerank = strategy;
+                break;
+            case "--llm":
+                i++;
+                const llm = args[i];
+                if (!["anthropic", "openai"].includes(llm)) {
+                    throw new Error(`Invalid LLM provider: ${llm}`);
+                }
+                options.llmProvider = llm;
+                break;
+            case "--model":
+                i++;
+                options.model = args[i];
+                break;
+            case "--max-steps":
+                i++;
+                options.maxSteps = parseInt(args[i], 10);
+                break;
+            case "--max-sources":
+                i++;
+                options.maxSources = parseInt(args[i], 10);
+                break;
             case "--help":
             case "-h":
                 printHelp();
@@ -44,7 +83,7 @@ function parseArgs(args) {
                 break;
             case "--version":
             case "-v":
-                console.log("usearch v0.1.0");
+                console.log("usearch v0.2.0");
                 process.exit(0);
                 break;
             default:
@@ -66,18 +105,128 @@ usearch - Unified search CLI
 Usage: usearch [options] "<query>"
 
 Options:
-  -l, --limit N      Return at most N results (default: 10)
-  -p, --pretty       Pretty print JSON output
-  -j, --json         Force JSON output (default if not TTY)
-  -c, --config PATH  Use custom config file
-  -h, --help         Show this help
-  -v, --version      Show version
+  Mode Selection:
+    -a, --agent          Use search agent mode (multi-step research)
+    
+  Fanout Options (default mode):
+    --providers LIST     Comma-separated providers (default: all configured)
+    --rerank STRATEGY    Reranker: rrf|score|none (default: rrf)
+    
+  Agent Options (requires --agent):
+    --llm PROVIDER       LLM provider: anthropic|openai (default: anthropic)
+    --model MODEL        LLM model name
+    --max-steps N        Maximum research steps (default: 5)
+    --max-sources N      Maximum sources to collect (default: 5)
+    
+  General Options:
+    -l, --limit N        Return at most N results (default: 10)
+    -p, --pretty         Pretty print JSON output
+    -j, --json           Force JSON output
+    -c, --config PATH    Use custom config file
+    -h, --help           Show this help
+    -v, --version        Show version
 
 Examples:
+  # Mode 1: Fanout + Rerank (default)
   usearch "what is firecrawl"
-  usearch --limit 5 --pretty "machine learning"
-  usearch -c ./my-config.toml "python async"
+  usearch --providers tavily,brave --rerank rrf "machine learning"
+  
+  # Mode 2: Search Agent
+  usearch --agent "explain quantum computing"
+  usearch --agent --max-steps 10 "latest fusion energy developments"
 `);
+}
+/**
+ * Format output based on options.
+ */
+function formatOutput(data, options) {
+    const isTTY = process.stdout.isTTY;
+    const shouldPrettyPrint = options.pretty || (!options.json && isTTY);
+    if (shouldPrettyPrint) {
+        return JSON.stringify(data, null, 2);
+    }
+    return JSON.stringify(data);
+}
+/**
+ * Run Mode 1: Fanout + Rerank.
+ */
+async function runFanoutMode(options) {
+    const config = loadConfig(options.config);
+    const engine = new FanoutEngine(config);
+    const result = await engine.search(options.query, {
+        limit: options.limit,
+        providers: options.providers,
+        rerankStrategy: options.rerank,
+    });
+    const output = {
+        mode: "fanout",
+        query: options.query,
+        results: result.results,
+        providers_used: result.providersUsed,
+        total: result.results.length,
+        errors: Object.keys(result.errors).length > 0 ? result.errors : undefined,
+    };
+    console.log(formatOutput(output, options));
+}
+/**
+ * Run Mode 2: Search Agent.
+ */
+async function runAgentMode(options) {
+    const agent = new SearchAgent({
+        configPath: options.config,
+        llmProvider: options.llmProvider,
+        model: options.model,
+        maxSteps: options.maxSteps,
+        maxSources: options.maxSources,
+    });
+    const result = await agent.research(options.query, {
+        maxSteps: options.maxSteps,
+        maxSources: options.maxSources,
+    });
+    const output = {
+        mode: "agent",
+        goal: options.query,
+        answer: result.answer,
+        sources: result.sources,
+        steps: result.steps.length,
+    };
+    console.log(formatOutput(output, options));
+}
+/**
+ * Run legacy single-provider mode (backward compatibility).
+ */
+async function runLegacyMode(options) {
+    const config = loadConfig(options.config);
+    const providers = config.capabilities.basic_search?.providers || [];
+    if (providers.length === 0) {
+        throw new Error("No providers configured for 'basic_search' capability");
+    }
+    // Use first provider (single-provider mode for backward compat)
+    const providerName = providers[0];
+    const adapter = createAdapter(providerName);
+    // Get API key
+    const providerConfig = config.providers[providerName];
+    if (!providerConfig) {
+        throw new Error(`Provider '${providerName}' not found in config`);
+    }
+    const keyRef = providerConfig.keyPool.keys[0];
+    if (!keyRef) {
+        throw new Error(`No API key configured for provider '${providerName}'`);
+    }
+    const apiKey = keyRef.startsWith("env:")
+        ? process.env[keyRef.slice(4)] || ""
+        : keyRef;
+    if (!apiKey) {
+        throw new Error(`Environment variable ${keyRef.slice(4)} is not set`);
+    }
+    const results = await adapter.search(options.query, apiKey);
+    const limitedResults = results.slice(0, options.limit);
+    const output = {
+        query: options.query,
+        results: limitedResults,
+        total: limitedResults.length,
+    };
+    console.log(formatOutput(output, options));
 }
 /**
  * Main CLI entry point.
@@ -95,44 +244,24 @@ async function main() {
             printHelp();
             process.exit(1);
         }
-        // Load configuration
-        const config = loadConfig(options.config);
-        // Get provider for basic_search capability
-        const providers = config.capabilities.basic_search?.providers || [];
-        if (providers.length === 0) {
-            throw new Error("No providers configured for 'basic_search' capability");
+        // Route to appropriate mode
+        if (options.agent) {
+            await runAgentMode(options);
         }
-        // Phase 1: Single provider (Tavily)
-        const providerName = providers[0];
-        const providerConfig = getProviderConfig(config, providerName);
-        // Get API key from pool (round-robin with index 0 for single request)
-        const apiKey = getNextKey(providerConfig.keyPool, 0);
-        // Create adapter (Phase 1: only Tavily)
-        let adapter;
-        if (providerName === "tavily") {
-            adapter = new TavilyAdapter();
+        else if (options.providers || options.rerank !== "rrf") {
+            // Explicit fanout mode
+            await runFanoutMode(options);
         }
         else {
-            throw new Error(`Unknown provider: ${providerName}`);
-        }
-        // Execute search
-        const results = await adapter.search(options.query, apiKey);
-        // Apply limit
-        const limitedResults = results.slice(0, options.limit);
-        // Format output
-        const output = {
-            query: options.query,
-            results: limitedResults,
-            total: limitedResults.length,
-        };
-        // Determine output format
-        const isTTY = process.stdout.isTTY;
-        const shouldPrettyPrint = options.pretty || (!options.json && isTTY);
-        if (shouldPrettyPrint) {
-            console.log(JSON.stringify(output, null, 2));
-        }
-        else {
-            console.log(JSON.stringify(output));
+            // Check if multiple providers configured
+            const config = loadConfig(options.config);
+            const providers = config.capabilities.basic_search?.providers || [];
+            if (providers.length > 1) {
+                await runFanoutMode(options);
+            }
+            else {
+                await runLegacyMode(options);
+            }
         }
     }
     catch (error) {
