@@ -1,7 +1,12 @@
 import { createAdapter } from "../adapters/index.js";
 import { keyPoolManager } from "./keypool.js";
 import { rerank, type RerankerOptions } from "./reranker.js";
-import type { Config, NormalizedResult } from "../types.js";
+import type { Config, NormalizedResult, ExtractResult, CrawlResult } from "../types.js";
+
+/**
+ * Fanout operation type.
+ */
+export type OperationType = "search" | "extract" | "crawl";
 
 /**
  * Fanout search options.
@@ -13,6 +18,10 @@ export interface FanoutOptions {
   providers?: string[];
   /** Reranker strategy */
   rerankStrategy?: "rrf" | "score" | "none";
+  /** Operation type */
+  operation?: OperationType;
+  /** Force single provider mode (random selection) */
+  singleProvider?: boolean;
 }
 
 /**
@@ -49,6 +58,37 @@ export class FanoutEngine {
   }
 
   /**
+   * Get providers for a capability, applying strategy.
+   */
+  private getProvidersForCapability(
+    capability: string,
+    options: FanoutOptions
+  ): string[] {
+    const capabilityConfig = this.config.capabilities[capability];
+    if (!capabilityConfig) {
+      throw new Error(`No configuration found for capability: ${capability}`);
+    }
+
+    const providers = options.providers || capabilityConfig.providers;
+
+    if (providers.length === 0) {
+      throw new Error(`No providers configured for ${capability}`);
+    }
+
+    // Check if single provider mode
+    const useSingleProvider =
+      options.singleProvider || capabilityConfig.strategy === "random";
+
+    if (useSingleProvider) {
+      // Pick one random provider
+      const randomIndex = Math.floor(Math.random() * providers.length);
+      return [providers[randomIndex]];
+    }
+
+    return providers;
+  }
+
+  /**
    * Execute search across all configured providers.
    */
   async search(query: string, options: FanoutOptions): Promise<{
@@ -57,13 +97,7 @@ export class FanoutEngine {
     errors: Record<string, string>;
   }> {
     // Get providers to use
-    const capabilityProviders =
-      this.config.capabilities.basic_search?.providers || [];
-    const providers = options.providers || capabilityProviders;
-
-    if (providers.length === 0) {
-      throw new Error("No providers configured for basic_search");
-    }
+    const providers = this.getProvidersForCapability("search", options);
 
     // Execute searches in parallel
     const results = await Promise.allSettled(
@@ -111,6 +145,78 @@ export class FanoutEngine {
       providersUsed,
       errors,
     };
+  }
+
+  /**
+   * Extract content from a URL.
+   */
+  async extract(url: string, options: FanoutOptions): Promise<{
+    result: ExtractResult | null;
+    provider: string;
+    errors?: Record<string, string>;
+  }> {
+    const providers = this.getProvidersForCapability("extract", options);
+    const errors: Record<string, string> = {};
+
+    // Try providers in order (or single random provider)
+    for (const provider of providers) {
+      try {
+        const apiKey = await keyPoolManager.getNextKey(provider);
+        const adapter = createAdapter(provider);
+
+        if (!adapter.extract) {
+          errors[provider] = "Adapter does not support extract";
+          continue;
+        }
+
+        const result = await adapter.extract(url, apiKey);
+        return {
+          result,
+          provider,
+          errors: Object.keys(errors).length > 0 ? errors : undefined,
+        };
+      } catch (error) {
+        errors[provider] = (error as Error).message;
+      }
+    }
+
+    throw new Error(`All providers failed: ${JSON.stringify(errors)}`);
+  }
+
+  /**
+   * Crawl a website.
+   */
+  async crawl(url: string, options: FanoutOptions): Promise<{
+    results: CrawlResult[];
+    provider: string;
+    errors?: Record<string, string>;
+  }> {
+    const providers = this.getProvidersForCapability("crawl", options);
+    const errors: Record<string, string> = {};
+
+    // Try providers in order (or single random provider)
+    for (const provider of providers) {
+      try {
+        const apiKey = await keyPoolManager.getNextKey(provider);
+        const adapter = createAdapter(provider);
+
+        if (!adapter.crawl) {
+          errors[provider] = "Adapter does not support crawl";
+          continue;
+        }
+
+        const results = await adapter.crawl(url, apiKey, { limit: options.limit });
+        return {
+          results: results,
+          provider,
+          errors: Object.keys(errors).length > 0 ? errors : undefined,
+        };
+      } catch (error) {
+        errors[provider] = (error as Error).message;
+      }
+    }
+
+    throw new Error(`All providers failed: ${JSON.stringify(errors)}`);
   }
 
   /**

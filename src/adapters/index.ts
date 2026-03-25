@@ -2,6 +2,8 @@ import { TavilyAdapter } from "./tavily.js";
 import { BraveAdapter } from "./brave.js";
 import { ExaAdapter } from "./exa.js";
 import { SerperAdapter } from "./serper.js";
+import { JinaAdapter } from "./jina.js";
+import { FirecrawlAdapter } from "./firecrawl.js";
 import type { SearchAdapter } from "../types.js";
 
 /**
@@ -12,6 +14,8 @@ export const adapters: Record<string, new () => SearchAdapter> = {
   brave: BraveAdapter,
   exa: ExaAdapter,
   serper: SerperAdapter,
+  jina: JinaAdapter,
+  firecrawl: FirecrawlAdapter,
 };
 
 /**
@@ -32,4 +36,4 @@ export function getAvailableAdapters(): string[] {
   return Object.keys(adapters);
 }
 
-export { TavilyAdapter, BraveAdapter, ExaAdapter, SerperAdapter };
+export { TavilyAdapter, BraveAdapter, ExaAdapter, SerperAdapter, JinaAdapter, FirecrawlAdapter };

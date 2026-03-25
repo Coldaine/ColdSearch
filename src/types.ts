@@ -16,6 +16,32 @@ export interface NormalizedResult {
 }
 
 /**
+ * Extract result schema.
+ */
+export interface ExtractResult {
+  /** Extracted content */
+  content: string;
+  /** Source URL */
+  url: string;
+  /** Title of the page */
+  title?: string;
+  /** Provider name for internal debugging */
+  source: string;
+}
+
+/**
+ * Crawl result item schema.
+ */
+export interface CrawlResult {
+  /** Page URL */
+  url: string;
+  /** Page title */
+  title: string;
+  /** Page content */
+  content: string;
+}
+
+/**
  * Search adapter interface.
  * Each provider implements this interface.
  */
@@ -26,6 +52,10 @@ export interface SearchAdapter {
   capabilities: string[];
   /** Execute a basic search */
   search(query: string, apiKey: string): Promise<NormalizedResult[]>;
+  /** Extract content from a URL */
+  extract?(url: string, apiKey: string): Promise<ExtractResult>;
+  /** Crawl a website */
+  crawl?(url: string, apiKey: string, options?: { limit?: number }): Promise<CrawlResult[]>;
 }
 
 /**
@@ -54,6 +84,8 @@ export interface ProviderConfig {
 export interface CapabilityConfig {
   /** Providers that back this capability, in preference order */
   providers: string[];
+  /** Provider selection strategy: "all" (fanout) or "random" (single provider) */
+  strategy?: "all" | "random";
 }
 
 /**
@@ -70,7 +102,9 @@ export interface Config {
  * CLI options parsed from command line arguments.
  */
 export interface CLIOptions {
-  /** Search query */
+  /** Command type */
+  command?: "search" | "extract" | "crawl";
+  /** Search query or URL */
   query: string;
   /** Maximum results to return */
   limit: number;
@@ -80,4 +114,6 @@ export interface CLIOptions {
   json: boolean;
   /** Custom config file path */
   config?: string;
+  /** Use single random provider instead of fanout */
+  singleProvider?: boolean;
 }

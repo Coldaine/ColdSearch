@@ -1,8 +1,8 @@
 import type { KeyPool } from "../types.js";
 
 /**
- * Thread-safe key pool manager with round-robin rotation.
- * Uses atomic index increment for concurrent access.
+ * Thread-safe key pool manager with round-robin and random rotation.
+ * Uses atomic index increment for round-robin and crypto for random.
  */
 export class KeyPoolManager {
   private pools: Map<string, KeyPool> = new Map();
@@ -17,7 +17,8 @@ export class KeyPoolManager {
   }
 
   /**
-   * Get the next key from a provider's pool using round-robin.
+   * Get the next key from a provider's pool.
+   * Uses round-robin or random selection based on pool strategy.
    * Thread-safe under concurrent load.
    */
   async getNextKey(provider: string): Promise<string> {
@@ -30,12 +31,21 @@ export class KeyPoolManager {
       throw new Error(`Key pool for ${provider} is empty`);
     }
 
-    // Simple atomic increment for round-robin
-    const currentIndex = this.indices.get(provider) || 0;
-    const nextIndex = (currentIndex + 1) % pool.keys.length;
-    this.indices.set(provider, nextIndex);
+    const strategy = pool.strategy || "round-robin";
+    let keyIndex: number;
 
-    const keyRef = pool.keys[currentIndex];
+    if (strategy === "random") {
+      // Random selection
+      keyIndex = Math.floor(Math.random() * pool.keys.length);
+    } else {
+      // Round-robin (default)
+      const currentIndex = this.indices.get(provider) || 0;
+      keyIndex = currentIndex;
+      const nextIndex = (currentIndex + 1) % pool.keys.length;
+      this.indices.set(provider, nextIndex);
+    }
+
+    const keyRef = pool.keys[keyIndex];
     return this.resolveKeyRef(keyRef);
   }
 

@@ -23,7 +23,7 @@ interface BraveSearchResponse {
  */
 export class BraveAdapter implements SearchAdapter {
   name = "brave";
-  capabilities = ["basic_search"];
+  capabilities = ["search"];
 
   async search(query: string, apiKey: string): Promise<NormalizedResult[]> {
     const url = new URL("https://api.search.brave.com/res/v1/web/search");

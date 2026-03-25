@@ -31,6 +31,7 @@ interface ExtendedCLIOptions extends CLIOptions {
  */
 function parseArgs(args: string[]): ExtendedCLIOptions {
   const options: ExtendedCLIOptions = {
+    command: "search",
     query: "",
     limit: 10,
     pretty: false,
@@ -38,7 +39,15 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
     rerank: "rrf",
   };
 
+  // Check if first arg is a command
+  const commands = ["search", "extract", "crawl"];
   let i = 0;
+
+  if (args.length > 0 && commands.includes(args[0])) {
+    options.command = args[0] as "search" | "extract" | "crawl";
+    i = 1;
+  }
+
   while (i < args.length) {
     const arg = args[i];
 
@@ -77,6 +86,10 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--providers":
         i++;
         options.providers = args[i].split(",").map((p) => p.trim());
+        break;
+
+      case "--single-provider":
+        options.singleProvider = true;
         break;
 
       case "--rerank":
@@ -120,7 +133,7 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
 
       case "--version":
       case "-v":
-        console.log("usearch v0.2.0");
+        console.log("usearch v0.3.0");
         process.exit(0);
         break;
 
@@ -142,11 +155,17 @@ function printHelp(): void {
   console.log(`
 usearch - Unified search CLI
 
-Usage: usearch [options] "<query>"
+Usage: usearch [command] [options] "<query|url>"
+
+Commands:
+  search [options] "query"    Search the web (default)
+  extract [options] "url"     Extract content from a URL
+  crawl [options] "url"       Crawl a website
 
 Options:
   Mode Selection:
     -a, --agent          Use search agent mode (multi-step research)
+    --single-provider    Use one random provider instead of fanout
     
   Fanout Options (default mode):
     --providers LIST     Comma-separated providers (default: all configured)
@@ -167,11 +186,22 @@ Options:
     -v, --version        Show version
 
 Examples:
-  # Mode 1: Fanout + Rerank (default)
+  # Search commands
   usearch "what is firecrawl"
-  usearch --providers tavily,brave --rerank rrf "machine learning"
+  usearch search "machine learning"
+  usearch --providers tavily,brave --rerank rrf "rust async"
   
-  # Mode 2: Search Agent
+  # Extract content from URL
+  usearch extract "https://example.com/article"
+  
+  # Crawl a website
+  usearch crawl "https://example.com"
+  usearch crawl --limit 5 "https://docs.example.com"
+  
+  # Use single random provider
+  usearch --single-provider "query"
+  
+  # Agent mode
   usearch --agent "explain quantum computing"
   usearch --agent --max-steps 10 "latest fusion energy developments"
 `);
@@ -201,15 +231,68 @@ async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
     limit: options.limit,
     providers: options.providers,
     rerankStrategy: options.rerank,
+    singleProvider: options.singleProvider,
   });
 
   const output = {
-    mode: "fanout",
+    mode: options.singleProvider ? "single-provider" : "fanout",
+    command: "search",
     query: options.query,
     results: result.results,
     providers_used: result.providersUsed,
     total: result.results.length,
     errors: Object.keys(result.errors).length > 0 ? result.errors : undefined,
+  };
+
+  console.log(formatOutput(output, options));
+}
+
+/**
+ * Run extract mode.
+ */
+async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
+  const config = loadConfig(options.config);
+  const engine = new FanoutEngine(config);
+
+  const result = await engine.extract(options.query, {
+    limit: options.limit,
+    providers: options.providers,
+    singleProvider: options.singleProvider,
+  });
+
+  const output = {
+    mode: options.singleProvider ? "single-provider" : "fanout",
+    command: "extract",
+    url: options.query,
+    result: result.result,
+    provider: result.provider,
+    errors: result.errors ? result.errors : undefined,
+  };
+
+  console.log(formatOutput(output, options));
+}
+
+/**
+ * Run crawl mode.
+ */
+async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
+  const config = loadConfig(options.config);
+  const engine = new FanoutEngine(config);
+
+  const result = await engine.crawl(options.query, {
+    limit: options.limit,
+    providers: options.providers,
+    singleProvider: options.singleProvider,
+  });
+
+  const output = {
+    mode: options.singleProvider ? "single-provider" : "fanout",
+    command: "crawl",
+    url: options.query,
+    results: result.results,
+    provider: result.provider,
+    total: result.results.length,
+    errors: result.errors ? result.errors : undefined,
   };
 
   console.log(formatOutput(output, options));
@@ -248,10 +331,11 @@ async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
  */
 async function runLegacyMode(options: ExtendedCLIOptions): Promise<void> {
   const config = loadConfig(options.config);
-  const providers = config.capabilities.basic_search?.providers || [];
+  const providers = config.capabilities.search?.providers ||
+    config.capabilities.basic_search?.providers || [];
 
   if (providers.length === 0) {
-    throw new Error("No providers configured for 'basic_search' capability");
+    throw new Error("No providers configured for 'search' capability");
   }
 
   // Use first provider (single-provider mode for backward compat)
@@ -304,7 +388,7 @@ async function main(): Promise<void> {
     const options = parseArgs(args);
 
     if (!options.query.trim()) {
-      console.error("Error: Query is required");
+      console.error("Error: Query/URL is required");
       printHelp();
       process.exit(1);
     }
@@ -312,13 +396,18 @@ async function main(): Promise<void> {
     // Route to appropriate mode
     if (options.agent) {
       await runAgentMode(options);
-    } else if (options.providers || options.rerank !== "rrf") {
+    } else if (options.command === "extract") {
+      await runExtractMode(options);
+    } else if (options.command === "crawl") {
+      await runCrawlMode(options);
+    } else if (options.providers || options.rerank !== "rrf" || options.singleProvider) {
       // Explicit fanout mode
       await runFanoutMode(options);
     } else {
       // Check if multiple providers configured
       const config = loadConfig(options.config);
-      const providers = config.capabilities.basic_search?.providers || [];
+      const providers = config.capabilities.search?.providers ||
+        config.capabilities.basic_search?.providers || [];
 
       if (providers.length > 1) {
         await runFanoutMode(options);

@@ -21,7 +21,7 @@ interface SerperSearchResponse {
  */
 export class SerperAdapter implements SearchAdapter {
   name = "serper";
-  capabilities = ["basic_search"];
+  capabilities = ["search"];
 
   async search(query: string, apiKey: string): Promise<NormalizedResult[]> {
     const response = await fetch("https://google.serper.dev/search", {
