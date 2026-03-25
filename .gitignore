@@ -1,0 +1,7 @@
+dist/
+node_modules/
+competitor-analysis/
+*.log
+.env
+.env.local
+.DS_Store

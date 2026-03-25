@@ -1,6 +1,6 @@
 ---
 title: Architecture
-date: 2026-03-16
+date: 2026-03-24
 author: Patrick MacLyman
 status: draft
 doc_type: architecture
@@ -8,61 +8,174 @@ doc_type: architecture
 
 # Architecture
 
-## Two Modes, One System
+## Three Commands, One System
 
-The CLI exposes two entry points:
+The CLI exposes three capabilities as top-level commands:
 
-**Mode 1: Fanout + Rerank.** A capability is invoked (e.g. `basic_search`). The layer looks up which providers are mapped to that capability in config, fans out to them in parallel using pooled keys, normalizes all results to the shared schema, runs a reranker, and returns the top N.
+| Command | Description | Providers | Selection |
+|---------|-------------|-----------|-----------|
+| `search` | Search the web | Tavily, Exa, Brave, Serper | Random pick |
+| `extract` | Extract content from URL | Tavily, Exa, Jina | Random pick |
+| `crawl` | Crawl website | Tavily, Firecrawl | Random pick |
 
-**Mode 2: Search Agent.** The caller passes a goal or question, not a query string. An internal search agent has direct access to all provider tools and orchestrates multi-step strategies: search, read a result, refine, search again, synthesize. Returns a researched answer with sources.
+Plus **Mode 2: Search Agent** for multi-step research (`--agent` flag).
 
-Both modes share: provider adapters, key pools, config, and the normalized result schema.
+## Capability-Based Architecture
+
+### The Core Idea
+
+Instead of thinking "which provider should I use?", think "what do I want to do?"
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Capability Layer                        │
+│  ┌─────────┐  ┌──────────┐  ┌─────────┐                     │
+│  │ search  │  │ extract  │  │  crawl  │                     │
+│  └────┬────┘  └────┬─────┘  └────┬────┘                     │
+└───────┼────────────┼────────────┼───────────────────────────┘
+        │            │            │
+        ▼            ▼            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Provider Selection                        │
+│  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐            │
+│  │Tavily  │  │ Exa    │  │ Brave  │  │ Serper │  ...       │
+│  └────────┘  └────────┘  └────────┘  └────────┘            │
+│                    ↓ Random pick                             │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Key Selection                            │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐             │
+│  │ Key 1      │  │ Key 2      │  │ Key 3      │             │
+│  └────────────┘  └────────────┘  └────────────┘             │
+│                    ↓ Random pick                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Config-Driven Provider Mapping
+
+```toml
+[capabilities.search]
+providers = ["tavily", "exa", "brave", "serper"]
+strategy = "random"  # "all" = fanout, "random" = single provider
+
+[providers.tavily.keyPool]
+keys = ["env:TAVILY_KEY_1", "env:TAVILY_KEY_2"]
+strategy = "random"  # "round-robin" or "random"
+```
+
+### Two-Level Random Selection
+
+**Level 1: Provider Selection**
+- Config defines which providers back each capability
+- `strategy = "random"` → Pick one random provider
+- `strategy = "all"` → Fan out to all providers (search only)
+
+**Level 2: Key Selection**
+- Each provider has a key pool
+- `strategy = "random"` → Pick random key per request
+- `strategy = "round-robin"` → Cycle through keys
 
 ## Key Abstractions
 
-**Capability.** An abstract search function ("basic_search", "extract", "deep_research"). The taxonomy is TBD; see Tricky Parts. Capabilities are the only thing the calling agent sees.
+**Capability.** An abstract operation (`search`, `extract`, `crawl`). Capabilities map to one or more providers. The CLI exposes capabilities, not providers.
 
-**Adapter.** A module per provider. Declares which capabilities it supports. Accepts a query, calls the provider API, normalizes the response to the shared schema. One adapter per provider; nothing else touches provider-specific logic.
+**Adapter.** A module per provider. Declares which capabilities it supports. Implements capability methods with provider-specific logic. Normalizes all responses to shared schemas.
 
-**Key Pool.** A set of API keys for a single provider. The layer picks a key per request based on rotation strategy (TBD; round-robin as starting point, quota-aware as a goal).
+**Key Pool.** A set of API keys for a single provider. Supports random or round-robin selection strategies.
 
-**Config.** Maps capabilities → providers → key pools. Human-editable. The sole authority on which providers back which capabilities.
+**Config.** Maps capabilities → providers → key pools. Human-editable TOML. The sole authority on routing decisions.
 
-**Result Schema.** The normalized shape every adapter outputs and every downstream consumer (reranker, search agent, caller) depends on. TBD; must capture at minimum: title, URL, snippet, relevance signal, source provider (for internal debugging only, never exposed to caller).
+**Result Schemas.** Normalized output shapes regardless of provider:
+- `NormalizedResult[]` for search
+- `ExtractResult` for extract
+- `CrawlResult[]` for crawl
+
+## Adapter Capabilities Matrix
+
+| Provider | Search | Extract | Crawl | Notes |
+|----------|--------|---------|-------|-------|
+| Tavily | ✅ | ✅ | ✅ | Best all-rounder |
+| Exa | ✅ | ✅ | ❌ | Neural search, good extract |
+| Brave | ✅ | ❌ | ❌ | Privacy-focused |
+| Serper | ✅ | ❌ | ❌ | Google Search results |
+| Jina | ❌ | ✅ | ❌ | Free, no API key |
+| Firecrawl | ❌ | ✅ | ✅ | Best crawl quality |
+
+## Provider Selection Flow
+
+```
+Request: usearch extract "https://example.com"
+                │
+                ▼
+    Look up "extract" capability
+                │
+                ▼
+    Get providers: [tavily, exa, jina]
+    Strategy: "random"
+                │
+                ▼
+    Pick random: "jina"
+                │
+                ▼
+    Get Jina key pool: [] (no keys needed)
+                │
+                ▼
+    Call JinaAdapter.extract(url, "")
+                │
+                ▼
+    Return normalized ExtractResult
+```
+
+## Fallback Behavior
+
+Fallback behavior is strategy-specific:
+
+### `random` Strategy (Single Provider)
+1. Pick one provider at random from the configured set
+2. If the call fails, log the error and surface the failure to the caller
+3. No automatic retry with a different provider (would be explicit future enhancement)
+
+### `all` Strategy (Fanout)
+1. Call all configured providers in parallel
+2. Collect all successful results
+3. If at least one provider succeeds, return aggregated successes
+4. If all providers fail, throw an aggregate error
+
+### Sequential Fallback (Future)
+For ordered provider lists:
+1. Try first provider
+2. If it fails, try next provider in list
+3. Return first successful result
+4. If all fail, throw aggregate error
 
 ## Anti-Patterns
 
-Earned, not hypothetical.
+1. **Model picks the provider.** MCP exposes `tavily_search`, `brave_search` as separate tools. The model picks. This project inverts that control: humans configure, system executes.
 
-1. **Model picks the provider.** The entire reason this project exists. MCP omnisearch exposes `tavily_search`, `brave_search`, `exa_search` as separate tools. The model picks whichever it wants. It has no basis for this decision and regularly burns through one provider's credits while others sit idle. If the design reintroduces model-driven provider selection at any layer, the project has failed.
+2. **Config drift into code.** Adding providers, changing capabilities, or adjusting weights must never require code changes.
 
-2. **Config drift into code.** Adding a new API key, changing which providers back a capability, or adjusting rerank weights must never require editing source. If it does, the config layer is broken.
+3. **Hardcoded provider logic.** No provider-specific code outside adapters.
 
-## Tricky Parts
+## Security
 
-These are the genuinely hard problems. Everything else is plumbing.
-
-**Capability taxonomy.** What are the abstract capabilities? "basic_search" and "extract" are obvious. But where's the line between "deep_research" as a capability and Mode 2 as a whole mode? Too few capabilities and you lose provider-specific strengths. Too many and you've just renamed the providers. This is a design problem; we need to survey what the selected providers actually expose and find the natural equivalence classes. Deferred until we have adapters to look at.
-
-**Reranking across heterogeneous results.** Brave, Tavily, and Exa return different metadata shapes and different relevance signals. Normalizing to the shared schema necessarily loses information. The reranker operates on the normalized shape, so normalization quality directly determines rerank quality. If the schema is too lossy, the reranker is picking at random. If the schema is too rich, it's not really normalized. The right balance is unknown until we have real results flowing through.
-
-**Mode 2's autonomy boundary.** How much latitude does the search agent get? A hard-coded multi-step workflow is predictable but brittle. A full ReAct loop is flexible but expensive and slow. The answer depends on latency budget and model cost tolerance, both of which are personal preferences that may change over time. Should be configurable, not baked in.
-
-**Key rotation under concurrent load.** Round-robin is trivial for sequential requests. Under parallel fanout, multiple requests hit the pool simultaneously. Need to avoid thundering herd on one key. Probably needs a lightweight lock or token-bucket approach per key. Not hard conceptually but easy to get wrong in practice.
+See `docs/KEY_MANAGEMENT.md` for:
+- Key storage practices
+- Environment variable configuration
+- Security considerations
+- Usage tracking (planned)
 
 ## Decisions
 
-Decisions are recorded here with rationale. Deferred decisions are marked as such.
-
 | Decision | Status | Rationale |
-|---|---|---|
-| CLI, not MCP server | **Decided** | MCP exposes N tools; model picks. CLI + skill inverts control. |
-| Config-driven provider mapping | **Decided** | Provider landscape changes faster than code release cycles. |
-| One adapter per provider | **Decided** | Isolation. Adding/removing a provider is one-file change. |
-| Language / runtime | **Decided: TypeScript** | Best SDK coverage across providers (Tavily, Firecrawl, Brave, Exa, Serper all JS-first or JS-available). npm global install for distribution. The work is HTTP orchestration and JSON wrangling; TS is native territory. |
-| Config format (TOML/YAML/JSON) | **Decided: TOML** | Human-editable, supports comments, clear nesting for our config structure. |
-| Reranker implementation | **Deferred** | Need real results flowing before choosing. |
-| Capability taxonomy | **Deferred** | Need adapter survey first. |
-| Key rotation strategy | **Deferred** | Round-robin first; quota-aware later. |
-| Mode 2 model / architecture | **Deferred** | ReAct vs hard-coded workflow vs hybrid. |
-| Result schema fields | **Deferred** | Need multiple adapters returning real data to find the right shape. |
+|----------|--------|-----------|
+| CLI, not MCP server | **Decided** | Inverts control: human configures, system executes |
+| Config-driven provider mapping | **Decided** | Provider landscape changes faster than code |
+| One adapter per provider | **Decided** | Isolation, single-file changes |
+| Capability taxonomy | **Decided** | `search`, `extract`, `crawl` cover 90% of use cases |
+| Random provider selection | **Decided** | Load distribution, redundancy |
+| Random key selection | **Decided** | Simple load balancing |
+| TypeScript | **Decided** | Best SDK coverage, npm distribution |
+| TOML config | **Decided** | Human-editable, comments, clear nesting |
+| Quota-aware rotation | **Deferred** | Complex, provider APIs don't expose quotas |

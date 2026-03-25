@@ -1,26 +1,104 @@
 # Example configuration for usearch
 # Copy to ~/.config/usearch/config.toml and customize
 
-[capabilities.basic_search]
-# Providers that back the basic_search capability, in preference order
-# Phase 1: Single provider (Tavily)
-providers = ["tavily"]
+# ============================================
+# CAPABILITY CONFIGURATION
+# ============================================
+# Each capability maps to one or more providers.
+# strategy = "random"  → Pick one random provider per request
+# strategy = "all"     → Fan out to all providers (for search with reranking)
+
+[capabilities.search]
+# Search across the web - 4 providers with random selection
+providers = ["tavily", "exa", "brave", "serper"]
+strategy = "random"
+
+[capabilities.extract]
+# Extract content from URLs - 3 providers with random selection
+providers = ["tavily", "exa", "jina"]
+strategy = "random"
+
+[capabilities.crawl]
+# Crawl websites - 2 providers with random selection
+providers = ["tavily", "firecrawl"]
+strategy = "random"
+
+# ============================================
+# PROVIDER CONFIGURATION
+# ============================================
+# Each provider has its own key pool.
+# strategy = "random"      → Pick random key per request
+# strategy = "round-robin" → Cycle through keys (default)
+#
+# Key reference formats:
+#   env:VAR_NAME              → Environment variable
+#   bws:SECRET_NAME           → Bitwarden Secrets Manager (by name)
+#   bws:SECRET_UUID           → Bitwarden Secrets Manager (by ID)
 
 [providers.tavily]
 [providers.tavily.keyPool]
-# Key references - supports env: prefix for environment variables
-keys = ["env:TAVILY_API_KEY"]
-# Rotation strategy (optional, defaults to round-robin)
-strategy = "round-robin"
+# Multiple Tavily keys for load balancing
+# Environment variables:
+keys = ["env:TAVILY_API_KEY_1", "env:TAVILY_API_KEY_2"]
+# OR Bitwarden Secrets Manager:
+# keys = ["bws:tavily-api-key-prod", "bws:tavily-api-key-backup"]
+strategy = "random"
 
-# Future: Additional providers for multi-provider fanout (Phase 2)
-# [capabilities.basic_search]
-# providers = ["tavily", "brave", "exa"]
+[providers.exa]
+[providers.exa.keyPool]
+keys = ["env:EXA_API_KEY"]
+# OR: keys = ["bws:exa-api-key"]
+
+[providers.brave]
+[providers.brave.keyPool]
+keys = ["env:BRAVE_API_KEY"]
+# OR: keys = ["bws:brave-api-key"]
+
+[providers.serper]
+[providers.serper.keyPool]
+keys = ["env:SERPER_API_KEY"]
+# OR: keys = ["bws:serper-api-key"]
+
+[providers.jina]
+[providers.jina.keyPool]
+# Jina AI Reader doesn't require an API key for basic usage
+keys = []
+
+[providers.firecrawl]
+[providers.firecrawl.keyPool]
+keys = ["env:FIRECRAWL_API_KEY"]
+# OR: keys = ["bws:firecrawl-api-key"]
+
+# ============================================
+# BITWARDEN SECRETS MANAGER SETUP
+# ============================================
+# Required environment variables for BWS:
+#   BWS_ACCESS_TOKEN      → Machine account access token
+#   BWS_ORGANIZATION_ID   → Your Bitwarden organization ID (for name lookups)
 #
-# [providers.brave]
-# [providers.brave.keyPool]
-# keys = ["env:BRAVE_API_KEY"]
+# Get your access token:
+#   1. Go to Bitwarden Admin Console → Machine Accounts
+#   2. Create machine account, assign to projects
+#   3. Generate access token
 #
-# [providers.exa]
-# [providers.exa.keyPool]
-# keys = ["env:EXA_API_KEY"]
+# Get organization ID:
+#   bws organization list
+
+# ============================================
+# USAGE EXAMPLES
+# ============================================
+# 
+# Search (random provider from 4, random key):
+#   usearch search "machine learning"
+#
+# Extract (random provider from 3):
+#   usearch extract "https://example.com/article"
+#
+# Crawl (random provider from 2):
+#   usearch crawl "https://docs.example.com"
+#
+# Force specific provider:
+#   usearch search --providers tavily "query"
+#
+# Force single provider mode explicitly:
+#   usearch search --single-provider "query"

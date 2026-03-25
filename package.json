@@ -1,6 +1,6 @@
 {
   "name": "usearch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Unified search CLI - one interface, multiple providers",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,7 +11,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "dev": "tsc --watch",
-    "test": "echo \"Tests not yet implemented\" && exit 0",
+    "test": "echo \"Run manual tests with: usearch --help\"",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -26,6 +26,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@bitwarden/sdk-napi": "^1.0.0",
     "@iarna/toml": "^2.2.5",
     "@tavily/core": "^0.7.2"
   },

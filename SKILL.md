@@ -4,6 +4,11 @@
 
 Use `usearch` when you need to search the web and return structured results. It normalizes responses across multiple search providers into a single consistent schema.
 
+Use **Mode 1** (default) for quick search across multiple providers with reranking.
+Use **Mode 2** (`--agent`) for multi-step research that synthesizes an answer from multiple sources.
+Use **extract** command to extract content from a URL.
+Use **crawl** command to crawl a website.
+
 ## Installation
 
 ```bash
@@ -25,39 +30,76 @@ npm link
 Create `~/.config/usearch/config.toml`:
 
 ```toml
-[capabilities.basic_search]
-providers = ["tavily"]
+# Search capability - search the web
+[capabilities.search]
+providers = ["tavily", "brave", "exa"]
+strategy = "all"  # "all" = fanout, "random" = pick one random provider
 
+# Extract capability - extract content from URLs
+[capabilities.extract]
+providers = ["tavily"]
+strategy = "random"
+
+# Crawl capability - crawl websites
+[capabilities.crawl]
+providers = ["tavily"]
+strategy = "random"
+
+# Provider configurations
 [providers.tavily]
 [providers.tavily.keyPool]
 keys = ["env:TAVILY_API_KEY"]
+strategy = "round-robin"  # "round-robin" or "random"
+
+[providers.brave]
+[providers.brave.keyPool]
+keys = ["env:BRAVE_API_KEY"]
+strategy = "round-robin"
+
+[providers.exa]
+[providers.exa.keyPool]
+keys = ["env:EXA_API_KEY"]
+strategy = "round-robin"
 ```
 
-Then set your API key:
+Then set your API keys:
 
 ```bash
 export TAVILY_API_KEY=tvly-...
+export BRAVE_API_KEY=BS...
+export EXA_API_KEY=...
+# For agent mode:
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-## Invocation
+## Commands
+
+### search - Search the Web
+
+Search across all configured providers in parallel, combine and rerank results.
 
 ```bash
-usearch "your search query"
+usearch search "your search query"
+usearch search --limit 5 --pretty "machine learning"
+usearch search --providers tavily,brave --rerank rrf "query"
 ```
 
-### Options
+#### Search Options
 
 - `--limit N` or `-l N` — Return at most N results (default: 10)
 - `--pretty` or `-p` — Pretty print JSON output
 - `--json` or `-j` — Force JSON output
+- `--providers LIST` — Comma-separated providers (default: all configured)
+- `--single-provider` — Use one random provider instead of fanout
+- `--rerank STRATEGY` — Reranker: `rrf` (default), `score`, or `none`
 - `--config PATH` or `-c PATH` — Use custom config file
 
-## Output Schema
-
-Returns a JSON object:
+#### Search Output Schema
 
 ```json
 {
+  "mode": "fanout",
+  "command": "search",
   "query": "the search query",
   "results": [
     {
@@ -68,40 +110,198 @@ Returns a JSON object:
       "source": "tavily"
     }
   ],
-  "total": 1
+  "providers_used": ["tavily", "brave", "exa"],
+  "total": 10
 }
 ```
 
-Fields:
-- `title` — Result title
-- `url` — Result URL
-- `snippet` — Content summary/snippet
-- `score` — Normalized relevance score (0-1)
-- `source` — Provider name (for debugging, never change behavior based on this)
+### extract - Extract Content from URL
+
+Extract content from a specific URL using the configured extract provider.
+
+```bash
+usearch extract "https://example.com/article"
+usearch extract --single-provider "https://example.com"
+```
+
+#### Extract Options
+
+- `--single-provider` — Use one random provider instead of trying all
+- `--config PATH` or `-c PATH` — Use custom config file
+- `-p`, `--pretty` — Pretty print JSON output
+- `-j`, `--json` — Force JSON output
+
+#### Extract Output Schema
+
+```json
+{
+  "mode": "single-provider",
+  "command": "extract",
+  "url": "https://example.com/article",
+  "result": {
+    "content": "Extracted content...",
+    "url": "https://example.com/article",
+    "title": "Article Title",
+    "source": "tavily"
+  },
+  "provider": "tavily"
+}
+```
+
+### crawl - Crawl a Website
+
+Crawl a website and extract content from multiple pages.
+
+```bash
+usearch crawl "https://example.com"
+usearch crawl --limit 5 "https://docs.example.com"
+```
+
+#### Crawl Options
+
+- `--limit N` or `-l N` — Return at most N pages (default: 10)
+- `--single-provider` — Use one random provider
+- `--config PATH` or `-c PATH` — Use custom config file
+- `-p`, `--pretty` — Pretty print JSON output
+- `-j`, `--json` — Force JSON output
+
+#### Crawl Output Schema
+
+```json
+{
+  "mode": "fanout",
+  "command": "crawl",
+  "url": "https://example.com",
+  "results": [
+    {
+      "url": "https://example.com/page1",
+      "title": "Page 1",
+      "content": "Content..."
+    }
+  ],
+  "provider": "tavily",
+  "total": 5
+}
+```
+
+## Agent Mode
+
+Multi-step research agent that searches, reads sources, and synthesizes an answer.
+
+```bash
+usearch --agent "explain quantum computing in simple terms"
+usearch --agent --max-steps 10 --max-sources 5 "latest fusion energy developments"
+```
+
+### Agent Options
+
+- `--agent` or `-a` — Enable agent mode
+- `--llm PROVIDER` — LLM provider: `anthropic` (default) or `openai`
+- `--model MODEL` — LLM model name (e.g., `claude-3-opus`, `gpt-4o`)
+- `--max-steps N` — Maximum research steps (default: 5)
+- `--max-sources N` — Maximum sources to collect (default: 5)
+
+### Agent Output Schema
+
+```json
+{
+  "mode": "agent",
+  "goal": "the research goal",
+  "answer": "Synthesized answer with citations [1], [2]...",
+  "sources": [
+    {
+      "url": "https://example.com",
+      "title": "Source Title",
+      "snippet": "..."
+    }
+  ],
+  "steps": 5
+}
+```
+
+## Provider Strategies
+
+### Capability Strategy
+
+In `config.toml`, each capability can have a strategy:
+
+- `strategy = "all"` — Query all providers in parallel (fanout mode)
+- `strategy = "random"` — Pick one random provider
+
+Example:
+```toml
+[capabilities.search]
+providers = ["tavily", "brave"]
+strategy = "random"  # Pick one random provider for each search
+```
+
+### Key Pool Strategy
+
+Each provider's key pool can also have a strategy:
+
+- `strategy = "round-robin"` — Rotate through keys sequentially (default)
+- `strategy = "random"` — Pick a random key each time
+
+Example:
+```toml
+[providers.tavily.keyPool]
+keys = ["env:TAVILY_KEY_1", "env:TAVILY_KEY_2"]
+strategy = "random"  # Pick random key for each request
+```
 
 ## Examples
 
 ```bash
-# Basic search
+# Quick search (fanout mode)
 usearch "what is firecrawl"
 
-# Limit results, pretty print
-usearch --limit 5 --pretty "rust async runtime"
+# Search with specific providers
+usearch --providers tavily,brave "rust async runtime"
 
-# Custom config
-usearch -c ./config.toml "machine learning"
+# Single provider mode (via CLI flag)
+usearch --single-provider "machine learning"
+
+# Extract content from URL
+usearch extract "https://blog.example.com/post"
+
+# Crawl a website
+usearch crawl --limit 5 "https://docs.example.com"
+
+# Research mode (agent)
+usearch --agent "compare tokamak vs stellarator fusion approaches"
+
+# Deep research with more steps
+usearch --agent --max-steps 15 --max-sources 8 "history of quantum computing"
 ```
 
 ## Requirements
 
 - Node.js >= 18
 - Config file at `~/.config/usearch/config.toml`
-- API key configured via environment variable
+- API keys for configured providers
+- For agent mode: ANTHROPIC_API_KEY or OPENAI_API_KEY
 
 ## Troubleshooting
 
 **"Config file not found"** — Create `~/.config/usearch/config.toml` or specify with `--config`.
 
-**"Environment variable TAVILY_API_KEY is not set"** — Export your Tavily API key.
+**"Environment variable X is not set"** — Export the required API key.
 
-**"No providers configured for 'basic_search' capability"** — Check that `capabilities.basic_search.providers` is set in config.
+**"No providers configured"** — Check that `capabilities.search.providers` is set in config.
+
+**"All providers failed"** — Check your API keys and network connection.
+
+## Available Providers
+
+- `tavily` — Tavily Search API (best for AI apps)
+  - Capabilities: `search`, `extract`, `crawl`
+- `brave` — Brave Search API (privacy-focused)
+  - Capabilities: `search`
+- `exa` — Exa/Metaphor (neural search)
+  - Capabilities: `search`, `extract`
+- `serper` — Serper.dev (Google Search API)
+  - Capabilities: `search`
+- `jina` — Jina AI Reader (URL to markdown)
+  - Capabilities: `extract` (no API key required)
+- `firecrawl` — Firecrawl (web scraping)
+  - Capabilities: `extract`, `crawl`
