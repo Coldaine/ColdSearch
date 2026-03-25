@@ -1,1 +1,0 @@
-{"version":3,"file":"brave.d.ts","sourceRoot":"","sources":["../../src/adapters/brave.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,aAAa,EAAE,gBAAgB,EAAE,MAAM,aAAa,CAAC;AAkBnE;;;;GAIG;AACH,qBAAa,YAAa,YAAW,aAAa;IAChD,IAAI,SAAW;IACf,YAAY,WAAoB;IAE1B,MAAM,CAAC,KAAK,EAAE,MAAM,EAAE,MAAM,EAAE,MAAM,GAAG,OAAO,CAAC,gBAAgB,EAAE,CAAC;CA+BzE"}
