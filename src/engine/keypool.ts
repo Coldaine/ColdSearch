@@ -1,4 +1,5 @@
 import type { KeyPool } from "../types.js";
+import { resolveBWSSecret } from "../resolvers/bws.js";
 
 /**
  * Thread-safe key pool manager with round-robin and random rotation.
@@ -46,14 +47,16 @@ export class KeyPoolManager {
     }
 
     const keyRef = pool.keys[keyIndex];
-    return this.resolveKeyRef(keyRef);
+    return await this.resolveKeyRef(keyRef);
   }
 
   /**
    * Resolve a key reference to its actual value.
-   * Supports: env:VAR_NAME for environment variables.
+   * Supports:
+   *   - env:VAR_NAME for environment variables
+   *   - bws:SECRET_NAME or bws:SECRET_ID for Bitwarden Secrets Manager
    */
-  private resolveKeyRef(keyRef: string): string {
+  private async resolveKeyRef(keyRef: string): Promise<string> {
     if (keyRef.startsWith("env:")) {
       const varName = keyRef.slice(4);
       const value = process.env[varName];
@@ -62,6 +65,12 @@ export class KeyPoolManager {
       }
       return value;
     }
+
+    if (keyRef.startsWith("bws:")) {
+      const secretRef = keyRef.slice(4);
+      return resolveBWSSecret(secretRef);
+    }
+
     return keyRef;
   }
 

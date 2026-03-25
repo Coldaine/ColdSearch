@@ -5,9 +5,23 @@
 ### Key Storage
 
 **Where keys are stored:**
-- **Environment variables only** - Keys are referenced in config as `env:VAR_NAME`
+- **Environment variables** - `env:VAR_NAME` references
+- **Bitwarden Secrets Manager** - `bws:SECRET_NAME` or `bws:SECRET_ID` references (NEW)
 - **Config file** (`~/.config/usearch/config.toml`) only stores key **references**, not actual keys
 - **In-memory** - Keys are resolved at runtime and held in memory during request processing
+
+### Supported Key References
+
+```toml
+# Environment variable
+keys = ["env:TAVILY_API_KEY"]
+
+# Bitwarden Secrets Manager - by name
+keys = ["bws:tavily-production-key"]
+
+# Bitwarden Secrets Manager - by ID
+keys = ["bws:550e8400-e29b-41d4-a716-446655440000"]
+```
 
 **Security characteristics:**
 ```toml

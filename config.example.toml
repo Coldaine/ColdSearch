@@ -29,24 +29,35 @@ strategy = "random"
 # Each provider has its own key pool.
 # strategy = "random"      → Pick random key per request
 # strategy = "round-robin" → Cycle through keys (default)
+#
+# Key reference formats:
+#   env:VAR_NAME              → Environment variable
+#   bws:SECRET_NAME           → Bitwarden Secrets Manager (by name)
+#   bws:SECRET_UUID           → Bitwarden Secrets Manager (by ID)
 
 [providers.tavily]
 [providers.tavily.keyPool]
 # Multiple Tavily keys for load balancing
+# Environment variables:
 keys = ["env:TAVILY_API_KEY_1", "env:TAVILY_API_KEY_2"]
+# OR Bitwarden Secrets Manager:
+# keys = ["bws:tavily-api-key-prod", "bws:tavily-api-key-backup"]
 strategy = "random"
 
 [providers.exa]
 [providers.exa.keyPool]
 keys = ["env:EXA_API_KEY"]
+# OR: keys = ["bws:exa-api-key"]
 
 [providers.brave]
 [providers.brave.keyPool]
 keys = ["env:BRAVE_API_KEY"]
+# OR: keys = ["bws:brave-api-key"]
 
 [providers.serper]
 [providers.serper.keyPool]
 keys = ["env:SERPER_API_KEY"]
+# OR: keys = ["bws:serper-api-key"]
 
 [providers.jina]
 [providers.jina.keyPool]
@@ -56,6 +67,22 @@ keys = []
 [providers.firecrawl]
 [providers.firecrawl.keyPool]
 keys = ["env:FIRECRAWL_API_KEY"]
+# OR: keys = ["bws:firecrawl-api-key"]
+
+# ============================================
+# BITWARDEN SECRETS MANAGER SETUP
+# ============================================
+# Required environment variables for BWS:
+#   BWS_ACCESS_TOKEN      → Machine account access token
+#   BWS_ORGANIZATION_ID   → Your Bitwarden organization ID (for name lookups)
+#
+# Get your access token:
+#   1. Go to Bitwarden Admin Console → Machine Accounts
+#   2. Create machine account, assign to projects
+#   3. Generate access token
+#
+# Get organization ID:
+#   bws organization list
 
 # ============================================
 # USAGE EXAMPLES
