@@ -21,6 +21,7 @@ export class KeyPoolManager {
    * Get the next key from a provider's pool.
    * Uses round-robin or random selection based on pool strategy.
    * Thread-safe under concurrent load.
+   * @throws Error if pool is empty
    */
   async getNextKey(provider: string): Promise<string> {
     const pool = this.pools.get(provider);
@@ -79,6 +80,25 @@ export class KeyPoolManager {
    */
   getProviders(): string[] {
     return Array.from(this.pools.keys());
+  }
+
+  /**
+   * Check if a provider has any keys configured.
+   */
+  hasKeys(provider: string): boolean {
+    const pool = this.pools.get(provider);
+    return !!pool && pool.keys.length > 0;
+  }
+
+  /**
+   * Get the next key from a provider's pool, or empty string if no keys.
+   * Safe for keyless providers like Jina.
+   */
+  async getNextKeyOrEmpty(provider: string): Promise<string> {
+    if (!this.hasKeys(provider)) {
+      return "";
+    }
+    return this.getNextKey(provider);
   }
 }
 

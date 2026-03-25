@@ -161,7 +161,6 @@ export class FanoutEngine {
     // Try providers in order (or single random provider)
     for (const provider of providers) {
       try {
-        const apiKey = await keyPoolManager.getNextKey(provider);
         const adapter = createAdapter(provider);
 
         if (!adapter.extract) {
@@ -169,6 +168,8 @@ export class FanoutEngine {
           continue;
         }
 
+        // Get API key if provider has keys configured (keyless providers like Jina use empty string)
+        const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
         const result = await adapter.extract(url, apiKey);
         return {
           result,
@@ -197,7 +198,6 @@ export class FanoutEngine {
     // Try providers in order (or single random provider)
     for (const provider of providers) {
       try {
-        const apiKey = await keyPoolManager.getNextKey(provider);
         const adapter = createAdapter(provider);
 
         if (!adapter.crawl) {
@@ -205,6 +205,8 @@ export class FanoutEngine {
           continue;
         }
 
+        // Get API key if provider has keys configured (keyless providers use empty string)
+        const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
         const results = await adapter.crawl(url, apiKey, { limit: options.limit });
         return {
           results: results,
