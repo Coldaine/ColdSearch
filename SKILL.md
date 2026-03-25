@@ -79,7 +79,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 Search across all configured providers in parallel, combine and rerank results.
 
 ```bash
-usearch "your search query"
+usearch search "your search query"
 usearch search --limit 5 --pretty "machine learning"
 usearch search --providers tavily,brave --rerank rrf "query"
 ```

@@ -13,7 +13,8 @@ mkdir -p ~/.config/usearch
 cp config.example.toml ~/.config/usearch/config.toml
 
 # Set your API keys
-export TAVILY_API_KEY="tvly-..."
+export TAVILY_API_KEY_1="tvly-..."
+export TAVILY_API_KEY_2="tvly-..."
 export EXA_API_KEY="..."
 export BRAVE_API_KEY="BS..."
 export SERPER_API_KEY="..."

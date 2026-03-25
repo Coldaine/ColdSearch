@@ -24,8 +24,8 @@ export TAVILY_KEY_2="tvly-..."
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
-| Keys in repo | ❌ Safe | Only `env:` references |
-| Keys in config file | ❌ Safe | Only `env:` references |
+| Keys in repo | ✅ Safe | Only `env:` references |
+| Keys in config file | ✅ Safe | Only `env:` references |
 | Keys in memory | ⚠️ Vulnerable | Resolved at runtime, not encrypted |
 | Key logging | ⚠️ Risk | No explicit protection against logging |
 | Key rotation | ✅ Supported | Round-robin or random selection |

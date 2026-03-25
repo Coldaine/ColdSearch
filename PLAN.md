@@ -10,8 +10,8 @@ This plan implements both **Mode 1 (Fanout + Rerank)** and **Mode 2 (Search Agen
 
 ### What It Does
 
-When you call `usearch "query"`:
-1. Looks up which providers are mapped to `basic_search` in config
+When you call `usearch search "query"`:
+1. Looks up which providers are mapped to `search` in config
 2. Fans out to ALL providers in parallel
 3. Each provider returns normalized results
 4. Reranker combines and ranks results from all providers
@@ -128,7 +128,7 @@ src/
 ### Config Additions
 
 ```toml
-[capabilities.basic_search]
+[capabilities.search]
 providers = ["tavily", "brave", "exa"]
 
 [providers.brave]

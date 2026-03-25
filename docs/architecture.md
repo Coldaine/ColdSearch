@@ -130,9 +130,23 @@ Request: usearch extract "https://example.com"
 
 ## Fallback Behavior
 
-When a provider fails:
-1. Log the error
-2. Try next provider in list (if not using random strategy)
+Fallback behavior is strategy-specific:
+
+### `random` Strategy (Single Provider)
+1. Pick one provider at random from the configured set
+2. If the call fails, log the error and surface the failure to the caller
+3. No automatic retry with a different provider (would be explicit future enhancement)
+
+### `all` Strategy (Fanout)
+1. Call all configured providers in parallel
+2. Collect all successful results
+3. If at least one provider succeeds, return aggregated successes
+4. If all providers fail, throw an aggregate error
+
+### Sequential Fallback (Future)
+For ordered provider lists:
+1. Try first provider
+2. If it fails, try next provider in list
 3. Return first successful result
 4. If all fail, throw aggregate error
 
