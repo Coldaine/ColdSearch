@@ -102,24 +102,66 @@ export const tools: Record<string, Tool> = {
 };
 
 /**
- * Parse a tool call from agent output.
- * Format: tool_name("arg1", "arg2", ...)
+ * Structured agent payloads.
  */
-export function parseToolCall(
-  text: string
-): { tool: string; args: string[] } | null {
-  const match = text.match(/^(\w+)\s*\(([^)]*)\)$/);
-  if (!match) return null;
+export interface AgentToolCallPayload {
+  type: "tool";
+  tool: string;
+  args: string[];
+}
 
-  const tool = match[1];
-  const argsString = match[2];
-  
-  // Parse quoted arguments
-  const args: string[] = [];
-  const argMatches = argsString.matchAll(/"([^"]*)"/g);
-  for (const argMatch of argMatches) {
-    args.push(argMatch[1]);
+export interface AgentFinalPayload {
+  type: "final";
+  answer: string;
+}
+
+export type AgentPayload = AgentToolCallPayload | AgentFinalPayload;
+
+function stripCodeFence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("```")) {
+    return trimmed;
   }
 
-  return { tool, args };
+  return trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+}
+
+/**
+ * Parse a structured agent payload from JSON output.
+ */
+export function parseAgentPayload(text: string): AgentPayload | null {
+  const normalized = stripCodeFence(text);
+
+  try {
+    const payload = JSON.parse(normalized) as Partial<AgentPayload>;
+
+    if (payload.type === "final" && typeof payload.answer === "string") {
+      const answer = payload.answer.trim();
+      if (!answer) {
+        return null;
+      }
+
+      return {
+        type: "final",
+        answer,
+      };
+    }
+
+    if (
+      payload.type === "tool" &&
+      typeof payload.tool === "string" &&
+      Array.isArray(payload.args) &&
+      payload.args.every((arg) => typeof arg === "string")
+    ) {
+      return {
+        type: "tool",
+        tool: payload.tool,
+        args: payload.args,
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }

@@ -1,4 +1,5 @@
 import { BitwardenClient, ClientSettings, DeviceType, LogLevel } from "@bitwarden/sdk-napi";
+import { APP_USER_AGENT } from "../app.js";
 
 export interface BWSSecretResolverOptions {
   /** BWS Access Token (or uses BWS_ACCESS_TOKEN env var) */
@@ -16,6 +17,7 @@ export class BWSSecretResolver {
   private accessToken: string;
   private organizationId?: string;
   private initialized = false;
+  private initPromise?: Promise<void>;
   private secretsCache?: Map<string, string>; // name -> id
 
   constructor(options: BWSSecretResolverOptions = {}) {
@@ -31,7 +33,7 @@ export class BWSSecretResolver {
     const settings: ClientSettings = {
       apiUrl: "https://api.bitwarden.com",
       identityUrl: "https://identity.bitwarden.com",
-      userAgent: "usearch/0.2.0",
+      userAgent: APP_USER_AGENT,
       deviceType: DeviceType.SDK,
     };
 
@@ -40,16 +42,26 @@ export class BWSSecretResolver {
 
   /** Initialize/authenticate the client */
   async init(): Promise<void> {
-    if (this.initialized) return;
-
-    await this.client.auth().loginAccessToken(this.accessToken, undefined);
-
-    // Infer organization ID if not provided
-    if (!this.organizationId) {
-      this.organizationId = await this.inferOrganizationId();
+    if (this.initialized) {
+      return;
     }
 
-    this.initialized = true;
+    if (!this.initPromise) {
+      this.initPromise = (async () => {
+        await this.client.auth().loginAccessToken(this.accessToken, undefined);
+
+        // Infer organization ID if not provided
+        if (!this.organizationId) {
+          this.organizationId = await this.inferOrganizationId();
+        }
+
+        this.initialized = true;
+      })().finally(() => {
+        this.initPromise = undefined;
+      });
+    }
+
+    await this.initPromise;
   }
 
   /** Get secret by ID (UUID) */

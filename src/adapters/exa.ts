@@ -1,4 +1,10 @@
-import type { SearchAdapter, NormalizedResult, ExtractResult } from "../types.js";
+import { fetchJson } from "../http.js";
+import type {
+  SearchAdapter,
+  NormalizedResult,
+  ExtractResult,
+  AdapterCallOptions,
+} from "../types.js";
 
 /**
  * Exa (formerly Metaphor) search adapter.
@@ -7,10 +13,21 @@ import type { SearchAdapter, NormalizedResult, ExtractResult } from "../types.js
  */
 export class ExaAdapter implements SearchAdapter {
   name = "exa";
-  capabilities = ["search", "extract"];
+  capabilities: SearchAdapter["capabilities"] = ["search", "extract"];
 
-  async search(query: string, apiKey: string): Promise<NormalizedResult[]> {
-    const response = await fetch("https://api.exa.ai/search", {
+  async search(
+    query: string,
+    apiKey: string,
+    _options?: AdapterCallOptions
+  ): Promise<NormalizedResult[]> {
+    const data = await fetchJson<{
+      results?: Array<{
+        title?: string;
+        url?: string;
+        text?: string;
+        score?: number;
+      }>;
+    }>("https://api.exa.ai/search", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -24,21 +41,9 @@ export class ExaAdapter implements SearchAdapter {
           text: true,
         },
       }),
+    }, {
+      label: "Exa search",
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Exa API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as {
-      results?: Array<{
-        title?: string;
-        url?: string;
-        text?: string;
-        score?: number;
-      }>;
-    };
 
     // Normalize Exa results to shared schema
     return (data.results || []).map((result, index) => ({
@@ -51,7 +56,11 @@ export class ExaAdapter implements SearchAdapter {
     }));
   }
 
-  async extract(url: string, apiKey: string): Promise<ExtractResult> {
+  async extract(
+    url: string,
+    apiKey: string,
+    _options?: AdapterCallOptions
+  ): Promise<ExtractResult> {
     // Validate URL
     if (!url || !url.trim()) {
       throw new Error("URL is required");
@@ -59,7 +68,13 @@ export class ExaAdapter implements SearchAdapter {
 
     const normalizedUrl = url.trim();
 
-    const response = await fetch("https://api.exa.ai/contents", {
+    const data = await fetchJson<{
+      results?: Array<{
+        title?: string;
+        url?: string;
+        text?: string;
+      }>;
+    }>("https://api.exa.ai/contents", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -69,20 +84,9 @@ export class ExaAdapter implements SearchAdapter {
         urls: [normalizedUrl],
         text: true,
       }),
+    }, {
+      label: "Exa extract",
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Exa API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as {
-      results?: Array<{
-        title?: string;
-        url?: string;
-        text?: string;
-      }>;
-    };
 
     const result = data.results?.[0];
     if (!result) {

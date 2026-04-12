@@ -1,4 +1,9 @@
-import type { SearchAdapter, NormalizedResult } from "../types.js";
+import { fetchJson } from "../http.js";
+import type {
+  SearchAdapter,
+  NormalizedResult,
+  AdapterCallOptions,
+} from "../types.js";
 
 /**
  * Serper.dev (Google Search API) response types
@@ -21,10 +26,14 @@ interface SerperSearchResponse {
  */
 export class SerperAdapter implements SearchAdapter {
   name = "serper";
-  capabilities = ["search"];
+  capabilities: SearchAdapter["capabilities"] = ["search"];
 
-  async search(query: string, apiKey: string): Promise<NormalizedResult[]> {
-    const response = await fetch("https://google.serper.dev/search", {
+  async search(
+    query: string,
+    apiKey: string,
+    _options?: AdapterCallOptions
+  ): Promise<NormalizedResult[]> {
+    const data = await fetchJson<SerperSearchResponse>("https://google.serper.dev/search", {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
@@ -34,23 +43,24 @@ export class SerperAdapter implements SearchAdapter {
         q: query,
         num: 10,
       }),
+    }, {
+      label: "Serper search",
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Serper API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as SerperSearchResponse;
-
     // Normalize Serper results to shared schema
-    return (data.organic || []).map((result, index) => ({
+    return (data.organic || []).map((result, index) => {
+      const resolvedPosition = result.position && result.position > 0
+        ? result.position
+        : index + 1;
+
+      return ({
       title: result.title || "",
       url: result.link || "",
       snippet: result.snippet || "",
       // Serper doesn't provide relevance scores, use position-based
-      score: 1 / (result.position || index + 1),
+      score: 1 / resolvedPosition,
       source: this.name,
-    }));
+      });
+    });
   }
 }

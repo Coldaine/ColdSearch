@@ -1,183 +1,104 @@
-# usearch - Unified Search CLI
+# ColdSearch
 
-One CLI for web search, content extraction, and crawling. Randomly distributes requests across multiple providers for redundancy and cost optimization.
+`coldsearch` is a unified search CLI for web search, extraction, and crawling across overlapping provider APIs. The CLI stays simple; the routing, provider selection, and key management live in config and shared runtime code.
+
+`usearch` remains available as a compatibility alias for now.
 
 ## Quick Start
 
 ```bash
-# Install
-npm install -g usearch
+npm install
+npm run build
 
-# Configure (see config.example.toml)
-mkdir -p ~/.config/usearch
-cp config.example.toml ~/.config/usearch/config.toml
+# Primary command
+coldsearch --help
 
-# Set your API keys
-export TAVILY_API_KEY_1="tvly-..."
-export TAVILY_API_KEY_2="tvly-..."
-export EXA_API_KEY="..."
-export BRAVE_API_KEY="BS..."
-export SERPER_API_KEY="..."
-export FIRECRAWL_API_KEY="fc-..."
-
-# Search (random provider from 4 options)
-usearch search "machine learning"
-
-# Extract content (random provider from 3 options)
-usearch extract "https://example.com/article"
-
-# Crawl website (random provider from 2 options)
-usearch crawl "https://docs.example.com"
+# Compatibility alias
+usearch --help
 ```
 
-## Why usearch?
+Configuration lives at `~/.config/coldsearch/config.toml`. The runtime also falls back to `~/.config/usearch/config.toml` if the new path does not exist yet.
 
-**Problem:** AI agents pick search providers arbitrarily, burning through one provider's credits while others sit idle.
+## What ColdSearch Is
 
-**Solution:** Humans configure which providers back which capabilities. The system randomly selects providers and keys per request.
+- A CLI-first interface over multiple search providers
+- A normalized runtime that hides provider-specific quirks behind shared schemas
+- A config-driven routing layer that lets humans decide provider pools and rotation
+- A local-first tool today, with explicit architectural seams for a future hybrid remote execution backend
 
-```
-┌────────────────────────────────────────┐
-│  usearch extract "https://..."         │
-└─────────────────┬──────────────────────┘
-                  │
-                  ▼
-        ┌─────────────────┐
-        │ extract capability│
-        │ [tavily, exa, jina]│
-        └────────┬────────┘
-                 │ random pick
-                 ▼
-              "exa"
-                 │
-                 ▼
-        ┌─────────────────┐
-        │ exa key pool     │
-        │ [key1, key2]     │
-        └────────┬────────┘
-                 │ random pick
-                 ▼
-              "key2"
-                 │
-                 ▼
-           API Request
-```
+## What ColdSearch Is Becoming
 
-## Providers
+ColdSearch is not aiming at MCP as the long-term interface. The long-term direction is still CLI-first, but with optional remote execution:
 
-| Provider | Search | Extract | Crawl | API Key |
-|----------|--------|---------|-------|---------|
-| Tavily | ✅ | ✅ | ✅ | Required |
-| Exa | ✅ | ✅ | ❌ | Required |
-| Brave | ✅ | ❌ | ❌ | Required |
-| Serper | ✅ | ❌ | ❌ | Required |
-| Jina | ❌ | ✅ | ❌ | **Free** |
-| Firecrawl | ❌ | ✅ | ✅ | Required |
+1. The CLI remains the operator-facing interface.
+2. Some work, especially agentic or long-running jobs, can later be submitted to a remote backend.
+3. That backend can centralize secrets, job state, retries, and async orchestration.
 
-## Configuration
+The current implementation remains local-first, but the runtime is now being organized so the CLI and a future remote executor can share the same provider registry, routing logic, and normalization layer.
 
-`~/.config/usearch/config.toml`:
+## Current Capabilities
+
+| Capability | Implemented Providers | Selection |
+|------------|-------------------|-----------|
+| `search` | SearXNG, Tavily, Exa, Brave, Serper | Manual random pool |
+| `extract` | Tavily, Exa, Jina, Firecrawl | Manual random pool |
+| `crawl` | Tavily, Firecrawl | Manual random pool |
+
+## Provider Overlap
+
+The core architectural truth is provider overlap, not just three coarse commands.
+
+- Tavily, Exa, Brave, Serper, and SearXNG overlap heavily on search.
+- Tavily, Exa, Jina, and Firecrawl overlap on content extraction.
+- Tavily and Firecrawl overlap on site discovery and crawl-like workflows.
+- Several providers expose richer surfaces than ColdSearch currently implements.
+
+The authoritative comparison lives in:
+
+- `docs/CAPABILITY_MATRIX.md`
+- `docs/providers/README.md`
+- `docs/providers/*.md`
+
+## SearXNG
+
+SearXNG is treated as a self-hosted or operator-managed provider.
+
+- ColdSearch supports SearXNG via an explicit `baseUrl` provider option or `SEARXNG_BASE_URL`.
+- The product code does not assume `localhost`.
+- Optional self-hosting assets may exist in the repo, but they are infrastructure aids for another machine, not the default local workflow for this laptop.
+
+Example config:
 
 ```toml
-# Capability → Provider mapping
-[capabilities.search]
-providers = ["tavily", "exa", "brave", "serper"]
-strategy = "random"  # or "all" for fanout
+[providers.searxng]
+[providers.searxng.keyPool]
+keys = []
 
-[capabilities.extract]
-providers = ["tavily", "exa", "jina"]
-strategy = "random"
-
-[capabilities.crawl]
-providers = ["tavily", "firecrawl"]
-strategy = "random"
-
-# Provider → Key mapping
-[providers.tavily.keyPool]
-keys = ["env:TAVILY_KEY_1", "env:TAVILY_KEY_2"]
-strategy = "random"  # or "round-robin"
-
-[providers.exa.keyPool]
-keys = ["env:EXA_API_KEY"]
-
-[providers.jina.keyPool]
-keys = []  # Free, no key needed
+[providers.searxng.options]
+baseUrl = "https://search.example.internal"
 ```
-
-## Commands
-
-### Search
-```bash
-usearch search "machine learning"
-usearch search --limit 5 --pretty "rust async"
-usearch search --providers tavily,exa "query"
-```
-
-### Extract
-```bash
-usearch extract "https://example.com/article"
-usearch extract --single-provider "https://..."
-```
-
-### Crawl
-```bash
-usearch crawl "https://docs.example.com"
-usearch crawl --limit 10 "https://..."
-```
-
-### Agent Mode (Multi-step Research)
-```bash
-usearch --agent "explain quantum computing"
-usearch --agent --max-steps 10 "latest fusion energy"
-```
-
-## Key Management
-
-See `docs/KEY_MANAGEMENT.md` for:
-- Secure key storage practices
-- Environment variable configuration
-- Multi-key rotation strategies
-- Usage tracking (planned)
-
-## Architecture
-
-- **Capability Layer**: `search`, `extract`, `crawl`
-- **Provider Selection**: Random pick from configured providers
-- **Key Selection**: Random pick from provider's key pool
-- **Adapter Pattern**: One adapter per provider, normalized output
-- **Config-Driven**: All routing in TOML, no code changes needed
-
-See `docs/architecture.md` for details.
-
-## Documentation
-
-- `SKILL.md` - Agent invocation guide
-- `docs/architecture.md` - System design
-- `docs/PROGRESS.md` - Implementation status
-- `docs/KEY_MANAGEMENT.md` - Security & keys
-- `config.example.toml` - Configuration reference
 
 ## Development
 
 ```bash
-git clone <repo>
-cd usearch
 npm install
 npm run build
-npm link  # Makes `usearch` available globally
+npm test
 ```
+
+## Documentation
+
+- `docs/NORTH_STAR.md` - Product direction and architectural intent
+- `docs/architecture.md` - Runtime architecture and seams
+- `docs/PROGRESS.md` - Current implementation status
+- `docs/CAPABILITY_MATRIX.md` - Required maintenance matrix for providers vs capabilities
+- `docs/providers/README.md` - Provider docs index
+- `docs/providers/*.md` - Per-provider detail pages
+- `docs/plans/*.md` - Provider adoption plans that must exist before implementation
 
 ## Roadmap
 
-- [x] Multi-provider search (Tavily, Exa, Brave, Serper)
-- [x] Multi-provider extract (Tavily, Exa, Jina)
-- [x] Multi-provider crawl (Tavily, Firecrawl)
-- [x] Random provider/key selection
-- [x] Capability-based architecture
-- [ ] Quota-aware rotation (Phase 5)
-- [ ] Usage tracking (Phase 5)
-- [ ] Result caching (Phase 5)
-
-## License
-
-MIT
+- Harden request lifecycle: timeouts, retries, normalized errors
+- Expand provider coverage without bloating the CLI surface
+- Add lightweight governance for provider/doc drift
+- Prepare a future hybrid execution model for agent-mode async jobs

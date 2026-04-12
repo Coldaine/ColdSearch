@@ -1,9 +1,15 @@
-import { FanoutEngine } from "../engine/fanout.js";
-import { loadConfig } from "../config.js";
+import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
+import { isIP } from "node:net";
+import { APP_USER_AGENT } from "../app.js";
+import {
+  LocalExecutionBackend,
+  type ExecutionBackend,
+} from "../execution/backend.js";
 import { createLLMClient, type LLMClient } from "./llm.js";
-import { tools, parseToolCall } from "./tools.js";
+import { tools, parseAgentPayload } from "./tools.js";
 import { ResearchContext } from "./context.js";
-import type { Config } from "../types.js";
 
 /**
  * Agent configuration options.
@@ -19,6 +25,85 @@ export interface AgentOptions {
   model?: string;
   /** Config path */
   configPath?: string;
+  /** Execution backend implementation */
+  executionBackend?: ExecutionBackend;
+}
+
+interface ValidatedFetchTarget {
+  url: URL;
+  resolvedAddress: string;
+  family: 4 | 6;
+}
+
+const MAX_FETCH_BODY_BYTES = 1024 * 1024;
+const AGENT_FETCH_TIMEOUT_MS = 10000;
+
+function isIPv4InCidr(ip: string, network: string, prefixBits: number): boolean {
+  const ipOctets = ip.split(".").map(Number);
+  const networkOctets = network.split(".").map(Number);
+
+  if (
+    ipOctets.length !== 4 ||
+    networkOctets.length !== 4 ||
+    ipOctets.some(Number.isNaN) ||
+    networkOctets.some(Number.isNaN)
+  ) {
+    return false;
+  }
+
+  const ipValue = ipOctets.reduce((value, octet) => ((value << 8) + octet) >>> 0, 0);
+  const networkValue = networkOctets.reduce(
+    (value, octet) => ((value << 8) + octet) >>> 0,
+    0
+  );
+  const mask = prefixBits === 0 ? 0 : (~((1 << (32 - prefixBits)) - 1)) >>> 0;
+
+  return (ipValue & mask) === (networkValue & mask);
+}
+
+function isBlockedIpAddress(address: string): boolean {
+  const version = isIP(address);
+
+  if (version === 4) {
+    const blockedCidrs: Array<[string, number]> = [
+      ["127.0.0.0", 8],
+      ["10.0.0.0", 8],
+      ["172.16.0.0", 12],
+      ["192.168.0.0", 16],
+      ["169.254.0.0", 16],
+      ["0.0.0.0", 8],
+    ];
+
+    return blockedCidrs.some(([network, prefixBits]) =>
+      isIPv4InCidr(address, network, prefixBits)
+    );
+  }
+
+  if (version === 6) {
+    const normalized = address.toLowerCase();
+    return (
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe8") ||
+      normalized.startsWith("fe9") ||
+      normalized.startsWith("fea") ||
+      normalized.startsWith("feb")
+    );
+  }
+
+  return false;
+}
+
+function isBlockedHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "metadata.google.internal" ||
+    normalized === "metadata" ||
+    normalized === "169.254.169.254"
+  );
 }
 
 /**
@@ -43,13 +128,11 @@ export interface AgentResult {
  */
 export class SearchAgent {
   private llm: LLMClient;
-  private fanout: FanoutEngine;
-  private config: Config;
+  private backend: ExecutionBackend;
 
   constructor(options: AgentOptions = {}) {
-    this.config = loadConfig(options.configPath);
     this.llm = createLLMClient(options.llmProvider, options.model);
-    this.fanout = new FanoutEngine(this.config);
+    this.backend = options.executionBackend ?? new LocalExecutionBackend(options.configPath);
   }
 
   /**
@@ -76,14 +159,11 @@ Your task is to research the user's goal and provide a comprehensive answer. Fol
 4. Repeat steps 1-3 until you have sufficient information (max ${maxSteps} steps)
 5. SYNTHESIZE a final answer with citations
 
-When you want to use a tool, respond with ONLY the tool call:
-search("your query")
-fetch("https://example.com")
-refine("current query", "what you need")
+When you want to use a tool, respond with ONLY a JSON object in this format:
+{"type":"tool","tool":"search","args":["your query"]}
 
-When you have enough information, respond with:
-FINAL ANSWER:
-Your comprehensive answer here with citations [1], [2], etc.
+When you have enough information, respond with ONLY a JSON object in this format:
+{"type":"final","answer":"Your comprehensive answer here with citations [1], [2], etc."}
 
 Be thorough but efficient. Focus on authoritative sources.`;
 
@@ -99,10 +179,18 @@ Be thorough but efficient. Focus on authoritative sources.`;
 
       messages.push({ role: "assistant", content });
 
-      // Check for final answer
-      if (content.includes("FINAL ANSWER:")) {
-        const answer = content.split("FINAL ANSWER:")[1].trim();
-        const result = context.generateResponse(answer);
+      const payload = parseAgentPayload(content);
+      if (!payload) {
+        messages.push({
+          role: "user",
+          content:
+            'Invalid format. Respond with JSON only, using either {"type":"tool","tool":"search","args":["query"]} or {"type":"final","answer":"..."}',
+        });
+        continue;
+      }
+
+      if (payload.type === "final") {
+        const result = context.generateResponse(payload.answer);
         return {
           answer: result.answer,
           sources: result.sources,
@@ -110,33 +198,23 @@ Be thorough but efficient. Focus on authoritative sources.`;
         };
       }
 
-      // Parse and execute tool call
-      const toolCall = parseToolCall(content);
-      if (!toolCall) {
-        messages.push({
-          role: "user",
-          content: "Invalid format. Please use tool calls like search(\"query\") or respond with FINAL ANSWER:",
-        });
-        continue;
-      }
-
-      const tool = tools[toolCall.tool];
+      const tool = tools[payload.tool];
       if (!tool) {
         messages.push({
           role: "user",
-          content: `Unknown tool: ${toolCall.tool}. Available: search, fetch, refine`,
+          content: `Unknown tool: ${payload.tool}. Available: search, fetch, refine`,
         });
         continue;
       }
 
       // Execute tool
-      context.addStep(tool.name as any, `${tool.name}(${toolCall.args.join(", ")})`);
+      context.addStep(tool.name as any, JSON.stringify(payload));
       
       const toolContext = {
         query: context.currentQuery,
         llm: this.llm,
         searchFn: async (q: string) => {
-          const result = await this.fanout.search(q, {
+          const result = await this.backend.search(q, {
             limit: 5,
             rerankStrategy: "rrf",
           });
@@ -148,7 +226,7 @@ Be thorough but efficient. Focus on authoritative sources.`;
       };
 
       try {
-        const toolResult = await tool.execute(toolContext, ...toolCall.args);
+        const toolResult = await tool.execute(toolContext, ...payload.args);
         messages.push({ role: "user", content: `Result:\n${toolResult}` });
       } catch (error) {
         messages.push({
@@ -167,9 +245,22 @@ Be thorough but efficient. Focus on authoritative sources.`;
       },
     ]);
 
-    const answer = finalResponse.content.includes("FINAL ANSWER:")
-      ? finalResponse.content.split("FINAL ANSWER:")[1].trim()
-      : finalResponse.content;
+    let finalPayload = parseAgentPayload(finalResponse.content);
+    if (!finalPayload || finalPayload.type !== "final") {
+      const retryResponse = await this.llm.complete([
+        ...messages,
+        {
+          role: "user",
+          content:
+            'Respond now with FINAL JSON only in the format {"type":"final","answer":"..."}. Do not call tools.',
+        },
+      ]);
+      finalPayload = parseAgentPayload(retryResponse.content);
+    }
+
+    const answer = finalPayload?.type === "final"
+      ? finalPayload.answer
+      : "Research completed, but the model did not produce a final structured answer.";
 
     const result = context.generateResponse(answer);
     return {
@@ -183,25 +274,133 @@ Be thorough but efficient. Focus on authoritative sources.`;
    * Fetch content from a URL.
    */
   private async fetchContent(url: string): Promise<string> {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; USearch/0.1)",
-      },
+    const target = await this.validateFetchUrl(url);
+    const { contentType, body } = await this.fetchValidatedBody(target);
+
+    if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml")) {
+      return this.extractTextFromHTML(body);
+    }
+
+    if (contentType.startsWith("text/")) {
+      return body;
+    }
+
+    throw new Error(`Unsupported fetch content type: ${contentType || "unknown"}`);
+  }
+
+  private async validateFetchUrl(url: string): Promise<ValidatedFetchTarget> {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new Error(`Invalid fetch URL: ${url}`);
+    }
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      throw new Error(`Unsupported fetch URL protocol: ${parsedUrl.protocol}`);
+    }
+
+    if (isBlockedHostname(parsedUrl.hostname)) {
+      throw new Error(`Refusing to fetch internal hostname: ${parsedUrl.hostname}`);
+    }
+
+    if (isBlockedIpAddress(parsedUrl.hostname)) {
+      throw new Error(`Refusing to fetch non-public IP: ${parsedUrl.hostname}`);
+    }
+
+    const resolvedAddresses = await lookup(parsedUrl.hostname, { all: true, verbatim: true });
+    if (resolvedAddresses.some((entry) => isBlockedIpAddress(entry.address))) {
+      throw new Error(
+        `Refusing to fetch hostname resolving to a non-public IP: ${parsedUrl.hostname}`
+      );
+    }
+
+    const preferredAddress = resolvedAddresses.find(
+      (entry): entry is { address: string; family: 4 | 6 } => entry.family === 4 || entry.family === 6
+    );
+
+    if (!preferredAddress) {
+      throw new Error(`Unable to resolve a public IP for hostname: ${parsedUrl.hostname}`);
+    }
+
+    return {
+      url: parsedUrl,
+      resolvedAddress: preferredAddress.address,
+      family: preferredAddress.family,
+    };
+  }
+
+  private async fetchValidatedBody(target: ValidatedFetchTarget): Promise<{ contentType: string; body: string }> {
+    const client = target.url.protocol === "https:" ? https : http;
+
+    return await new Promise((resolve, reject) => {
+      const request = client.request(
+        {
+          protocol: target.url.protocol,
+          hostname: target.url.hostname,
+          port: target.url.port || undefined,
+          method: "GET",
+          path: `${target.url.pathname}${target.url.search}`,
+          headers: {
+            "User-Agent": `Mozilla/5.0 (compatible; ${APP_USER_AGENT})`,
+            Accept: "text/html, application/xhtml+xml, text/plain;q=0.9",
+            "Accept-Encoding": "identity",
+          },
+          servername: target.url.hostname,
+          lookup: (_hostname, _options, callback) => {
+            callback(null, target.resolvedAddress, target.family);
+          },
+        },
+        (response) => {
+          const statusCode = response.statusCode ?? 0;
+          if (statusCode < 200 || statusCode >= 300) {
+            response.resume();
+            reject(new Error(`Agent fetch failed with HTTP ${statusCode}`));
+            return;
+          }
+
+          const contentType = response.headers["content-type"] || "";
+          const normalizedContentType = Array.isArray(contentType) ? contentType[0] || "" : contentType;
+          if (
+            !normalizedContentType.includes("text/html") &&
+            !normalizedContentType.includes("application/xhtml+xml") &&
+            !normalizedContentType.startsWith("text/")
+          ) {
+            response.resume();
+            reject(new Error(`Unsupported fetch content type: ${normalizedContentType || "unknown"}`));
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          let totalBytes = 0;
+
+          response.on("data", (chunk: Buffer) => {
+            totalBytes += chunk.length;
+            if (totalBytes > MAX_FETCH_BODY_BYTES) {
+              response.destroy(new Error(`Agent fetch exceeded ${MAX_FETCH_BODY_BYTES} bytes`));
+              return;
+            }
+
+            chunks.push(chunk);
+          });
+
+          response.on("end", () => {
+            resolve({
+              contentType: normalizedContentType,
+              body: Buffer.concat(chunks).toString("utf8"),
+            });
+          });
+
+          response.on("error", reject);
+        }
+      );
+
+      request.setTimeout(AGENT_FETCH_TIMEOUT_MS, () => {
+        request.destroy(new Error(`Agent fetch timed out after ${AGENT_FETCH_TIMEOUT_MS}ms`));
+      });
+      request.on("error", reject);
+      request.end();
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const contentType = response.headers.get("content-type") || "";
-    
-    if (contentType.includes("text/html")) {
-      // Simple HTML to text extraction
-      const html = await response.text();
-      return this.extractTextFromHTML(html);
-    }
-
-    return await response.text();
   }
 
   /**

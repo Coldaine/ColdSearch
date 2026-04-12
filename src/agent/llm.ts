@@ -2,6 +2,8 @@
  * LLM client interface for the search agent.
  * Supports multiple providers via a unified interface.
  */
+import { APP_USER_AGENT } from "../app.js";
+import { fetchJson } from "../http.js";
 
 export interface LLMMessage {
   role: "system" | "user" | "assistant";
@@ -46,10 +48,17 @@ export class ClaudeClient implements LLMClient {
     messages: LLMMessage[],
     options: LLMOptions = {}
   ): Promise<LLMResponse> {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const data = await fetchJson<{
+      content?: Array<{ text?: string }>;
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+      };
+    }>("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "User-Agent": APP_USER_AGENT,
         "X-API-Key": this.apiKey,
         "anthropic-version": "2023-06-01",
       },
@@ -60,25 +69,20 @@ export class ClaudeClient implements LLMClient {
         messages: messages.filter((m) => m.role !== "system"),
         system: messages.find((m) => m.role === "system")?.content,
       }),
+    }, {
+      label: "Anthropic completion",
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Claude API error: ${response.status} - ${error}`);
-    }
-
-    const data = (await response.json()) as {
-      content?: Array<{ text?: string }>;
-      usage?: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-      };
-    };
     
     return {
       content: data.content?.[0]?.text || "",
-      usage: data.usage,
+      usage: data.usage
+        ? {
+            promptTokens: data.usage.input_tokens ?? 0,
+            completionTokens: data.usage.output_tokens ?? 0,
+            totalTokens:
+              (data.usage.input_tokens ?? 0) + (data.usage.output_tokens ?? 0),
+          }
+        : undefined,
     };
   }
 }
@@ -99,10 +103,18 @@ export class OpenAIClient implements LLMClient {
     messages: LLMMessage[],
     options: LLMOptions = {}
   ): Promise<LLMResponse> {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const data = await fetchJson<{
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      };
+    }>("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "User-Agent": APP_USER_AGENT,
         "Authorization": `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
@@ -111,25 +123,21 @@ export class OpenAIClient implements LLMClient {
         temperature: options.temperature ?? 0.2,
         max_tokens: options.maxTokens,
       }),
+    }, {
+      label: "OpenAI completion",
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      usage?: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-      };
-    };
     
     return {
       content: data.choices?.[0]?.message?.content || "",
-      usage: data.usage,
+      usage: data.usage
+        ? {
+            promptTokens: data.usage.prompt_tokens ?? 0,
+            completionTokens: data.usage.completion_tokens ?? 0,
+            totalTokens:
+              data.usage.total_tokens ??
+              ((data.usage.prompt_tokens ?? 0) + (data.usage.completion_tokens ?? 0)),
+          }
+        : undefined,
     };
   }
 }

@@ -1,7 +1,14 @@
 import { createAdapter } from "../adapters/index.js";
 import { keyPoolManager } from "./keypool.js";
 import { rerank, type RerankerOptions } from "./reranker.js";
-import type { Config, NormalizedResult, ExtractResult, CrawlResult } from "../types.js";
+import { providerSupportsCapability } from "../providers.js";
+import type {
+  CapabilityName,
+  Config,
+  NormalizedResult,
+  ExtractResult,
+  CrawlResult,
+} from "../types.js";
 
 /**
  * Fanout operation type.
@@ -61,7 +68,7 @@ export class FanoutEngine {
    * Get providers for a capability, applying strategy.
    */
   private getProvidersForCapability(
-    capability: string,
+    capability: CapabilityName,
     options: FanoutOptions
   ): string[] {
     const capabilityConfig = this.config.capabilities[capability];
@@ -73,6 +80,18 @@ export class FanoutEngine {
 
     if (providers.length === 0) {
       throw new Error(`No providers configured for ${capability}`);
+    }
+    
+    for (const provider of providers) {
+      if (!this.config.providers[provider]) {
+        throw new Error(`Provider '${provider}' is not configured`);
+      }
+
+      if (!providerSupportsCapability(provider, capability)) {
+        throw new Error(
+          `Provider '${provider}' does not implement capability '${capability}'`
+        );
+      }
     }
 
     // Check if single provider mode
@@ -170,7 +189,9 @@ export class FanoutEngine {
 
         // Get API key if provider has keys configured (keyless providers like Jina use empty string)
         const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
-        const result = await adapter.extract(url, apiKey);
+        const result = await adapter.extract(url, apiKey, {
+          providerOptions: this.config.providers[provider]?.options,
+        });
         return {
           result,
           provider,
@@ -207,7 +228,10 @@ export class FanoutEngine {
 
         // Get API key if provider has keys configured (keyless providers use empty string)
         const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
-        const results = await adapter.crawl(url, apiKey, { limit: options.limit });
+        const results = await adapter.crawl(url, apiKey, {
+          limit: options.limit,
+          providerOptions: this.config.providers[provider]?.options,
+        });
         return {
           results: results,
           provider,
@@ -229,9 +253,11 @@ export class FanoutEngine {
     query: string
   ): Promise<ProviderResult> {
     try {
-      const apiKey = await keyPoolManager.getNextKey(provider);
+      const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
       const adapter = createAdapter(provider);
-      const results = await adapter.search(query, apiKey);
+      const results = await adapter.search(query, apiKey, {
+        providerOptions: this.config.providers[provider]?.options,
+      });
 
       return {
         provider,

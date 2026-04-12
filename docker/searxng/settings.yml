@@ -1,0 +1,49 @@
+# SearXNG settings
+# https://docs.searxng.org/admin/settings/settings.html
+
+use_default_settings: true
+
+server:
+  # Example value for an operator-managed deployment.
+  # Replace with the actual remote URL for the host that runs SearXNG.
+  base_url: https://search.example.internal
+  port: 8080
+  bind_address: "0.0.0.0"
+  # Replace this before production use.
+  # Use a long, securely generated random secret (at least 32-64 bytes/base64),
+  # keep it out of source control, and prefer an environment variable or secrets manager.
+  secret_key: "replace-me-for-production"
+  limiter: false
+  image_proxy: true
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    timeout: 3.0
+  
+  - name: bing
+    engine: bing
+    shortcut: b
+    timeout: 3.0
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    timeout: 3.0
+
+  - name: brave
+    engine: brave
+    shortcut: br
+    timeout: 3.0
+
+# Disable generic engines that often fail or are slow
+  - name: wikipedia
+    disabled: true
