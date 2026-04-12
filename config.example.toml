@@ -9,8 +9,8 @@
 # strategy = "all"     → Fan out to all providers (for search with reranking)
 
 [capabilities.search]
-# Search across the web - 4 providers with random selection
-providers = ["tavily", "exa", "brave", "serper"]
+# Search across the web - 5 providers with random selection
+providers = ["searxng", "tavily", "exa", "brave", "serper"]
 strategy = "random"
 
 [capabilities.extract]
@@ -34,6 +34,13 @@ strategy = "random"
 #   env:VAR_NAME              → Environment variable
 #   bws:SECRET_NAME           → Bitwarden Secrets Manager (by name)
 #   bws:SECRET_UUID           → Bitwarden Secrets Manager (by ID)
+
+[providers.searxng]
+[providers.searxng.keyPool]
+# SearXNG is self-hosted and doesn't require an API key.
+# You can use the keyPool to specify the instance URL if not using the default.
+keys = ["env:SEARXNG_URL"] # Defaults to http://localhost:8889 if empty
+strategy = "round-robin"
 
 [providers.tavily]
 [providers.tavily.keyPool]

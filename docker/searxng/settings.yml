@@ -1,0 +1,45 @@
+# SearXNG settings
+# https://docs.searxng.org/admin/settings/settings.html
+
+use_default_settings: true
+
+server:
+  # base_url is required for several parts of SearXNG (e.g. image proxy)
+  base_url: http://localhost:8889
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "ultrasecretkey" # You should change this for production
+  limiter: false # Disable rate limiter for local agent usage
+  image_proxy: true
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json # REQUIRED for AI agents
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    timeout: 3.0
+  
+  - name: bing
+    engine: bing
+    shortcut: b
+    timeout: 3.0
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    timeout: 3.0
+
+  - name: brave
+    engine: brave
+    shortcut: br
+    timeout: 3.0
+
+# Disable generic engines that often fail or are slow
+  - name: wikipedia
+    disabled: false

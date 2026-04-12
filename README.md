@@ -67,6 +67,7 @@ usearch crawl "https://docs.example.com"
 
 | Provider | Search | Extract | Crawl | API Key |
 |----------|--------|---------|-------|---------|
+| SearXNG | ✅ | ❌ | ❌ | **Free/Self-hosted** |
 | Tavily | ✅ | ✅ | ✅ | Required |
 | Exa | ✅ | ✅ | ❌ | Required |
 | Brave | ✅ | ❌ | ❌ | Required |
@@ -81,8 +82,19 @@ usearch crawl "https://docs.example.com"
 ```toml
 # Capability → Provider mapping
 [capabilities.search]
-providers = ["tavily", "exa", "brave", "serper"]
+providers = ["searxng", "tavily", "exa", "brave", "serper"]
 strategy = "random"  # or "all" for fanout
+```
+
+### SearXNG Setup (Optional but recommended)
+
+To use SearXNG for free unlimited search, start the local container:
+
+```bash
+docker compose up -d
+```
+
+This starts a SearXNG instance at `http://localhost:8889` with JSON output enabled.
 
 [capabilities.extract]
 providers = ["tavily", "exa", "jina"]
