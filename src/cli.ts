@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
-import { loadConfig } from "./config.js";
-import { FanoutEngine } from "./engine/fanout.js";
+import { APP_NAME, LEGACY_APP_NAME, formatVersionString } from "./app.js";
 import { SearchAgent } from "./agent/agent.js";
-import { createAdapter } from "./adapters/index.js";
+import { LocalExecutionBackend } from "./execution/backend.js";
 import type { CLIOptions } from "./types.js";
 
 /**
@@ -133,7 +132,7 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
 
       case "--version":
       case "-v":
-        console.log("usearch v0.3.0");
+        console.log(formatVersionString());
         process.exit(0);
         break;
 
@@ -153,9 +152,11 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
 
 function printHelp(): void {
   console.log(`
-usearch - Unified search CLI
+${APP_NAME} - Unified search CLI
 
-Usage: usearch [command] [options] "<query|url>"
+Usage: ${APP_NAME} [command] [options] "<query|url>"
+
+Compatibility alias: ${LEGACY_APP_NAME}
 
 Commands:
   search [options] "query"    Search the web (default)
@@ -187,23 +188,23 @@ Options:
 
 Examples:
   # Search commands
-  usearch "what is firecrawl"
-  usearch search "machine learning"
-  usearch --providers tavily,brave --rerank rrf "rust async"
+  ${APP_NAME} "what is firecrawl"
+  ${APP_NAME} search "machine learning"
+  ${APP_NAME} --providers tavily,brave --rerank rrf "rust async"
   
   # Extract content from URL
-  usearch extract "https://example.com/article"
+  ${APP_NAME} extract "https://example.com/article"
   
   # Crawl a website
-  usearch crawl "https://example.com"
-  usearch crawl --limit 5 "https://docs.example.com"
+  ${APP_NAME} crawl "https://example.com"
+  ${APP_NAME} crawl --limit 5 "https://docs.example.com"
   
   # Use single random provider
-  usearch --single-provider "query"
+  ${APP_NAME} --single-provider "query"
   
   # Agent mode
-  usearch --agent "explain quantum computing"
-  usearch --agent --max-steps 10 "latest fusion energy developments"
+  ${APP_NAME} --agent "explain quantum computing"
+  ${APP_NAME} --agent --max-steps 10 "latest fusion energy developments"
 `);
 }
 
@@ -224,10 +225,9 @@ function formatOutput(data: unknown, options: ExtendedCLIOptions): string {
  * Run Mode 1: Fanout + Rerank.
  */
 async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
-  const config = loadConfig(options.config);
-  const engine = new FanoutEngine(config);
+  const backend = new LocalExecutionBackend(options.config);
 
-  const result = await engine.search(options.query, {
+  const result = await backend.search(options.query, {
     limit: options.limit,
     providers: options.providers,
     rerankStrategy: options.rerank,
@@ -251,10 +251,9 @@ async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
  * Run extract mode.
  */
 async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
-  const config = loadConfig(options.config);
-  const engine = new FanoutEngine(config);
+  const backend = new LocalExecutionBackend(options.config);
 
-  const result = await engine.extract(options.query, {
+  const result = await backend.extract(options.query, {
     limit: options.limit,
     providers: options.providers,
     singleProvider: options.singleProvider,
@@ -276,10 +275,9 @@ async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
  * Run crawl mode.
  */
 async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
-  const config = loadConfig(options.config);
-  const engine = new FanoutEngine(config);
+  const backend = new LocalExecutionBackend(options.config);
 
-  const result = await engine.crawl(options.query, {
+  const result = await backend.crawl(options.query, {
     limit: options.limit,
     providers: options.providers,
     singleProvider: options.singleProvider,
@@ -327,53 +325,6 @@ async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
 }
 
 /**
- * Run legacy single-provider mode (backward compatibility).
- */
-async function runLegacyMode(options: ExtendedCLIOptions): Promise<void> {
-  const config = loadConfig(options.config);
-  const providers = config.capabilities.search?.providers ||
-    config.capabilities.basic_search?.providers || [];
-
-  if (providers.length === 0) {
-    throw new Error("No providers configured for 'search' capability");
-  }
-
-  // Use first provider (single-provider mode for backward compat)
-  const providerName = providers[0];
-  const adapter = createAdapter(providerName);
-
-  // Get API key
-  const providerConfig = config.providers[providerName];
-  if (!providerConfig) {
-    throw new Error(`Provider '${providerName}' not found in config`);
-  }
-
-  const keyRef = providerConfig.keyPool.keys[0];
-  if (!keyRef) {
-    throw new Error(`No API key configured for provider '${providerName}'`);
-  }
-
-  const apiKey = keyRef.startsWith("env:")
-    ? process.env[keyRef.slice(4)] || ""
-    : keyRef;
-
-  if (!apiKey) {
-    throw new Error(`Environment variable ${keyRef.slice(4)} is not set`);
-  }
-
-  const results = await adapter.search(options.query, apiKey);
-  const limitedResults = results.slice(0, options.limit);
-
-  const output = {
-    query: options.query,
-    results: limitedResults,
-    total: limitedResults.length,
-  };
-
-  console.log(formatOutput(output, options));
-}
-
-/**
  * Main CLI entry point.
  */
 async function main(): Promise<void> {
@@ -400,20 +351,8 @@ async function main(): Promise<void> {
       await runExtractMode(options);
     } else if (options.command === "crawl") {
       await runCrawlMode(options);
-    } else if (options.providers || options.rerank !== "rrf" || options.singleProvider) {
-      // Explicit fanout mode
-      await runFanoutMode(options);
     } else {
-      // Check if multiple providers configured
-      const config = loadConfig(options.config);
-      const providers = config.capabilities.search?.providers ||
-        config.capabilities.basic_search?.providers || [];
-
-      if (providers.length > 1) {
-        await runFanoutMode(options);
-      } else {
-        await runLegacyMode(options);
-      }
+      await runFanoutMode(options);
     }
   } catch (error) {
     console.error(`Error: ${(error as Error).message}`);

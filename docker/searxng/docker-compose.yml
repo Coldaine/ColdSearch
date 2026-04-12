@@ -5,7 +5,7 @@ services:
     ports:
       - "8889:8080"
     volumes:
-      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./settings.yml:/etc/searxng/settings.yml:ro
     restart: always
     cap_drop:
       - ALL

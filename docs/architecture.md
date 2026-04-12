@@ -1,181 +1,112 @@
 ---
 title: Architecture
-date: 2026-03-24
+date: 2026-04-12
 author: Patrick MacLyman
-status: draft
+status: living
 doc_type: architecture
 ---
 
 # Architecture
 
-## Three Commands, One System
+## Current Shape
 
-The CLI exposes three capabilities as top-level commands:
+ColdSearch is a CLI-first system with three normalized capabilities:
 
-| Command | Description | Providers | Selection |
-|---------|-------------|-----------|-----------|
-| `search` | Search the web | Tavily, Exa, Brave, Serper | Random pick |
-| `extract` | Extract content from URL | Tavily, Exa, Jina | Random pick |
-| `crawl` | Crawl website | Tavily, Firecrawl | Random pick |
+| Capability | Intent | Current providers |
+|------------|--------|-------------------|
+| `search` | find web results | SearXNG, Tavily, Exa, Brave, Serper |
+| `extract` | retrieve page content | Tavily, Exa, Jina, Firecrawl |
+| `crawl` | gather content across a site | Tavily, Firecrawl |
 
-Plus **Mode 2: Search Agent** for multi-step research (`--agent` flag).
+These are not the full provider surfaces. They are the normalized interface ColdSearch exposes today.
 
-## Capability-Based Architecture
+## Actual Source Model
 
-### The Core Idea
+The runtime is driven by provider overlap:
 
-Instead of thinking "which provider should I use?", think "what do I want to do?"
+1. Vendors expose overlapping tool surfaces.
+2. ColdSearch groups that overlap into normalized capabilities.
+3. Config defines which providers back each capability.
+4. Runtime selects from that configured pool.
+5. Adapters normalize output into shared schemas.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Capability Layer                        │
-│  ┌─────────┐  ┌──────────┐  ┌─────────┐                     │
-│  │ search  │  │ extract  │  │  crawl  │                     │
-│  └────┬────┘  └────┬─────┘  └────┬────┘                     │
-└───────┼────────────┼────────────┼───────────────────────────┘
-        │            │            │
-        ▼            ▼            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Provider Selection                        │
-│  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐            │
-│  │Tavily  │  │ Exa    │  │ Brave  │  │ Serper │  ...       │
-│  └────────┘  └────────┘  └────────┘  └────────┘            │
-│                    ↓ Random pick                             │
-└─────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Key Selection                            │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐             │
-│  │ Key 1      │  │ Key 2      │  │ Key 3      │             │
-│  └────────────┘  └────────────┘  └────────────┘             │
-│                    ↓ Random pick                             │
-└─────────────────────────────────────────────────────────────┘
-```
+`docs/CAPABILITY_MATRIX.md` is the required comparison document for this layer.
 
-### Config-Driven Provider Mapping
+## Layers
 
-```toml
-[capabilities.search]
-providers = ["tavily", "exa", "brave", "serper"]
-strategy = "random"  # "all" = fanout, "random" = single provider
+### 1. Interface Layer
 
-[providers.tavily.keyPool]
-keys = ["env:TAVILY_KEY_1", "env:TAVILY_KEY_2"]
-strategy = "random"  # "round-robin" or "random"
-```
+- `coldsearch` CLI is the current entrypoint.
+- A future remote executor may expose the same core behind async jobs.
+- The CLI should remain usable in both local and future hybrid modes.
 
-### Two-Level Random Selection
+### 2. Execution Backend Layer
 
-**Level 1: Provider Selection**
-- Config defines which providers back each capability
-- `strategy = "random"` → Pick one random provider
-- `strategy = "all"` → Fan out to all providers (search only)
+- Local execution is the only implemented backend today.
+- The backend boundary exists so remote execution can be added later.
+- Agent mode is the most likely first consumer of remote async execution.
 
-**Level 2: Key Selection**
-- Each provider has a key pool
-- `strategy = "random"` → Pick random key per request
-- `strategy = "round-robin"` → Cycle through keys
+### 3. Shared Routing/Core Layer
 
-## Key Abstractions
+- capability lookup
+- provider-pool selection
+- provider validation
+- key/secret resolution
+- retry/timeout policy
+- normalization and reranking
 
-**Capability.** An abstract operation (`search`, `extract`, `crawl`). Capabilities map to one or more providers. The CLI exposes capabilities, not providers.
+This is the layer that must stay interface-agnostic.
 
-**Adapter.** A module per provider. Declares which capabilities it supports. Implements capability methods with provider-specific logic. Normalizes all responses to shared schemas.
+### 4. Provider Adapter Layer
 
-**Key Pool.** A set of API keys for a single provider. Supports random or round-robin selection strategies.
+One adapter per provider. Adapters convert provider-specific APIs into normalized ColdSearch schemas and use the shared request policy.
 
-**Config.** Maps capabilities → providers → key pools. Human-editable TOML. The sole authority on routing decisions.
+### 5. Documentation and Registry Layer
 
-**Result Schemas.** Normalized output shapes regardless of provider:
-- `NormalizedResult[]` for search
-- `ExtractResult` for extract
-- `CrawlResult[]` for crawl
+- provider registry in code defines implemented capabilities and provider docs linkage
+- provider docs explain vendor surface area
+- capability matrix records both vendor surface and ColdSearch implementation status
 
-## Adapter Capabilities Matrix
+## Routing Policy
 
-| Provider | Search | Extract | Crawl | Notes |
-|----------|--------|---------|-------|-------|
-| Tavily | ✅ | ✅ | ✅ | Best all-rounder |
-| Exa | ✅ | ✅ | ❌ | Neural search, good extract |
-| Brave | ✅ | ❌ | ❌ | Privacy-focused |
-| Serper | ✅ | ❌ | ❌ | Google Search results |
-| Jina | ❌ | ✅ | ❌ | Free, no API key |
-| Firecrawl | ❌ | ✅ | ✅ | Best crawl quality |
+Current routing is manual random pools by capability.
 
-## Provider Selection Flow
+- operators configure which providers belong to a capability pool
+- runtime picks randomly from that pool when configured for random selection
+- runtime does not silently hop to another provider after choosing one in this phase
 
-```
-Request: usearch extract "https://example.com"
-                │
-                ▼
-    Look up "extract" capability
-                │
-                ▼
-    Get providers: [tavily, exa, jina]
-    Strategy: "random"
-                │
-                ▼
-    Pick random: "jina"
-                │
-                ▼
-    Get Jina key pool: [] (no keys needed)
-                │
-                ▼
-    Call JinaAdapter.extract(url, "")
-                │
-                ▼
-    Return normalized ExtractResult
-```
+This keeps behavior explicit while still distributing load.
 
-## Fallback Behavior
+## Request Lifecycle
 
-Fallback behavior is strategy-specific:
+All networked operations should run through shared request handling with:
 
-### `random` Strategy (Single Provider)
-1. Pick one provider at random from the configured set
-2. If the call fails, log the error and surface the failure to the caller
-3. No automatic retry with a different provider (would be explicit future enhancement)
+- explicit timeouts
+- abort control
+- bounded transient retries
+- normalized error reporting
 
-### `all` Strategy (Fanout)
-1. Call all configured providers in parallel
-2. Collect all successful results
-3. If at least one provider succeeds, return aggregated successes
-4. If all providers fail, throw an aggregate error
+This applies to provider adapters and LLM calls.
 
-### Sequential Fallback (Future)
-For ordered provider lists:
-1. Try first provider
-2. If it fails, try next provider in list
-3. Return first successful result
-4. If all fail, throw aggregate error
+## Future Hybrid Direction
 
-## Anti-Patterns
+The long-term target is not MCP. The long-term target is hybrid execution with the CLI still in front.
 
-1. **Model picks the provider.** MCP exposes `tavily_search`, `brave_search` as separate tools. The model picks. This project inverts that control: humans configure, system executes.
+Future flow:
 
-2. **Config drift into code.** Adding providers, changing capabilities, or adjusting weights must never require code changes.
+1. CLI submits a job.
+2. Remote executor performs provider calls and small-agent orchestration.
+3. CLI polls status or fetches the final result.
 
-3. **Hardcoded provider logic.** No provider-specific code outside adapters.
+The point of that future mode is centralization:
 
-## Security
+- secrets live in one place
+- async job handling becomes tractable
+- retries and state live with the executor
 
-See `docs/KEY_MANAGEMENT.md` for:
-- Key storage practices
-- Environment variable configuration
-- Security considerations
-- Usage tracking (planned)
+## Non-Goals For This Phase
 
-## Decisions
-
-| Decision | Status | Rationale |
-|----------|--------|-----------|
-| CLI, not MCP server | **Decided** | Inverts control: human configures, system executes |
-| Config-driven provider mapping | **Decided** | Provider landscape changes faster than code |
-| One adapter per provider | **Decided** | Isolation, single-file changes |
-| Capability taxonomy | **Decided** | `search`, `extract`, `crawl` cover 90% of use cases |
-| Random provider selection | **Decided** | Load distribution, redundancy |
-| Random key selection | **Decided** | Simple load balancing |
-| TypeScript | **Decided** | Best SDK coverage, npm distribution |
-| TOML config | **Decided** | Human-editable, comments, clear nesting |
-| Quota-aware rotation | **Deferred** | Complex, provider APIs don't expose quotas |
+- no remote executor yet
+- no container-based workflow on this laptop
+- no provider-hopping fallback after selection
+- no attempt to expose every vendor tool directly in the CLI

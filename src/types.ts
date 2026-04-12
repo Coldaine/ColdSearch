@@ -41,6 +41,18 @@ export interface CrawlResult {
   content: string;
 }
 
+export type CapabilityName = "search" | "extract" | "crawl";
+
+export interface AdapterCallOptions {
+  /** Provider-specific options from config */
+  providerOptions?: Record<string, unknown>;
+}
+
+export interface CrawlCallOptions extends AdapterCallOptions {
+  /** Maximum crawl results */
+  limit?: number;
+}
+
 /**
  * Search adapter interface.
  * Each provider implements this interface.
@@ -49,13 +61,25 @@ export interface SearchAdapter {
   /** Adapter name (matches provider key in config) */
   name: string;
   /** Capabilities this adapter supports */
-  capabilities: string[];
+  capabilities: CapabilityName[];
   /** Execute a basic search */
-  search(query: string, apiKey: string): Promise<NormalizedResult[]>;
+  search(
+    query: string,
+    apiKey: string,
+    options?: AdapterCallOptions
+  ): Promise<NormalizedResult[]>;
   /** Extract content from a URL */
-  extract?(url: string, apiKey: string): Promise<ExtractResult>;
+  extract?(
+    url: string,
+    apiKey: string,
+    options?: AdapterCallOptions
+  ): Promise<ExtractResult>;
   /** Crawl a website */
-  crawl?(url: string, apiKey: string, options?: { limit?: number }): Promise<CrawlResult[]>;
+  crawl?(
+    url: string,
+    apiKey: string,
+    options?: CrawlCallOptions
+  ): Promise<CrawlResult[]>;
 }
 
 /**

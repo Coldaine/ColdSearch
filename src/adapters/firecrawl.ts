@@ -1,4 +1,11 @@
-import type { SearchAdapter, ExtractResult, CrawlResult } from "../types.js";
+import { fetchJson } from "../http.js";
+import type {
+  SearchAdapter,
+  ExtractResult,
+  CrawlResult,
+  AdapterCallOptions,
+  CrawlCallOptions,
+} from "../types.js";
 
 /**
  * Firecrawl adapter.
@@ -7,14 +14,18 @@ import type { SearchAdapter, ExtractResult, CrawlResult } from "../types.js";
  */
 export class FirecrawlAdapter implements SearchAdapter {
   name = "firecrawl";
-  capabilities = ["extract", "crawl"];
+  capabilities: SearchAdapter["capabilities"] = ["extract", "crawl"];
   private baseUrl = "https://api.firecrawl.dev/v2";
 
-  async search(): Promise<never[]> {
+  async search(_query: string, _apiKey: string): Promise<never[]> {
     throw new Error("Firecrawl does not support search");
   }
 
-  async extract(url: string, apiKey: string): Promise<ExtractResult> {
+  async extract(
+    url: string,
+    apiKey: string,
+    _options?: AdapterCallOptions
+  ): Promise<ExtractResult> {
     // Validate URL
     if (!url || !url.trim()) {
       throw new Error("URL is required");
@@ -22,24 +33,7 @@ export class FirecrawlAdapter implements SearchAdapter {
 
     const normalizedUrl = url.trim();
 
-    const response = await fetch(`${this.baseUrl}/scrape`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        url: normalizedUrl,
-        formats: ["markdown"],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Firecrawl API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       success?: boolean;
       data?: {
         markdown?: string;
@@ -49,7 +43,19 @@ export class FirecrawlAdapter implements SearchAdapter {
         };
       };
       error?: string;
-    };
+    }>(`${this.baseUrl}/scrape`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        url: normalizedUrl,
+        formats: ["markdown"],
+      }),
+    }, {
+      label: "Firecrawl extract",
+    });
 
     if (!data.success || data.error) {
       throw new Error(`Firecrawl error: ${data.error || "Unknown error"}`);
@@ -63,7 +69,11 @@ export class FirecrawlAdapter implements SearchAdapter {
     };
   }
 
-  async crawl(url: string, apiKey: string, options?: { limit?: number }): Promise<CrawlResult[]> {
+  async crawl(
+    url: string,
+    apiKey: string,
+    options?: CrawlCallOptions
+  ): Promise<CrawlResult[]> {
     // Validate URL
     if (!url || !url.trim()) {
       throw new Error("URL is required");
@@ -73,7 +83,11 @@ export class FirecrawlAdapter implements SearchAdapter {
     const limit = options?.limit ?? 10;
 
     // Start crawl job
-    const startResponse = await fetch(`${this.baseUrl}/crawl`, {
+    const startData = await fetchJson<{
+      success?: boolean;
+      id?: string;
+      error?: string;
+    }>(`${this.baseUrl}/crawl`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -86,20 +100,9 @@ export class FirecrawlAdapter implements SearchAdapter {
           formats: ["markdown"],
         },
       }),
+    }, {
+      label: "Firecrawl crawl start",
     });
-
-    if (!startResponse.ok) {
-      const errorText = await startResponse.text();
-      throw new Error(
-        `Firecrawl crawl error: ${startResponse.status} - ${errorText}`
-      );
-    }
-
-    const startData = (await startResponse.json()) as {
-      success?: boolean;
-      id?: string;
-      error?: string;
-    };
 
     if (!startData.success || !startData.id) {
       throw new Error(`Firecrawl crawl failed: ${startData.error || "No job ID"}`);
@@ -113,20 +116,7 @@ export class FirecrawlAdapter implements SearchAdapter {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
-      const statusResponse = await fetch(
-        `${this.baseUrl}/crawl/${jobId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-          },
-        }
-      );
-
-      if (!statusResponse.ok) {
-        continue; // Retry on poll failure
-      }
-
-      const statusData = (await statusResponse.json()) as {
+      let statusData: {
         success?: boolean;
         status?: "scraping" | "completed" | "failed";
         data?: Array<{
@@ -138,6 +128,20 @@ export class FirecrawlAdapter implements SearchAdapter {
         }>;
         error?: string;
       };
+
+      try {
+        statusData = await fetchJson(`${this.baseUrl}/crawl/${jobId}`, {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
+        }, {
+          label: "Firecrawl crawl poll",
+          retries: 0,
+          timeoutMs: 5000,
+        });
+      } catch {
+        continue;
+      }
 
       if (statusData.status === "completed" && statusData.data) {
         return statusData.data.map((item) => ({

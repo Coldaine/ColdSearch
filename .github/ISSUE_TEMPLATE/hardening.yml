@@ -1,0 +1,27 @@
+name: Runtime Hardening
+description: Track resilience, organization, or governance work.
+title: "[hardening] "
+labels:
+  - hardening
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the failure mode, drift, or organizational issue.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Explain the production or maintenance impact.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define the observable outcome of the fix.
+    validations:
+      required: true

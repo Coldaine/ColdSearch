@@ -2,48 +2,47 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import TOML from "@iarna/toml";
-import type { Config, KeyPool } from "./types.js";
+import { DEFAULT_CONFIG_DIR_NAME, LEGACY_CONFIG_DIR_NAME } from "./app.js";
+import type { Config } from "./types.js";
 
 /**
  * Default config file path.
  */
-const DEFAULT_CONFIG_PATH = join(homedir(), ".config", "usearch", "config.toml");
+const DEFAULT_CONFIG_PATH = join(
+  homedir(),
+  ".config",
+  DEFAULT_CONFIG_DIR_NAME,
+  "config.toml"
+);
+const LEGACY_CONFIG_PATH = join(
+  homedir(),
+  ".config",
+  LEGACY_CONFIG_DIR_NAME,
+  "config.toml"
+);
 
-/**
- * Resolve a key reference to its actual value.
- * Supports: env:VAR_NAME for environment variables.
- */
-function resolveKeyRef(keyRef: string): string {
-  if (keyRef.startsWith("env:")) {
-    const varName = keyRef.slice(4);
-    const value = process.env[varName];
-    if (!value) {
-      throw new Error(`Environment variable ${varName} is not set`);
+function resolveConfigPath(configPath?: string): string {
+  if (configPath) {
+    return configPath;
+  }
+
+  try {
+    readFileSync(DEFAULT_CONFIG_PATH, "utf-8");
+    return DEFAULT_CONFIG_PATH;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
     }
-    return value;
   }
-  // For now, only env: prefix is supported
-  // Could add file:, vault:, etc. later
-  return keyRef;
-}
 
-/**
- * Get the next key from a key pool using round-robin rotation.
- * Simple index-based rotation (will be enhanced for concurrency in Phase 5).
- */
-export function getNextKey(pool: KeyPool, index: number): string {
-  if (!pool.keys.length) {
-    throw new Error("Key pool is empty");
-  }
-  const keyRef = pool.keys[index % pool.keys.length];
-  return resolveKeyRef(keyRef);
+  return LEGACY_CONFIG_PATH;
 }
 
 /**
  * Load and parse configuration from a TOML file.
  */
 export function loadConfig(configPath?: string): Config {
-  const path = configPath || DEFAULT_CONFIG_PATH;
+  const path = resolveConfigPath(configPath);
   
   let content: string;
   try {
@@ -52,7 +51,7 @@ export function loadConfig(configPath?: string): Config {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(
         `Config file not found: ${path}\n` +
-        `Create one at ~/.config/usearch/config.toml or specify with --config`
+        `Create one at ~/.config/${DEFAULT_CONFIG_DIR_NAME}/config.toml or specify with --config`
       );
     }
     throw error;
@@ -96,4 +95,4 @@ export function getProviderConfig(
   return providerConfig;
 }
 
-export { DEFAULT_CONFIG_PATH };
+export { DEFAULT_CONFIG_PATH, LEGACY_CONFIG_PATH };

@@ -1,6 +1,6 @@
 ---
 title: North Star
-date: 2026-03-16
+date: 2026-04-12
 author: Patrick MacLyman
 status: living
 ---
@@ -9,37 +9,39 @@ status: living
 
 ## Why This Exists
 
-MCP servers expose search as N separate tools: `tavily_search`, `brave_search`, `exa_search`. The model picks whichever it wants. It has no basis for this decision and regularly burns through one provider's credits while others sit idle. This project inverts that control: humans configure which providers back which capabilities, and the system handles the rest.
+Search providers expose overlapping tools and provider-specific interfaces. When the caller or model chooses directly among `tavily_search`, `brave_search`, `exa_search`, `serper_search`, or a self-hosted option like SearXNG, that choice is usually arbitrary. It burns credits unevenly, spreads secrets everywhere, and makes behavior hard to control. ColdSearch exists to invert that control: humans define the intent and the policy, and the system handles execution.
 
 ## In / Out / Shape
 
-**In:** A search query (string), a capability name (e.g., "basic_search"), and optional parameters (limit, format).
+**In:** A query or URL, a normalized capability name (`search`, `extract`, `crawl`), and optional parameters.
 
-**Out:** An array of normalized results (title, URL, snippet, score, source) in consistent JSON.
+**Out:** Normalized JSON in a consistent shape, regardless of which provider or execution environment produced it.
 
-**Shape:** CLI binary named `usearch`, installable via `npm install -g`, callable from any agent that can read a skill file. Configuration lives at `~/.config/usearch/config.toml` and controls provider mappings without code changes.
+**Shape:** A CLI named `coldsearch`, with `usearch` kept as a compatibility alias during migration. Configuration lives at `~/.config/coldsearch/config.toml`, with legacy fallback to `~/.config/usearch/config.toml`. The CLI is the stable interface whether execution is local today or partially remote later.
 
 ## What This Is Not
 
-- **Not an MCP server.** MCP exposes N tools; the model picks. This exposes one interface; the human configures.
-- **Not model-driven routing.** The agent never sees provider names, never picks which provider to use, never knows which adapter answered.
-- **Not a research agent (yet).** Phase 1 is a single search call. Multi-step research is Mode 2, coming in Phase 4.
-- **Not provider-specific.** Adding a new search provider should require editing one config file and nothing else.
+- **Not direct provider exposure.** The caller should not need to think in vendor-specific tools or APIs.
+- **Not model-directed routing.** The model or caller should not make arbitrary provider choices with incomplete information.
+- **Not a remote job system yet.** Future remote execution is part of the direction, not the current product shape.
+- **Not a provider mirror.** ColdSearch does not need to expose every vendor capability directly in the CLI.
 
 ## Goals
 
-**G1: Unified Interface.** One command, multiple providers. The caller says "search" and gets results. How it happened is invisible.
+**G1: Unified Interface.** One command surface, multiple providers, consistent outputs.
 
-**G2: Human Control.** Provider selection, key rotation, capability mapping — all configurable without touching code.
+**G2: Human Control.** Routing, rotation, provider pools, and execution policy are controlled by configuration rather than arbitrary runtime choices.
 
-**G3: Normalized Output.** Every provider returns different metadata. The output schema is consistent regardless of what backed the query.
+**G3: Normalized Output.** Different providers return different metadata; ColdSearch returns consistent shapes.
 
-**G4: Agent-Native.** Install it, read the skill, use it. No setup scripts, no service management, no model retraining.
+**G4: Stable CLI, Flexible Execution.** The CLI remains the interface even if execution later becomes partly remote or asynchronous.
 
 ## Pillars
 
-**Config Over Code.** If you can change it in a config file, you should never need a code change, rebuild, or redeploy. Why: Provider landscapes change faster than release cycles. A new API key or a provider swap should be a file edit, not a PR.
+**Config Over Code.** If routing or execution policy can be changed in config, it should not require code edits. Provider pools, endpoint choices, and rotation policy should be operational decisions.
 
-**Opaque Internals.** The agent-facing interface never exposes provider names, adapter details, or routing decisions. Why: If the agent can see providers, it might start making choices. The entire point is removing that choice.
+**Opaque Execution.** The caller expresses intent. The runtime decides how that intent is executed without exposing unnecessary provider internals.
 
-**Fail Visible.** When something breaks, the error tells you what config to check. Why: This is infrastructure. When it fails, the user needs to know if their key is bad, their config is malformed, or a provider is down — not get a stack trace.
+**Fail Visible.** When something breaks, the error should make it obvious whether the issue is config, credentials, provider reachability, or unsupported capability.
+
+**Stable Interface.** The user-facing CLI should stay consistent even if the execution model evolves from local-only to hybrid local/remote operation.

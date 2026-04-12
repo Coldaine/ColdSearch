@@ -7,7 +7,7 @@
 **Where keys are stored:**
 - **Environment variables** - `env:VAR_NAME` references
 - **Bitwarden Secrets Manager** - `bws:SECRET_NAME` or `bws:SECRET_ID` references (NEW)
-- **Config file** (`~/.config/usearch/config.toml`) only stores key **references**, not actual keys
+- **Config file** (`~/.config/coldsearch/config.toml`) only stores key **references**, not actual keys
 - **In-memory** - Keys are resolved at runtime and held in memory during request processing
 
 ### Supported Key References

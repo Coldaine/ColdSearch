@@ -1,8 +1,8 @@
-# SKILL: usearch - Unified Search CLI
+# SKILL: coldsearch - Unified Search CLI
 
 ## When to Use
 
-Use `usearch` when you need to search the web and return structured results. It normalizes responses across multiple search providers into a single consistent schema.
+Use `coldsearch` when you need to search the web and return structured results. It normalizes responses across multiple search providers into a single consistent schema.
 
 Use **Mode 1** (default) for quick search across multiple providers with reranking.
 Use **Mode 2** (`--agent`) for multi-step research that synthesizes an answer from multiple sources.
@@ -12,14 +12,14 @@ Use **crawl** command to crawl a website.
 ## Installation
 
 ```bash
-npm install -g usearch
+npm install -g coldsearch
 ```
 
 Or from the repo:
 
 ```bash
 git clone <repo>
-cd usearch
+cd coldsearch
 npm install
 npm run build
 npm link
@@ -27,7 +27,7 @@ npm link
 
 ## Configuration
 
-Create `~/.config/usearch/config.toml`:
+Create `~/.config/coldsearch/config.toml`:
 
 ```toml
 # Search capability - search the web

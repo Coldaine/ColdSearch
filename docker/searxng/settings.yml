@@ -4,12 +4,13 @@
 use_default_settings: true
 
 server:
-  # base_url is required for several parts of SearXNG (e.g. image proxy)
-  base_url: http://localhost:8889
+  # Example value for an operator-managed deployment.
+  # Replace with the actual remote URL for the host that runs SearXNG.
+  base_url: https://search.example.internal
   port: 8080
   bind_address: "0.0.0.0"
-  secret_key: "ultrasecretkey" # You should change this for production
-  limiter: false # Disable rate limiter for local agent usage
+  secret_key: "replace-me-for-production"
+  limiter: false
   image_proxy: true
 
 search:
@@ -17,7 +18,7 @@ search:
   autocomplete: ""
   formats:
     - html
-    - json # REQUIRED for AI agents
+    - json
 
 engines:
   - name: google

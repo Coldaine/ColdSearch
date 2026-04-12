@@ -1,9 +1,9 @@
-import { FanoutEngine } from "../engine/fanout.js";
-import { loadConfig } from "../config.js";
+import { APP_USER_AGENT } from "../app.js";
+import { LocalExecutionBackend } from "../execution/backend.js";
+import { fetchWithPolicy } from "../http.js";
 import { createLLMClient, type LLMClient } from "./llm.js";
-import { tools, parseToolCall } from "./tools.js";
+import { tools, parseAgentPayload } from "./tools.js";
 import { ResearchContext } from "./context.js";
-import type { Config } from "../types.js";
 
 /**
  * Agent configuration options.
@@ -43,13 +43,11 @@ export interface AgentResult {
  */
 export class SearchAgent {
   private llm: LLMClient;
-  private fanout: FanoutEngine;
-  private config: Config;
+  private backend: LocalExecutionBackend;
 
   constructor(options: AgentOptions = {}) {
-    this.config = loadConfig(options.configPath);
     this.llm = createLLMClient(options.llmProvider, options.model);
-    this.fanout = new FanoutEngine(this.config);
+    this.backend = new LocalExecutionBackend(options.configPath);
   }
 
   /**
@@ -76,14 +74,11 @@ Your task is to research the user's goal and provide a comprehensive answer. Fol
 4. Repeat steps 1-3 until you have sufficient information (max ${maxSteps} steps)
 5. SYNTHESIZE a final answer with citations
 
-When you want to use a tool, respond with ONLY the tool call:
-search("your query")
-fetch("https://example.com")
-refine("current query", "what you need")
+When you want to use a tool, respond with ONLY a JSON object in this format:
+{"type":"tool","tool":"search","args":["your query"]}
 
-When you have enough information, respond with:
-FINAL ANSWER:
-Your comprehensive answer here with citations [1], [2], etc.
+When you have enough information, respond with ONLY a JSON object in this format:
+{"type":"final","answer":"Your comprehensive answer here with citations [1], [2], etc."}
 
 Be thorough but efficient. Focus on authoritative sources.`;
 
@@ -99,10 +94,18 @@ Be thorough but efficient. Focus on authoritative sources.`;
 
       messages.push({ role: "assistant", content });
 
-      // Check for final answer
-      if (content.includes("FINAL ANSWER:")) {
-        const answer = content.split("FINAL ANSWER:")[1].trim();
-        const result = context.generateResponse(answer);
+      const payload = parseAgentPayload(content);
+      if (!payload) {
+        messages.push({
+          role: "user",
+          content:
+            'Invalid format. Respond with JSON only, using either {"type":"tool","tool":"search","args":["query"]} or {"type":"final","answer":"..."}',
+        });
+        continue;
+      }
+
+      if (payload.type === "final") {
+        const result = context.generateResponse(payload.answer);
         return {
           answer: result.answer,
           sources: result.sources,
@@ -110,33 +113,23 @@ Be thorough but efficient. Focus on authoritative sources.`;
         };
       }
 
-      // Parse and execute tool call
-      const toolCall = parseToolCall(content);
-      if (!toolCall) {
-        messages.push({
-          role: "user",
-          content: "Invalid format. Please use tool calls like search(\"query\") or respond with FINAL ANSWER:",
-        });
-        continue;
-      }
-
-      const tool = tools[toolCall.tool];
+      const tool = tools[payload.tool];
       if (!tool) {
         messages.push({
           role: "user",
-          content: `Unknown tool: ${toolCall.tool}. Available: search, fetch, refine`,
+          content: `Unknown tool: ${payload.tool}. Available: search, fetch, refine`,
         });
         continue;
       }
 
       // Execute tool
-      context.addStep(tool.name as any, `${tool.name}(${toolCall.args.join(", ")})`);
+      context.addStep(tool.name as any, JSON.stringify(payload));
       
       const toolContext = {
         query: context.currentQuery,
         llm: this.llm,
         searchFn: async (q: string) => {
-          const result = await this.fanout.search(q, {
+          const result = await this.backend.search(q, {
             limit: 5,
             rerankStrategy: "rrf",
           });
@@ -148,7 +141,7 @@ Be thorough but efficient. Focus on authoritative sources.`;
       };
 
       try {
-        const toolResult = await tool.execute(toolContext, ...toolCall.args);
+        const toolResult = await tool.execute(toolContext, ...payload.args);
         messages.push({ role: "user", content: `Result:\n${toolResult}` });
       } catch (error) {
         messages.push({
@@ -167,8 +160,9 @@ Be thorough but efficient. Focus on authoritative sources.`;
       },
     ]);
 
-    const answer = finalResponse.content.includes("FINAL ANSWER:")
-      ? finalResponse.content.split("FINAL ANSWER:")[1].trim()
+    const finalPayload = parseAgentPayload(finalResponse.content);
+    const answer = finalPayload?.type === "final"
+      ? finalPayload.answer
       : finalResponse.content;
 
     const result = context.generateResponse(answer);
@@ -183,15 +177,13 @@ Be thorough but efficient. Focus on authoritative sources.`;
    * Fetch content from a URL.
    */
   private async fetchContent(url: string): Promise<string> {
-    const response = await fetch(url, {
+    const response = await fetchWithPolicy(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; USearch/0.1)",
+        "User-Agent": `Mozilla/5.0 (compatible; ${APP_USER_AGENT})`,
       },
+    }, {
+      label: "Agent fetch",
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
 
     const contentType = response.headers.get("content-type") || "";
     

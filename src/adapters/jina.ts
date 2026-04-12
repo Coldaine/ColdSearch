@@ -1,4 +1,9 @@
-import type { SearchAdapter, ExtractResult } from "../types.js";
+import { fetchText } from "../http.js";
+import type {
+  SearchAdapter,
+  ExtractResult,
+  AdapterCallOptions,
+} from "../types.js";
 
 /**
  * Jina AI Reader adapter.
@@ -8,13 +13,17 @@ import type { SearchAdapter, ExtractResult } from "../types.js";
  */
 export class JinaAdapter implements SearchAdapter {
   name = "jina";
-  capabilities = ["extract"];
+  capabilities: SearchAdapter["capabilities"] = ["extract"];
 
-  async search(): Promise<never[]> {
+  async search(_query: string, _apiKey: string): Promise<never[]> {
     throw new Error("Jina does not support search");
   }
 
-  async extract(url: string, _apiKey: string): Promise<ExtractResult> {
+  async extract(
+    url: string,
+    _apiKey: string,
+    _options?: AdapterCallOptions
+  ): Promise<ExtractResult> {
     // Validate URL
     if (!url || !url.trim()) {
       throw new Error("URL is required");
@@ -29,18 +38,13 @@ export class JinaAdapter implements SearchAdapter {
     // Jina AI Reader endpoint - supports both http and https
     const jinaUrl = `https://r.jina.ai/http://${normalizedUrl.replace(/^https?:\/\//, "")}`;
 
-    const response = await fetch(jinaUrl, {
+    const content = await fetchText(jinaUrl, {
       headers: {
         Accept: "text/plain",
       },
+    }, {
+      label: "Jina extract",
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Jina API error: ${response.status} - ${errorText}`);
-    }
-
-    const content = await response.text();
 
     if (!content || content.trim().length === 0) {
       throw new Error(`No content extracted from ${url}`);

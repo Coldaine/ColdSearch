@@ -2,7 +2,7 @@
 
 ## Overview
 
-usearch now supports **Bitwarden Secrets Manager** as a secure key storage backend alongside environment variables. Store your API keys in BWS and reference them by name or ID in your configuration.
+ColdSearch now supports **Bitwarden Secrets Manager** as a secure key storage backend alongside environment variables. Store your API keys in BWS and reference them by name or ID in your configuration.
 
 ## Why BWS?
 

@@ -1,5 +1,6 @@
-# Example configuration for usearch
-# Copy to ~/.config/usearch/config.toml and customize
+# Example configuration for coldsearch
+# Copy to ~/.config/coldsearch/config.toml and customize
+# The runtime also falls back to ~/.config/usearch/config.toml for compatibility.
 
 # ============================================
 # CAPABILITY CONFIGURATION
@@ -37,10 +38,14 @@ strategy = "random"
 
 [providers.searxng]
 [providers.searxng.keyPool]
-# SearXNG is self-hosted and doesn't require an API key.
-# You can use the keyPool to specify the instance URL if not using the default.
-keys = ["env:SEARXNG_URL"] # Defaults to http://localhost:8889 if empty
+# SearXNG is self-hosted / operator-managed and doesn't require an API key.
+keys = []
 strategy = "round-robin"
+
+[providers.searxng.options]
+# Required unless SEARXNG_BASE_URL is provided in the environment.
+# Do not assume localhost on this machine.
+baseUrl = "https://search.example.internal"
 
 [providers.tavily]
 [providers.tavily.keyPool]
@@ -96,16 +101,16 @@ keys = ["env:FIRECRAWL_API_KEY"]
 # ============================================
 # 
 # Search (random provider from 4, random key):
-#   usearch search "machine learning"
+#   coldsearch search "machine learning"
 #
 # Extract (random provider from 3):
-#   usearch extract "https://example.com/article"
+#   coldsearch extract "https://example.com/article"
 #
 # Crawl (random provider from 2):
-#   usearch crawl "https://docs.example.com"
+#   coldsearch crawl "https://docs.example.com"
 #
 # Force specific provider:
-#   usearch search --providers tavily "query"
+#   coldsearch search --providers tavily "query"
 #
 # Force single provider mode explicitly:
-#   usearch search --single-provider "query"
+#   coldsearch search --single-provider "query"

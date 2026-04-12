@@ -1,0 +1,35 @@
+name: Provider Addition
+description: Track adoption of a new provider or major provider-surface expansion.
+title: "[provider] "
+labels:
+  - provider
+body:
+  - type: input
+    id: provider
+    attributes:
+      label: Provider name
+      placeholder: SearXNG
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why add this provider?
+      description: Explain the overlap, differentiation, and expected value.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Initial capability scope
+      description: Which normalized ColdSearch capabilities should be implemented first?
+    validations:
+      required: true
+  - type: checkboxes
+    id: docs
+    attributes:
+      label: Documentation requirements
+      options:
+        - label: Adoption plan exists under `docs/plans/`
+        - label: Provider page will be added or updated under `docs/providers/`
+        - label: `docs/CAPABILITY_MATRIX.md` will be updated

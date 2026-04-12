@@ -1,4 +1,9 @@
-import type { SearchAdapter, NormalizedResult } from "../types.js";
+import { fetchJson } from "../http.js";
+import type {
+  SearchAdapter,
+  NormalizedResult,
+  AdapterCallOptions,
+} from "../types.js";
 
 /**
  * Brave Search API response types
@@ -23,28 +28,27 @@ interface BraveSearchResponse {
  */
 export class BraveAdapter implements SearchAdapter {
   name = "brave";
-  capabilities = ["search"];
+  capabilities: SearchAdapter["capabilities"] = ["search"];
 
-  async search(query: string, apiKey: string): Promise<NormalizedResult[]> {
+  async search(
+    query: string,
+    apiKey: string,
+    _options?: AdapterCallOptions
+  ): Promise<NormalizedResult[]> {
     const url = new URL("https://api.search.brave.com/res/v1/web/search");
     url.searchParams.set("q", query);
     url.searchParams.set("count", "10");
     url.searchParams.set("offset", "0");
 
-    const response = await fetch(url.toString(), {
+    const data = await fetchJson<BraveSearchResponse>(url.toString(), {
       headers: {
         "Accept": "application/json",
         "Accept-Encoding": "gzip",
         "X-Subscription-Token": apiKey,
       },
+    }, {
+      label: "Brave search",
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Brave API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as BraveSearchResponse;
 
     // Normalize Brave results to shared schema
     return (data.web?.results || []).map((result, index) => ({

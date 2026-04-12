@@ -2,8 +2,9 @@ import type { KeyPool } from "../types.js";
 import { resolveBWSSecret } from "../resolvers/bws.js";
 
 /**
- * Thread-safe key pool manager with round-robin and random rotation.
- * Uses atomic index increment for round-robin and crypto for random.
+ * Process-local key pool manager with round-robin and random rotation.
+ * Rotation state is safe within a single Node.js process and should not be
+ * described as cross-process or distributed coordination.
  */
 export class KeyPoolManager {
   private pools: Map<string, KeyPool> = new Map();
@@ -20,7 +21,6 @@ export class KeyPoolManager {
   /**
    * Get the next key from a provider's pool.
    * Uses round-robin or random selection based on pool strategy.
-   * Thread-safe under concurrent load.
    * @throws Error if pool is empty
    */
   async getNextKey(provider: string): Promise<string> {
