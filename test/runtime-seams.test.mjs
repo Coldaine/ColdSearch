@@ -59,5 +59,9 @@ test("searxng preserves configured base paths when building the search URL", asy
     },
   });
 
-  assert.match(requestedUrl, /^https:\/\/search\.example\.internal\/searxng\/search\?/);
+  const parsedUrl = new URL(requestedUrl);
+  assert.equal(parsedUrl.origin, "https://search.example.internal");
+  assert.equal(parsedUrl.pathname, "/searxng/search");
+  assert.equal(parsedUrl.searchParams.get("q"), "fusion");
+  assert.equal(parsedUrl.searchParams.get("format"), "json");
 });

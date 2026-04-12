@@ -46,4 +46,4 @@ engines:
 
 # Disable generic engines that often fail or are slow
   - name: wikipedia
-    disabled: false
+    disabled: true

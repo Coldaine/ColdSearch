@@ -36,6 +36,7 @@ Extract content from a single URL.
 | `actions` | array | No | Pre-extraction actions |
 
 **Example:**
+
 ```json
 {
   "url": "https://example.com",
@@ -43,6 +44,7 @@ Extract content from a single URL.
   "only_main_content": true
 }
 ```
+
 
 ---
 
@@ -64,6 +66,7 @@ Recursively crawl an entire website.
 | `webhook` | string | No | Webhook URL for completion |
 
 **Example:**
+
 ```json
 {
   "url": "https://docs.example.com",
@@ -74,6 +77,7 @@ Recursively crawl an entire website.
   }
 }
 ```
+
 
 **Returns:** Job ID (async, poll for results)
 
@@ -95,6 +99,7 @@ Discover all URLs on a website without extracting content.
 | `include_subdomains` | boolean | No | Include subdomains |
 
 **Example:**
+
 ```json
 {
   "url": "https://example.com",
@@ -102,6 +107,7 @@ Discover all URLs on a website without extracting content.
   "search": "blog"
 }
 ```
+
 
 ---
 
@@ -121,6 +127,7 @@ Search the web and extract content from results.
 | `scrape_options` | object | No | Extraction options |
 
 **Example:**
+
 ```json
 {
   "query": "machine learning tutorials",
@@ -130,6 +137,7 @@ Search the web and extract content from results.
   }
 }
 ```
+
 
 ---
 
@@ -148,6 +156,7 @@ Structured data extraction using AI/Pydantic schemas.
 | `system_prompt` | string | No | System context for extraction |
 
 **Example with Prompt:**
+
 ```json
 {
   "urls": ["https://example.com/product"],
@@ -155,7 +164,9 @@ Structured data extraction using AI/Pydantic schemas.
 }
 ```
 
+
 **Example with Schema:**
+
 ```json
 {
   "urls": ["https://example.com/product"],
@@ -169,6 +180,7 @@ Structured data extraction using AI/Pydantic schemas.
   }
 }
 ```
+
 
 ---
 
@@ -185,6 +197,7 @@ Interact with page before extraction (click, scroll, type).
 | `actions` | array | Yes | Array of actions |
 
 **Actions:**
+
 ```json
 {
   "actions": [
@@ -196,6 +209,7 @@ Interact with page before extraction (click, scroll, type).
   ]
 }
 ```
+
 
 ---
 
@@ -214,6 +228,7 @@ Autonomous browser agent for complex tasks.
 | `variables` | object | No | Variables for prompt |
 
 **Example:**
+
 ```json
 {
   "prompt": "Find the pricing page and extract all plan details",
@@ -221,6 +236,7 @@ Autonomous browser agent for complex tasks.
   "max_steps": 10
 }
 ```
+
 
 ---
 
@@ -237,6 +253,7 @@ Scrape thousands of URLs asynchronously.
 | `scrape_options` | object | No | Options for each scrape |
 
 **Example:**
+
 ```json
 {
   "urls": ["https://example.com/1", "https://example.com/2", "..."],
@@ -245,6 +262,7 @@ Scrape thousands of URLs asynchronously.
   }
 }
 ```
+
 
 ---
 

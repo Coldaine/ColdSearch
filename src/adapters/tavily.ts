@@ -143,16 +143,14 @@ export class TavilyAdapter implements SearchAdapter {
       { label: "Tavily crawl search" }
     );
 
-    const urls = (searchResponse.results || [])
-      .map(r => r.url)
-      .filter((u): u is string => !!u)
-      .slice(0, limit - 1); // Leave room for original URL
-
-    // Add the original URL if not present
     const normalizedUrl = url.trim();
-    if (!urls.includes(normalizedUrl)) {
-      urls.unshift(normalizedUrl);
-    }
+    const uniqueUrls = [
+      normalizedUrl,
+      ...(searchResponse.results || [])
+        .map((result) => result.url)
+        .filter((candidate): candidate is string => !!candidate),
+    ].filter((candidate, index, allCandidates) => allCandidates.indexOf(candidate) === index)
+      .slice(0, limit);
 
     // Extract content from all URLs
     const extractResponse = await fetchJson<TavilyExtractResponse>(
@@ -164,7 +162,7 @@ export class TavilyAdapter implements SearchAdapter {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          urls: urls.slice(0, limit),
+          urls: uniqueUrls,
           include_images: false,
         }),
       },

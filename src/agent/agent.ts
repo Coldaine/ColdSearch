@@ -1,11 +1,12 @@
 import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import { isIP } from "node:net";
 import { APP_USER_AGENT } from "../app.js";
 import {
   LocalExecutionBackend,
   type ExecutionBackend,
 } from "../execution/backend.js";
-import { fetchWithPolicy } from "../http.js";
 import { createLLMClient, type LLMClient } from "./llm.js";
 import { tools, parseAgentPayload } from "./tools.js";
 import { ResearchContext } from "./context.js";
@@ -27,6 +28,15 @@ export interface AgentOptions {
   /** Execution backend implementation */
   executionBackend?: ExecutionBackend;
 }
+
+interface ValidatedFetchTarget {
+  url: URL;
+  resolvedAddress: string;
+  family: 4 | 6;
+}
+
+const MAX_FETCH_BODY_BYTES = 1024 * 1024;
+const AGENT_FETCH_TIMEOUT_MS = 10000;
 
 function isIPv4InCidr(ip: string, network: string, prefixBits: number): boolean {
   const ipOctets = ip.split(".").map(Number);
@@ -235,10 +245,22 @@ Be thorough but efficient. Focus on authoritative sources.`;
       },
     ]);
 
-    const finalPayload = parseAgentPayload(finalResponse.content);
+    let finalPayload = parseAgentPayload(finalResponse.content);
+    if (!finalPayload || finalPayload.type !== "final") {
+      const retryResponse = await this.llm.complete([
+        ...messages,
+        {
+          role: "user",
+          content:
+            'Respond now with FINAL JSON only in the format {"type":"final","answer":"..."}. Do not call tools.',
+        },
+      ]);
+      finalPayload = parseAgentPayload(retryResponse.content);
+    }
+
     const answer = finalPayload?.type === "final"
       ? finalPayload.answer
-      : finalResponse.content;
+      : "Research completed, but the model did not produce a final structured answer.";
 
     const result = context.generateResponse(answer);
     return {
@@ -252,27 +274,21 @@ Be thorough but efficient. Focus on authoritative sources.`;
    * Fetch content from a URL.
    */
   private async fetchContent(url: string): Promise<string> {
-    const parsedUrl = await this.validateFetchUrl(url);
-    const response = await fetchWithPolicy(parsedUrl, {
-      headers: {
-        "User-Agent": `Mozilla/5.0 (compatible; ${APP_USER_AGENT})`,
-      },
-    }, {
-      label: "Agent fetch",
-    });
+    const target = await this.validateFetchUrl(url);
+    const { contentType, body } = await this.fetchValidatedBody(target);
 
-    const contentType = response.headers.get("content-type") || "";
-    
-    if (contentType.includes("text/html")) {
-      // Simple HTML to text extraction
-      const html = await response.text();
-      return this.extractTextFromHTML(html);
+    if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml")) {
+      return this.extractTextFromHTML(body);
     }
 
-    return await response.text();
+    if (contentType.startsWith("text/")) {
+      return body;
+    }
+
+    throw new Error(`Unsupported fetch content type: ${contentType || "unknown"}`);
   }
 
-  private async validateFetchUrl(url: string): Promise<URL> {
+  private async validateFetchUrl(url: string): Promise<ValidatedFetchTarget> {
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url);
@@ -299,7 +315,92 @@ Be thorough but efficient. Focus on authoritative sources.`;
       );
     }
 
-    return parsedUrl;
+    const preferredAddress = resolvedAddresses.find(
+      (entry): entry is { address: string; family: 4 | 6 } => entry.family === 4 || entry.family === 6
+    );
+
+    if (!preferredAddress) {
+      throw new Error(`Unable to resolve a public IP for hostname: ${parsedUrl.hostname}`);
+    }
+
+    return {
+      url: parsedUrl,
+      resolvedAddress: preferredAddress.address,
+      family: preferredAddress.family,
+    };
+  }
+
+  private async fetchValidatedBody(target: ValidatedFetchTarget): Promise<{ contentType: string; body: string }> {
+    const client = target.url.protocol === "https:" ? https : http;
+
+    return await new Promise((resolve, reject) => {
+      const request = client.request(
+        {
+          protocol: target.url.protocol,
+          hostname: target.url.hostname,
+          port: target.url.port || undefined,
+          method: "GET",
+          path: `${target.url.pathname}${target.url.search}`,
+          headers: {
+            "User-Agent": `Mozilla/5.0 (compatible; ${APP_USER_AGENT})`,
+            Accept: "text/html, application/xhtml+xml, text/plain;q=0.9",
+            "Accept-Encoding": "identity",
+          },
+          servername: target.url.hostname,
+          lookup: (_hostname, _options, callback) => {
+            callback(null, target.resolvedAddress, target.family);
+          },
+        },
+        (response) => {
+          const statusCode = response.statusCode ?? 0;
+          if (statusCode < 200 || statusCode >= 300) {
+            response.resume();
+            reject(new Error(`Agent fetch failed with HTTP ${statusCode}`));
+            return;
+          }
+
+          const contentType = response.headers["content-type"] || "";
+          const normalizedContentType = Array.isArray(contentType) ? contentType[0] || "" : contentType;
+          if (
+            !normalizedContentType.includes("text/html") &&
+            !normalizedContentType.includes("application/xhtml+xml") &&
+            !normalizedContentType.startsWith("text/")
+          ) {
+            response.resume();
+            reject(new Error(`Unsupported fetch content type: ${normalizedContentType || "unknown"}`));
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          let totalBytes = 0;
+
+          response.on("data", (chunk: Buffer) => {
+            totalBytes += chunk.length;
+            if (totalBytes > MAX_FETCH_BODY_BYTES) {
+              response.destroy(new Error(`Agent fetch exceeded ${MAX_FETCH_BODY_BYTES} bytes`));
+              return;
+            }
+
+            chunks.push(chunk);
+          });
+
+          response.on("end", () => {
+            resolve({
+              contentType: normalizedContentType,
+              body: Buffer.concat(chunks).toString("utf8"),
+            });
+          });
+
+          response.on("error", reject);
+        }
+      );
+
+      request.setTimeout(AGENT_FETCH_TIMEOUT_MS, () => {
+        request.destroy(new Error(`Agent fetch timed out after ${AGENT_FETCH_TIMEOUT_MS}ms`));
+      });
+      request.on("error", reject);
+      request.end();
+    });
   }
 
   /**

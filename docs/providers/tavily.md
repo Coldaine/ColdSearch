@@ -16,6 +16,8 @@ export TAVILY_API_KEY="tvly-..."
 
 ## Available Tools
 
+ColdSearch currently wires Tavily `search`, `extract`, and a heuristic `crawl` path through `src/adapters/tavily.ts`. Tavily `map`, `answer`, `research`, and Tavily's native `/crawl` surface remain upstream API capabilities that are documented here but not exposed directly by the current ColdSearch adapter.
+
 ### 1. `tavily_web_search`
 
 Search the web with AI-optimized snippets.
@@ -194,15 +196,15 @@ Automated multi-search research report.
 
 ## Provider Capability Matrix
 
-| Tool | Endpoint | Free Tier | Notes |
-|------|----------|-----------|-------|
-| `tavily_web_search` | /search | ✅ 1,000/mo | AI-optimized snippets |
-| `tavily_news_search` | /search | ✅ 1,000/mo | topic=news |
-| `tavily_extract` | /extract | ✅ 1,000/mo | Up to 20 URLs |
-| `tavily_map` | /map | ✅ 1,000/mo | URL discovery |
-| `tavily_crawl` | /crawl | ✅ 1,000/mo | Map + extract |
-| `tavily_answer` | /answer | ✅ 1,000/mo | Q&A with citations |
-| `tavily_research` | /research | ✅ 1,000/mo | Multi-search synthesis |
+| Tool | Endpoint | Upstream API | Adapter implemented | Notes |
+|------|----------|--------------|---------------------|-------|
+| `tavily_web_search` | /search | ✅ | ✅ | Backed by `search()` in `src/adapters/tavily.ts` |
+| `tavily_news_search` | /search | ✅ | ⚠️ | Same upstream endpoint; topic-specific surface is not separately exposed by ColdSearch |
+| `tavily_extract` | /extract | ✅ | ✅ | Backed by `extract()` in `src/adapters/tavily.ts` |
+| `tavily_map` | /map | ✅ | ❌ | Upstream-only today |
+| `tavily_crawl` | /crawl | ✅ | ⚠️ | ColdSearch implements heuristic crawl behavior via search + extract, not Tavily native `/crawl` |
+| `tavily_answer` | /answer | ✅ | ❌ | Upstream-only today |
+| `tavily_research` | /research | ✅ | ❌ | Upstream-only today |
 
 ## Rate Limits
 

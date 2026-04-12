@@ -3,6 +3,7 @@ export interface RequestPolicy {
   timeoutMs?: number;
   retries?: number;
   retryDelayMs?: number;
+  allowNonIdempotentRetries?: boolean;
 }
 
 const DEFAULT_TIMEOUT_MS = 10000;
@@ -30,8 +31,26 @@ function createAbortError(message: string): Error {
   return error;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createAbortError("Sleep aborted"));
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+      reject(createAbortError("Sleep aborted"));
+    };
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function shouldRetryStatus(status: number): boolean {
@@ -68,7 +87,10 @@ export async function fetchWithPolicy(
   policy: RequestPolicy = {}
 ): Promise<Response> {
   const timeoutMs = policy.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const retries = policy.retries ?? DEFAULT_RETRIES;
+  const method = (init.method || "GET").toUpperCase();
+  const canRetry = ["GET", "HEAD", "PUT", "DELETE", "OPTIONS"].includes(method) ||
+    policy.allowNonIdempotentRetries === true;
+  const retries = canRetry ? (policy.retries ?? DEFAULT_RETRIES) : 0;
   const retryDelayMs = policy.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   const requestUrl = input.toString();
   let lastError: unknown;
@@ -76,7 +98,7 @@ export async function fetchWithPolicy(
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    const externalSignal = init.signal;
+    const externalSignal = init.signal ?? undefined;
 
     const onAbort = () => controller.abort();
     if (externalSignal) {
@@ -99,7 +121,7 @@ export async function fetchWithPolicy(
 
       if (attempt < retries && shouldRetryStatus(response.status)) {
         await response.body?.cancel();
-        await sleep(retryDelayMs * (attempt + 1));
+        await sleep(retryDelayMs * (attempt + 1), externalSignal);
         continue;
       }
 
@@ -113,7 +135,7 @@ export async function fetchWithPolicy(
       const externalAborted = externalSignal?.aborted === true;
 
       if (attempt < retries && shouldRetryError(error, externalAborted)) {
-        await sleep(retryDelayMs * (attempt + 1));
+        await sleep(retryDelayMs * (attempt + 1), externalSignal);
         continue;
       }
 

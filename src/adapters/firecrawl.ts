@@ -81,7 +81,11 @@ export class FirecrawlAdapter implements SearchAdapter {
     }
 
     const normalizedUrl = url.trim();
-    const limit = options?.limit ?? 10;
+    const rawLimit = options?.limit;
+    const limit =
+      typeof rawLimit === "number" && Number.isFinite(rawLimit)
+        ? Math.max(1, Math.floor(rawLimit))
+        : 10;
 
     // Start crawl job
     const startData = await fetchJson<{

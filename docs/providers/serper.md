@@ -277,19 +277,21 @@ Get reviews for a place.
 
 ## Provider Capability Matrix
 
-| Tool | Endpoint | Free Tier | Notes |
-|------|----------|-----------|-------|
-| `serper_web_search` | /search | ✅ 2,500 | Web results |
-| `serper_image_search` | /images | ✅ 2,500 | Image search |
-| `serper_news_search` | /news | ✅ 2,500 | News articles |
-| `serper_video_search` | /videos | ✅ 2,500 | Video search |
-| `serper_shopping_search` | /shopping | ✅ 2,500 | Product listings |
-| `serper_maps_search` | /maps | ✅ 2,500 | Local businesses |
-| `serper_places_search` | /places | ✅ 2,500 | Alias for maps |
-| `serper_scholar_search` | /scholar | ✅ 2,500 | Academic papers |
-| `serper_patents_search` | /patents | ✅ 2,500 | Patent filings |
-| `serper_autocomplete` | /autocomplete | ✅ 2,500 | Suggestions |
-| `serper_get_reviews` | /reviews | ✅ 2,500 | Place reviews |
+| Tool | Endpoint | Shared account quota (2,500 total) | Notes |
+|------|----------|------------------------------------|-------|
+| `serper_web_search` | /search | shared | Web results |
+| `serper_image_search` | /images | shared | Image search |
+| `serper_news_search` | /news | shared | News articles |
+| `serper_video_search` | /videos | shared | Video search |
+| `serper_shopping_search` | /shopping | shared | Product listings |
+| `serper_maps_search` | /maps | shared | Local businesses |
+| `serper_places_search` | /places | shared | Alias for maps |
+| `serper_scholar_search` | /scholar | shared | Academic papers |
+| `serper_patents_search` | /patents | shared | Patent filings |
+| `serper_autocomplete` | /autocomplete | shared | Suggestions |
+| `serper_get_reviews` | /reviews | shared | Place reviews |
+
+All endpoints share a single account-level pool of 2,500 free credits.
 
 ## Rate Limits
 
@@ -328,5 +330,5 @@ All endpoints return consistent JSON with:
 - Real-time Google results (not cached)
 - Returns Knowledge Graph, Answer Box, People Also Ask
 - Supports all major Google verticals
-- Most comprehensive search API for Google data
-- Official pricing is credit-pack based rather than a monthly subscription model
+- Provides API access to Google search results and related endpoints such as web, images, maps, and knowledge-graph-style responses.
+- Official pricing uses credit packs rather than a monthly subscription.

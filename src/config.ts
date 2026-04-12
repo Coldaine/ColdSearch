@@ -44,10 +44,12 @@ export function loadConfig(configPath?: string): Config {
     content = readFileSync(path, "utf-8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(
-        `Config file not found: ${path}\n` +
-        `Create one at ~/.config/${DEFAULT_CONFIG_DIR_NAME}/config.toml or specify with --config`
-      );
+      const defaultPath = `~/.config/${DEFAULT_CONFIG_DIR_NAME}/config.toml`;
+      const guidance = path === DEFAULT_CONFIG_PATH
+        ? `Create one at ${defaultPath} or specify with --config`
+        : `Verify the --config path or create the file at ${path}`;
+
+      throw new Error(`Config file not found: ${path}\n${guidance}`);
     }
     throw error;
   }
