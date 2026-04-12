@@ -263,30 +263,35 @@ Scrape thousands of URLs asynchronously.
 
 ## Rate Limits
 
-- **Free:** 2 concurrent requests
-- **Standard:** 5 concurrent requests
-- **Growth:** 10 concurrent requests
-- **Scale:** 20 concurrent requests
+As of 2026-04-12. Sources: https://docs.firecrawl.dev/rate-limits and https://www.firecrawl.dev/pricing
+
+- **Free:** 2 concurrent browsers
+- **Hobby:** 5 concurrent browsers
+- **Standard:** 50 concurrent browsers
+- **Growth:** 100 concurrent browsers
+- **Scale / Enterprise:** 150+ concurrent browsers
 
 ## Pricing (Credits)
 
+As of 2026-04-12. Sources: https://www.firecrawl.dev/pricing and https://docs.firecrawl.dev/billing
+
 - **Free:** 500 credits (one-time)
-- **Hobby:** $19/month (3,000 credits)
-- **Standard:** $99/month (100,000 credits)
-- **Growth:** $399/month (500,000 credits)
-- **Scale:** $749/month (1,000,000 credits)
+- **Hobby:** 3,000 credits/month, $16/month when billed yearly
+- **Standard:** 100,000 credits/month, $83/month when billed yearly
+- **Growth:** 500,000 credits/month, $333/month when billed yearly
+- **Scale:** 1,000,000 credits/month, $599/month when billed yearly
+- Paid plans are available with monthly or yearly billing; yearly billing is discounted.
 
 ## Credit Costs
 
 | Operation | Credits |
 |-----------|---------|
 | Scrape (standard) | 1 |
-| Scrape (with screenshot) | 5 |
 | Crawl (per page) | 1 |
-| Map (per URL found) | 0.1 |
-| Search (per result) | 1 |
-| Extract (per URL) | 2 |
-| Agent (per step) | 5 |
+| Map (per call) | 1 |
+| Search | 2 / 10 results |
+| Browser | 2 / browser minute |
+| Agent | Dynamic |
 
 ## Notes
 
@@ -294,4 +299,4 @@ Scrape thousands of URLs asynchronously.
 - Integrates with LangChain, LlamaIndex, CrewAI
 - MCP server available
 - 96% web coverage including JS-heavy sites
-- P95 latency: 3.4s
+- Billing details and credit modifiers are documented in the official billing docs.

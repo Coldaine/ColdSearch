@@ -1,8 +1,9 @@
-import { fetchJson } from "../http.js";
+import { fetchJson, HTTPRequestError } from "../http.js";
 import type {
   SearchAdapter,
   ExtractResult,
   CrawlResult,
+  NormalizedResult,
   AdapterCallOptions,
   CrawlCallOptions,
 } from "../types.js";
@@ -17,7 +18,7 @@ export class FirecrawlAdapter implements SearchAdapter {
   capabilities: SearchAdapter["capabilities"] = ["extract", "crawl"];
   private baseUrl = "https://api.firecrawl.dev/v2";
 
-  async search(_query: string, _apiKey: string): Promise<never[]> {
+  async search(_query: string, _apiKey: string): Promise<NormalizedResult[]> {
     throw new Error("Firecrawl does not support search");
   }
 
@@ -139,8 +140,35 @@ export class FirecrawlAdapter implements SearchAdapter {
           retries: 0,
           timeoutMs: 5000,
         });
-      } catch {
-        continue;
+      } catch (error) {
+        if (error instanceof HTTPRequestError) {
+          const isTransientStatus =
+            error.status === undefined ||
+            error.status >= 500 ||
+            error.status === 408 ||
+            error.status === 429;
+
+          if (!isTransientStatus) {
+            throw new Error(`Firecrawl crawl poll failed for job ${jobId}: ${error.message}`);
+          }
+
+          continue;
+        }
+
+        if (
+          error instanceof Error &&
+          (error.name === "TypeError" || error.name === "AbortError" || /timed out/i.test(error.message))
+        ) {
+          continue;
+        }
+
+        throw new Error(
+          `Firecrawl crawl poll failed for job ${jobId}: ${(error as Error).message}`
+        );
+      }
+
+      if (statusData.success === false || statusData.error) {
+        throw new Error(`Firecrawl crawl failed for job ${jobId}: ${statusData.error || "Unknown error"}`);
       }
 
       if (statusData.status === "completed" && statusData.data) {

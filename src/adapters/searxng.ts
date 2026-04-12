@@ -30,7 +30,12 @@ export class SearXNGAdapter implements SearchAdapter {
       );
     }
 
-    const searchUrl = new URL("/search", baseUrl);
+    const endpointBase = new URL(baseUrl);
+    endpointBase.pathname = endpointBase.pathname.endsWith("/")
+      ? endpointBase.pathname
+      : `${endpointBase.pathname}/`;
+
+    const searchUrl = new URL("search", endpointBase);
     searchUrl.searchParams.set("q", query);
     searchUrl.searchParams.set("format", "json");
 

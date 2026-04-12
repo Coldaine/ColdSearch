@@ -24,6 +24,12 @@ export class HTTPRequestError extends Error {
   }
 }
 
+function createAbortError(message: string): Error {
+  const error = new Error(message);
+  error.name = "AbortError";
+  return error;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -32,13 +38,17 @@ function shouldRetryStatus(status: number): boolean {
   return RETRYABLE_STATUS_CODES.has(status);
 }
 
-function shouldRetryError(error: unknown): boolean {
+function shouldRetryError(error: unknown, externalAborted: boolean): boolean {
   if (error instanceof HTTPRequestError) {
     return error.status !== undefined && shouldRetryStatus(error.status);
   }
 
   if (error instanceof Error) {
-    return error.name === "AbortError" || error.name === "TypeError";
+    if (error.name === "AbortError") {
+      return !externalAborted;
+    }
+
+    return error.name === "TypeError";
   }
 
   return false;
@@ -72,7 +82,7 @@ export async function fetchWithPolicy(
     if (externalSignal) {
       if (externalSignal.aborted) {
         clearTimeout(timeout);
-        throw new Error(`Request aborted before start: ${requestUrl}`);
+        throw createAbortError(`Request aborted before start: ${requestUrl}`);
       }
       externalSignal.addEventListener("abort", onAbort, { once: true });
     }
@@ -100,13 +110,18 @@ export async function fetchWithPolicy(
       );
     } catch (error) {
       lastError = error;
+      const externalAborted = externalSignal?.aborted === true;
 
-      if (attempt < retries && shouldRetryError(error)) {
+      if (attempt < retries && shouldRetryError(error, externalAborted)) {
         await sleep(retryDelayMs * (attempt + 1));
         continue;
       }
 
       if (error instanceof Error && error.name === "AbortError") {
+        if (externalAborted) {
+          throw createAbortError(`${policy.label || "Request"} was aborted by caller`);
+        }
+
         throw new Error(`${policy.label || "Request"} timed out after ${timeoutMs}ms`);
       }
 

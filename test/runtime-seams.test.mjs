@@ -35,3 +35,29 @@ test("searxng requires an explicit base url before searching", async () => {
     /requires providers\.searxng\.options\.baseUrl/
   );
 });
+
+test("searxng preserves configured base paths when building the search URL", async (t) => {
+  const originalFetch = global.fetch;
+  let requestedUrl = "";
+
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  global.fetch = async (input) => {
+    requestedUrl = input.toString();
+    return new Response(JSON.stringify({ results: [] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  const adapter = new SearXNGAdapter();
+  await adapter.search("fusion", "", {
+    providerOptions: {
+      baseUrl: "https://search.example.internal/searxng",
+    },
+  });
+
+  assert.match(requestedUrl, /^https:\/\/search\.example\.internal\/searxng\/search\?/);
+});

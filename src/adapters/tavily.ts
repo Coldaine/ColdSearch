@@ -36,6 +36,14 @@ export class TavilyAdapter implements SearchAdapter {
   capabilities: SearchAdapter["capabilities"] = ["search", "extract", "crawl"];
   private readonly baseUrl = "https://api.tavily.com";
 
+  private sanitizeLimit(limit?: number): number {
+    if (typeof limit !== "number" || !Number.isFinite(limit)) {
+      return 10;
+    }
+
+    return Math.max(1, Math.floor(limit));
+  }
+
   async search(
     query: string,
     apiKey: string,
@@ -64,7 +72,7 @@ export class TavilyAdapter implements SearchAdapter {
       url: result.url || "",
       snippet: result.content || "",
       // Tavily scores are 0-1, higher is better
-      score: result.score ?? (1 - index * 0.1),
+      score: result.score ?? Math.max(0.1, 1 - index * 0.1),
       source: this.name,
     }));
   }
@@ -113,7 +121,7 @@ export class TavilyAdapter implements SearchAdapter {
       throw new Error("URL is required");
     }
 
-    const limit = options?.limit ?? 10;
+    const limit = this.sanitizeLimit(options?.limit);
     
     // Use search to find related pages from the same domain
     const domain = new URL(url.trim()).hostname;
@@ -138,7 +146,7 @@ export class TavilyAdapter implements SearchAdapter {
     const urls = (searchResponse.results || [])
       .map(r => r.url)
       .filter((u): u is string => !!u)
-      .slice(0, limit - 1);  // Leave room for original URL
+      .slice(0, limit - 1); // Leave room for original URL
 
     // Add the original URL if not present
     const normalizedUrl = url.trim();

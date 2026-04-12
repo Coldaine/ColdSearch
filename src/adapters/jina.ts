@@ -2,6 +2,7 @@ import { fetchText } from "../http.js";
 import type {
   SearchAdapter,
   ExtractResult,
+  NormalizedResult,
   AdapterCallOptions,
 } from "../types.js";
 
@@ -15,7 +16,7 @@ export class JinaAdapter implements SearchAdapter {
   name = "jina";
   capabilities: SearchAdapter["capabilities"] = ["extract"];
 
-  async search(_query: string, _apiKey: string): Promise<never[]> {
+  async search(_query: string, _apiKey: string): Promise<NormalizedResult[]> {
     throw new Error("Jina does not support search");
   }
 

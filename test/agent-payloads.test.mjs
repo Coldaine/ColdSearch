@@ -23,4 +23,5 @@ test("parses final payloads inside fenced json", () => {
 test("rejects invalid payloads", () => {
   assert.equal(parseAgentPayload('search("fusion")'), null);
   assert.equal(parseAgentPayload('{"type":"tool","tool":"search","args":[1]}'), null);
+  assert.equal(parseAgentPayload('{"type":"final","answer":"   "}'), null);
 });

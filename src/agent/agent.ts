@@ -1,5 +1,10 @@
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { APP_USER_AGENT } from "../app.js";
-import { LocalExecutionBackend } from "../execution/backend.js";
+import {
+  LocalExecutionBackend,
+  type ExecutionBackend,
+} from "../execution/backend.js";
 import { fetchWithPolicy } from "../http.js";
 import { createLLMClient, type LLMClient } from "./llm.js";
 import { tools, parseAgentPayload } from "./tools.js";
@@ -19,6 +24,76 @@ export interface AgentOptions {
   model?: string;
   /** Config path */
   configPath?: string;
+  /** Execution backend implementation */
+  executionBackend?: ExecutionBackend;
+}
+
+function isIPv4InCidr(ip: string, network: string, prefixBits: number): boolean {
+  const ipOctets = ip.split(".").map(Number);
+  const networkOctets = network.split(".").map(Number);
+
+  if (
+    ipOctets.length !== 4 ||
+    networkOctets.length !== 4 ||
+    ipOctets.some(Number.isNaN) ||
+    networkOctets.some(Number.isNaN)
+  ) {
+    return false;
+  }
+
+  const ipValue = ipOctets.reduce((value, octet) => ((value << 8) + octet) >>> 0, 0);
+  const networkValue = networkOctets.reduce(
+    (value, octet) => ((value << 8) + octet) >>> 0,
+    0
+  );
+  const mask = prefixBits === 0 ? 0 : (~((1 << (32 - prefixBits)) - 1)) >>> 0;
+
+  return (ipValue & mask) === (networkValue & mask);
+}
+
+function isBlockedIpAddress(address: string): boolean {
+  const version = isIP(address);
+
+  if (version === 4) {
+    const blockedCidrs: Array<[string, number]> = [
+      ["127.0.0.0", 8],
+      ["10.0.0.0", 8],
+      ["172.16.0.0", 12],
+      ["192.168.0.0", 16],
+      ["169.254.0.0", 16],
+      ["0.0.0.0", 8],
+    ];
+
+    return blockedCidrs.some(([network, prefixBits]) =>
+      isIPv4InCidr(address, network, prefixBits)
+    );
+  }
+
+  if (version === 6) {
+    const normalized = address.toLowerCase();
+    return (
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe8") ||
+      normalized.startsWith("fe9") ||
+      normalized.startsWith("fea") ||
+      normalized.startsWith("feb")
+    );
+  }
+
+  return false;
+}
+
+function isBlockedHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "metadata.google.internal" ||
+    normalized === "metadata" ||
+    normalized === "169.254.169.254"
+  );
 }
 
 /**
@@ -43,11 +118,11 @@ export interface AgentResult {
  */
 export class SearchAgent {
   private llm: LLMClient;
-  private backend: LocalExecutionBackend;
+  private backend: ExecutionBackend;
 
   constructor(options: AgentOptions = {}) {
     this.llm = createLLMClient(options.llmProvider, options.model);
-    this.backend = new LocalExecutionBackend(options.configPath);
+    this.backend = options.executionBackend ?? new LocalExecutionBackend(options.configPath);
   }
 
   /**
@@ -177,7 +252,8 @@ Be thorough but efficient. Focus on authoritative sources.`;
    * Fetch content from a URL.
    */
   private async fetchContent(url: string): Promise<string> {
-    const response = await fetchWithPolicy(url, {
+    const parsedUrl = await this.validateFetchUrl(url);
+    const response = await fetchWithPolicy(parsedUrl, {
       headers: {
         "User-Agent": `Mozilla/5.0 (compatible; ${APP_USER_AGENT})`,
       },
@@ -194,6 +270,36 @@ Be thorough but efficient. Focus on authoritative sources.`;
     }
 
     return await response.text();
+  }
+
+  private async validateFetchUrl(url: string): Promise<URL> {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new Error(`Invalid fetch URL: ${url}`);
+    }
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      throw new Error(`Unsupported fetch URL protocol: ${parsedUrl.protocol}`);
+    }
+
+    if (isBlockedHostname(parsedUrl.hostname)) {
+      throw new Error(`Refusing to fetch internal hostname: ${parsedUrl.hostname}`);
+    }
+
+    if (isBlockedIpAddress(parsedUrl.hostname)) {
+      throw new Error(`Refusing to fetch non-public IP: ${parsedUrl.hostname}`);
+    }
+
+    const resolvedAddresses = await lookup(parsedUrl.hostname, { all: true, verbatim: true });
+    if (resolvedAddresses.some((entry) => isBlockedIpAddress(entry.address))) {
+      throw new Error(
+        `Refusing to fetch hostname resolving to a non-public IP: ${parsedUrl.hostname}`
+      );
+    }
+
+    return parsedUrl;
   }
 
   /**

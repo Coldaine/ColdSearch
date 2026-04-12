@@ -4,6 +4,8 @@
 
 Use `coldsearch` when you need to search the web and return structured results. It normalizes responses across multiple search providers into a single consistent schema.
 
+`usearch` remains available as a compatibility alias, but `coldsearch` is the canonical command in this guide.
+
 Use **Mode 1** (default) for quick search across multiple providers with reranking.
 Use **Mode 2** (`--agent`) for multi-step research that synthesizes an answer from multiple sources.
 Use **extract** command to extract content from a URL.
@@ -79,9 +81,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 Search across all configured providers in parallel, combine and rerank results.
 
 ```bash
-usearch search "your search query"
-usearch search --limit 5 --pretty "machine learning"
-usearch search --providers tavily,brave --rerank rrf "query"
+coldsearch search "your search query"
+coldsearch search --limit 5 --pretty "machine learning"
+coldsearch search --providers tavily,brave --rerank rrf "query"
 ```
 
 #### Search Options
@@ -120,8 +122,8 @@ usearch search --providers tavily,brave --rerank rrf "query"
 Extract content from a specific URL using the configured extract provider.
 
 ```bash
-usearch extract "https://example.com/article"
-usearch extract --single-provider "https://example.com"
+coldsearch extract "https://example.com/article"
+coldsearch extract --single-provider "https://example.com"
 ```
 
 #### Extract Options
@@ -153,8 +155,8 @@ usearch extract --single-provider "https://example.com"
 Crawl a website and extract content from multiple pages.
 
 ```bash
-usearch crawl "https://example.com"
-usearch crawl --limit 5 "https://docs.example.com"
+coldsearch crawl "https://example.com"
+coldsearch crawl --limit 5 "https://docs.example.com"
 ```
 
 #### Crawl Options
@@ -189,8 +191,8 @@ usearch crawl --limit 5 "https://docs.example.com"
 Multi-step research agent that searches, reads sources, and synthesizes an answer.
 
 ```bash
-usearch --agent "explain quantum computing in simple terms"
-usearch --agent --max-steps 10 --max-sources 5 "latest fusion energy developments"
+coldsearch --agent "explain quantum computing in simple terms"
+coldsearch --agent --max-steps 10 --max-sources 5 "latest fusion energy developments"
 ```
 
 ### Agent Options
@@ -253,37 +255,37 @@ strategy = "random"  # Pick random key for each request
 
 ```bash
 # Quick search (fanout mode)
-usearch "what is firecrawl"
+coldsearch "what is firecrawl"
 
 # Search with specific providers
-usearch --providers tavily,brave "rust async runtime"
+coldsearch --providers tavily,brave "rust async runtime"
 
 # Single provider mode (via CLI flag)
-usearch --single-provider "machine learning"
+coldsearch --single-provider "machine learning"
 
 # Extract content from URL
-usearch extract "https://blog.example.com/post"
+coldsearch extract "https://blog.example.com/post"
 
 # Crawl a website
-usearch crawl --limit 5 "https://docs.example.com"
+coldsearch crawl --limit 5 "https://docs.example.com"
 
 # Research mode (agent)
-usearch --agent "compare tokamak vs stellarator fusion approaches"
+coldsearch --agent "compare tokamak vs stellarator fusion approaches"
 
 # Deep research with more steps
-usearch --agent --max-steps 15 --max-sources 8 "history of quantum computing"
+coldsearch --agent --max-steps 15 --max-sources 8 "history of quantum computing"
 ```
 
 ## Requirements
 
 - Node.js >= 18
-- Config file at `~/.config/usearch/config.toml`
+- Config file at `~/.config/coldsearch/config.toml`
 - API keys for configured providers
 - For agent mode: ANTHROPIC_API_KEY or OPENAI_API_KEY
 
 ## Troubleshooting
 
-**"Config file not found"** — Create `~/.config/usearch/config.toml` or specify with `--config`.
+**"Config file not found"** — Create `~/.config/coldsearch/config.toml` or specify with `--config`.
 
 **"Environment variable X is not set"** — Export the required API key.
 

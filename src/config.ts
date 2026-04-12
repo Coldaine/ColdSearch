@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import TOML from "@iarna/toml";
@@ -26,13 +26,8 @@ function resolveConfigPath(configPath?: string): string {
     return configPath;
   }
 
-  try {
-    readFileSync(DEFAULT_CONFIG_PATH, "utf-8");
+  if (existsSync(DEFAULT_CONFIG_PATH)) {
     return DEFAULT_CONFIG_PATH;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw error;
-    }
   }
 
   return LEGACY_CONFIG_PATH;

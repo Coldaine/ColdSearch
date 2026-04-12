@@ -4,6 +4,8 @@
 
 ColdSearch now supports **Bitwarden Secrets Manager** as a secure key storage backend alongside environment variables. Store your API keys in BWS and reference them by name or ID in your configuration.
 
+`usearch` still works as a compatibility alias, but the canonical CLI and config path are `coldsearch` and `~/.config/coldsearch/config.toml`.
+
 ## Why BWS?
 
 | Feature | Environment Variables | BWS |
@@ -51,10 +53,10 @@ bws secret create TAVILY_API_KEY_BACKUP "tvly-..." --project-id "xxx"
 bws secret create EXA_API_KEY "xxx" --project-id "xxx"
 ```
 
-### 4. Configure usearch
+### 4. Configure coldsearch
 
 ```toml
-# ~/.config/usearch/config.toml
+# ~/.config/coldsearch/config.toml
 
 [providers.tavily.keyPool]
 # Reference BWS secrets by name
@@ -79,10 +81,10 @@ export BWS_ORGANIZATION_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 export BWS_SERVER_URL="https://api.bitwarden.com"  # Default
 ```
 
-### 6. Run usearch
+### 6. Run coldsearch
 
 ```bash
-usearch search "machine learning"
+coldsearch search "machine learning"
 # Keys automatically retrieved from BWS
 ```
 
@@ -147,7 +149,7 @@ bws organization list
 ## Architecture
 
 ```
-usearch search "query"
+coldsearch search "query"
        │
        ▼
 ┌─────────────────────────────┐
@@ -274,7 +276,7 @@ keys = [
 ### Debug Mode
 ```bash
 # Enable verbose logging
-DEBUG=bws usearch search "query"
+DEBUG=bws coldsearch search "query"
 ```
 
 ### Verify BWS Access
@@ -288,7 +290,7 @@ bws secret list
 ### Test Key Resolution
 ```bash
 # Dry-run mode (if implemented)
-usearch config test --provider tavily
+coldsearch config test --provider tavily
 ```
 
 ## Provider-Specific Notes

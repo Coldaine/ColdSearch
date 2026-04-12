@@ -135,7 +135,7 @@ export class OpenAIClient implements LLMClient {
             completionTokens: data.usage.completion_tokens ?? 0,
             totalTokens:
               data.usage.total_tokens ??
-              (data.usage.prompt_tokens ?? 0) + (data.usage.completion_tokens ?? 0),
+              ((data.usage.prompt_tokens ?? 0) + (data.usage.completion_tokens ?? 0)),
           }
         : undefined,
     };

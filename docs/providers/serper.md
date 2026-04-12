@@ -1,7 +1,8 @@
 # Serper Provider
 
 **Website:** https://serper.dev  
-**API Docs:** https://serper.dev/docs
+**API Docs:** https://serper.dev/docs  
+**Pricing:** https://serper.dev
 
 ## Overview
 
@@ -22,6 +23,7 @@ Google web search.
 **Endpoint:** `POST /search`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -32,7 +34,8 @@ Google web search.
 | `tbs` | string | No | Time filter |
 | `location` | string | No | Location for local results |
 
-**Time Filters (tbs):**
+**Time Filters (`tbs`):**
+
 - `qdr:h` - Past hour
 - `qdr:d` - Past 24 hours
 - `qdr:w` - Past week
@@ -40,6 +43,7 @@ Google web search.
 - `qdr:y` - Past year
 
 **Example:**
+
 ```json
 {
   "q": "machine learning",
@@ -59,6 +63,7 @@ Google Images search.
 **Endpoint:** `POST /images`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -69,6 +74,7 @@ Google Images search.
 | `safe` | string | No | `"active"` or `"off"` |
 
 **Example:**
+
 ```json
 {
   "q": "mountain landscape",
@@ -85,6 +91,7 @@ Google News search.
 **Endpoint:** `POST /news`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -95,6 +102,7 @@ Google News search.
 | `tbs` | string | No | Time filter |
 
 **Example:**
+
 ```json
 {
   "q": "technology",
@@ -112,6 +120,7 @@ Google Videos search.
 **Endpoint:** `POST /videos`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -129,6 +138,7 @@ Google Shopping search.
 **Endpoint:** `POST /shopping`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -146,6 +156,7 @@ Google Maps search.
 **Endpoint:** `POST /maps`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -155,6 +166,7 @@ Google Maps search.
 | `num` | number | No | Results count |
 
 **Example:**
+
 ```json
 {
   "q": "coffee shops",
@@ -182,6 +194,7 @@ Google Scholar (academic papers).
 **Endpoint:** `POST /scholar`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -193,6 +206,7 @@ Google Scholar (academic papers).
 | `as_yhi` | number | No | Published before year |
 
 **Example:**
+
 ```json
 {
   "q": "transformer architecture",
@@ -210,6 +224,7 @@ Google Patents search.
 **Endpoint:** `POST /patents`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Search query |
@@ -227,6 +242,7 @@ Google Autocomplete suggestions.
 **Endpoint:** `POST /autocomplete`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `q` | string | Yes | Partial query |
@@ -234,6 +250,7 @@ Google Autocomplete suggestions.
 | `hl` | string | No | Language code |
 
 **Example:**
+
 ```json
 {
   "q": "best rest",
@@ -250,6 +267,7 @@ Get reviews for a place.
 **Endpoint:** `POST /reviews`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `place_id` | string | Yes | Google Place ID |
@@ -275,18 +293,29 @@ Get reviews for a place.
 
 ## Rate Limits
 
-- **Free:** 300 queries/second (very high!)
-- Response time: 1-2 seconds
+As of 2026-04-12. Source: https://serper.dev
+
+- **Free:** 2,500 one-time queries; the official pricing page does not publish a dedicated free-tier QPS limit.
+- **Starter:** 50 queries/second
+- **Standard:** 100 queries/second
+- **Scale:** 200 queries/second
+- **Ultimate:** 300 queries/second
 
 ## Pricing
 
-- **Free:** 2,500 queries (no credit card)
-- **Pay-as-you-go:** Starting at $0.30 per 1,000 queries
-- No monthly subscription required
+As of 2026-04-12. Source: https://serper.dev
+
+- **Free:** 2,500 one-time queries (no credit card)
+- **Starter:** $50 for 50,000 credits ($1.00 / 1k)
+- **Standard:** $375 for 500,000 credits ($0.75 / 1k)
+- **Scale:** $1,250 for 2.5M credits ($0.50 / 1k)
+- **Ultimate:** $3,750 for 12.5M credits ($0.30 / 1k)
+- Credits are sold as top-up packs and are valid for 6 months.
 
 ## Response Structure
 
 All endpoints return consistent JSON with:
+
 - `searchParameters` - Query details
 - `knowledgeGraph` - Knowledge panel (if available)
 - `answerBox` - Direct answer (if available)
@@ -300,4 +329,4 @@ All endpoints return consistent JSON with:
 - Returns Knowledge Graph, Answer Box, People Also Ask
 - Supports all major Google verticals
 - Most comprehensive search API for Google data
-- No credit card required for free tier
+- Official pricing is credit-pack based rather than a monthly subscription model

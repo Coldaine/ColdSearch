@@ -136,9 +136,14 @@ export function parseAgentPayload(text: string): AgentPayload | null {
     const payload = JSON.parse(normalized) as Partial<AgentPayload>;
 
     if (payload.type === "final" && typeof payload.answer === "string") {
+      const answer = payload.answer.trim();
+      if (!answer) {
+        return null;
+      }
+
       return {
         type: "final",
-        answer: payload.answer.trim(),
+        answer,
       };
     }
 

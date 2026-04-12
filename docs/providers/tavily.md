@@ -23,6 +23,7 @@ Search the web with AI-optimized snippets.
 **Endpoint:** `POST /search`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | Yes | Search query |
@@ -36,6 +37,7 @@ Search the web with AI-optimized snippets.
 | `include_raw_content` | boolean | No | Include full page content |
 
 **Example:**
+
 ```json
 {
   "query": "latest AI breakthroughs",
@@ -53,7 +55,7 @@ Search news articles specifically.
 
 **Endpoint:** `POST /search` (with `topic: "news"`)
 
-**Parameters:** Same as `tavily_web_search` + `topic: "news"`
+**Parameters:** Same as `tavily_web_search` plus `topic: "news"`
 
 **Use when:** Looking for recent news, current events, breaking stories.
 
@@ -66,6 +68,7 @@ Extract full content from URLs.
 **Endpoint:** `POST /extract`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `urls` | string[] | Yes | Up to 20 URLs to extract |
@@ -73,6 +76,7 @@ Extract full content from URLs.
 | `extract_depth` | string | No | `"basic"` or `"advanced"` |
 
 **Example:**
+
 ```json
 {
   "urls": ["https://example.com/article1", "https://example.com/article2"],
@@ -89,6 +93,7 @@ Discover all URLs on a website.
 **Endpoint:** `POST /map`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `url` | string | Yes | Base URL to map |
@@ -96,6 +101,7 @@ Discover all URLs on a website.
 | `max_results` | number | No | Max URLs to return |
 
 **Example:**
+
 ```json
 {
   "url": "https://docs.example.com",
@@ -112,6 +118,7 @@ Map + extract combined for entire sites.
 **Endpoint:** `POST /crawl`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `url` | string | Yes | Starting URL |
@@ -119,6 +126,7 @@ Map + extract combined for entire sites.
 | `extract_depth` | string | No | `"basic"` or `"advanced"` |
 
 **Example:**
+
 ```json
 {
   "url": "https://blog.example.com",
@@ -136,6 +144,7 @@ Get direct answers with citations.
 **Endpoint:** `POST /answer`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | Yes | Question to answer |
@@ -143,6 +152,7 @@ Get direct answers with citations.
 | `include_sources` | boolean | No | Include source URLs |
 
 **Example:**
+
 ```json
 {
   "query": "What is the capital of France?",
@@ -151,7 +161,7 @@ Get direct answers with citations.
 }
 ```
 
-**Returns:** Direct answer + source citations
+**Returns:** Direct answer plus source citations.
 
 ---
 
@@ -162,6 +172,7 @@ Automated multi-search research report.
 **Endpoint:** `POST /research`
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | Yes | Research topic |
@@ -169,6 +180,7 @@ Automated multi-search research report.
 | `time_range` | string | No | `"day"`, `"week"`, `"month"`, `"year"` |
 
 **Example:**
+
 ```json
 {
   "query": "Impact of AI on healthcare 2024",
@@ -176,7 +188,7 @@ Automated multi-search research report.
 }
 ```
 
-**Returns:** Synthesized report with multiple sources
+**Returns:** Synthesized report with multiple sources.
 
 ---
 

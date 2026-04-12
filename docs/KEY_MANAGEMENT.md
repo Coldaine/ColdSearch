@@ -10,6 +10,8 @@
 - **Config file** (`~/.config/coldsearch/config.toml`) only stores key **references**, not actual keys
 - **In-memory** - Keys are resolved at runtime and held in memory during request processing
 
+Legacy `usearch` command and `~/.config/usearch/` path references remain compatibility aliases, but the canonical command/path are `coldsearch` and `~/.config/coldsearch/`.
+
 ### Supported Key References
 
 ```toml
@@ -153,8 +155,8 @@ interface UsageRecord {
 ```
 
 **Storage options:**
-- SQLite: `~/.config/usearch/usage.db`
-- JSONL: `~/.config/usearch/usage.jsonl`
+- SQLite: `~/.config/coldsearch/usage.db`
+- JSONL: `~/.config/coldsearch/usage.jsonl`
 - External: PostHog, analytics service
 
 ### 3. Provider-Specific Quota Fetching
@@ -237,7 +239,7 @@ strategy = "random"
 
 ```bash
 # Check usage
-usearch status --provider tavily
+coldsearch status --provider tavily
 
 # Output:
 # Tavily Key 1: 450/1000 credits remaining (45 days left)
@@ -248,8 +250,8 @@ usearch status --provider tavily
 
 ```bash
 # Configure alerts
-usearch config set alert.threshold 100  # Alert at 100 credits remaining
-usearch config set alert.webhook "https://hooks.slack.com/..."
+coldsearch config set alert.threshold 100  # Alert at 100 credits remaining
+coldsearch config set alert.webhook "https://hooks.slack.com/..."
 ```
 
 ---
@@ -259,12 +261,12 @@ usearch config set alert.webhook "https://hooks.slack.com/..."
 ### Immediate (Do Now)
 - [ ] Verify `.env` files are in `.gitignore`
 - [ ] Confirm no keys in shell history (`history | grep -E "(tvly-|fc-)"`)
-- [ ] Document actual key count in `~/.config/usearch/.keys` (secure file)
+- [ ] Document actual key count in `~/.config/coldsearch/.keys` (secure file)
 
 ### Short Term (This Week)
 - [ ] Implement usage logging to JSONL
 - [ ] Add `--dry-run` flag to estimate cost
-- [ ] Create `usearch status` command
+- [ ] Create `coldsearch status` command
 
 ### Medium Term (This Month)
 - [ ] Build quota estimation from usage patterns
@@ -281,7 +283,7 @@ usearch config set alert.webhook "https://hooks.slack.com/..."
 
 ## Key Inventory Template
 
-Create `~/.config/usearch/.keys` (chmod 600):
+Create `~/.config/coldsearch/.keys` (chmod 600):
 
 ```
 Provider: Tavily
