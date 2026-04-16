@@ -14,6 +14,26 @@ Jina AI provides free and paid tools for reading, searching, and embedding web c
 export JINA_API_KEY="jina_..."
 ```
 
+## Authentication
+
+If you configure `JINA_API_KEY`, ColdSearch will send it as a bearer token. The current adapter also works without a key for basic Reader extraction.
+
+## Configuration Example
+
+```toml
+[providers.jina]
+[providers.jina.keyPool]
+keys = ["env:JINA_API_KEY"]
+```
+
+## Capabilities
+
+| Capability | Vendor | ColdSearch | Notes |
+|------------|--------|------------|-------|
+| `search` | ⚠️ | ❌ | Not wired in ColdSearch today |
+| `extract` | ✅ | ✅ | Implemented by `extract()` in `src/adapters/jina.ts` |
+| `crawl` | ⚠️ | ❌ | Not implemented |
+
 ## Available Tools
 
 ### 1. `jina_reader`

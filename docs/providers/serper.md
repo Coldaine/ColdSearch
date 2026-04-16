@@ -14,6 +14,22 @@ Serper.dev provides fast Google Search API access with structured SERP data. Sup
 export SERPER_API_KEY="..."
 ```
 
+## Configuration Example
+
+```toml
+[providers.serper]
+[providers.serper.keyPool]
+keys = ["env:SERPER_API_KEY"]
+```
+
+## Capabilities
+
+| Capability | Vendor | ColdSearch | Notes |
+|------------|--------|------------|-------|
+| `search` | ✅ | ✅ | Implemented by `search()` in `src/adapters/serper.ts` |
+| `extract` | ❌ | ❌ | Not implemented |
+| `crawl` | ❌ | ❌ | Not implemented |
+
 ## Available Tools
 
 ### 1. `serper_web_search`

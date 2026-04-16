@@ -32,7 +32,7 @@ ColdSearch now has:
 
 - `search`: SearXNG, Tavily, Exa, Brave, Serper
 - `extract`: Tavily, Exa, Jina, Firecrawl
-- `crawl`: Tavily, Firecrawl
+- `crawl`: Tavily, Firecrawl, Exa
 
 ### Docs
 
@@ -46,7 +46,7 @@ ColdSearch now has:
 - async job model for agent-mode work
 - centralized remote secrets management
 - broader provider tool-surface exposure in the CLI
-- quota-aware rotation and usage tracking
+- quota-aware rotation
 
 ## Next Implementation Priorities
 

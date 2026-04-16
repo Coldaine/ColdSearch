@@ -8,25 +8,19 @@
 
 SearXNG is a privacy-oriented metasearch engine that aggregates results from multiple upstream engines. In ColdSearch it is treated as an operator-managed search backend rather than a vendor API with hosted credentials.
 
-## Official Surface
+## Authentication
 
-ColdSearch currently documents SearXNG at the capability level:
+SearXNG is treated as an **operator-managed endpoint**. ColdSearch does not require or manage an API key for SearXNG by default.
 
-- web search
-- engine aggregation / metasearch
-- self-hosted deployment and endpoint control
+## Capabilities
 
-ColdSearch does not currently expose broader SearXNG customization features as first-class CLI concepts.
+| Capability | Vendor | ColdSearch | Notes |
+|------------|--------|------------|-------|
+| `search` | ✅ | ✅ | Supported via configured `baseUrl` |
+| `extract` | ❌ | ❌ | Not implemented |
+| `crawl` | ❌ | ❌ | Not implemented |
 
-## Current ColdSearch Support
-
-| Capability | Status | Notes |
-|------------|--------|-------|
-| `search` | ✅ | Supported via configured `baseUrl` |
-| `extract` | ❌ | Not implemented |
-| `crawl` | ❌ | Not implemented |
-
-## Configuration
+## Configuration Example
 
 ```toml
 [providers.searxng]
@@ -39,12 +33,9 @@ baseUrl = "https://search.example.internal"
 
 You can also provide `SEARXNG_BASE_URL` in the environment.
 
-## Deployment Notes
+## Notes
 
 - ColdSearch does not assume SearXNG runs on `localhost`.
 - This repo may contain optional infrastructure assets for standing up SearXNG elsewhere.
 - Local container execution is not the default workflow for `icarus-laptop`.
-
-## Why It Matters
-
-SearXNG gives ColdSearch a self-hosted search option that can later fit a hybrid remote execution model where search infrastructure and secrets live centrally.
+ - SearXNG gives ColdSearch a self-hosted search option that can later fit a hybrid remote execution model where search infrastructure and secrets live centrally.
