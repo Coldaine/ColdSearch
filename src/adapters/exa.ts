@@ -4,6 +4,8 @@ import type {
   NormalizedResult,
   ExtractResult,
   AdapterCallOptions,
+  CrawlResult,
+  CrawlCallOptions,
 } from "../types.js";
 
 /**
@@ -13,7 +15,7 @@ import type {
  */
 export class ExaAdapter implements SearchAdapter {
   name = "exa";
-  capabilities: SearchAdapter["capabilities"] = ["search", "extract"];
+  capabilities: SearchAdapter["capabilities"] = ["search", "extract", "crawl"];
 
   async search(
     query: string,
@@ -99,5 +101,82 @@ export class ExaAdapter implements SearchAdapter {
       title: result.title || "",
       source: this.name,
     };
+  }
+
+  async crawl(
+    url: string,
+    apiKey: string,
+    options?: CrawlCallOptions
+  ): Promise<CrawlResult[]> {
+    if (!url || !url.trim()) {
+      throw new Error("URL is required");
+    }
+
+    const normalizedUrl = url.trim();
+    const rawLimit = options?.limit;
+    const limit =
+      typeof rawLimit === "number" && Number.isFinite(rawLimit)
+        ? Math.max(1, Math.floor(rawLimit))
+        : 10;
+
+    const domain = new URL(normalizedUrl).hostname;
+
+    // Discover candidate pages via Exa search, then fetch contents with livecrawl.
+    const searchData = await fetchJson<{
+      results?: Array<{
+        title?: string;
+        url?: string;
+      }>;
+    }>("https://api.exa.ai/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        query: `site:${domain}`,
+        numResults: limit,
+        useAutoprompt: false,
+      }),
+    }, {
+      label: "Exa crawl discover",
+    });
+
+    const candidateUrls = [
+      normalizedUrl,
+      ...(searchData.results || [])
+        .map((r) => r.url)
+        .filter((candidate): candidate is string => !!candidate),
+    ]
+      .filter((candidate, idx, all) => all.indexOf(candidate) === idx)
+      .slice(0, limit);
+
+    const contents = await fetchJson<{
+      results?: Array<{
+        title?: string;
+        url?: string;
+        text?: string;
+      }>;
+    }>("https://api.exa.ai/contents", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        urls: candidateUrls,
+        text: { max_characters: 12000 },
+        livecrawl: "preferred",
+        livecrawl_timeout: 10000,
+      }),
+    }, {
+      label: "Exa crawl contents",
+    });
+
+    return (contents.results || []).map((result) => ({
+      url: result.url || "",
+      title: result.title || "",
+      content: result.text || "",
+    }));
   }
 }

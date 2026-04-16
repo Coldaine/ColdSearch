@@ -26,8 +26,8 @@ export class ResearchContext {
   goal: string;
   sources: Source[] = [];
   steps: ResearchStep[] = [];
+  /** Tracked so tools can reference the active query */
   currentQuery: string = "";
-  findings: string[] = [];
   maxSources: number;
 
   constructor(goal: string, maxSources: number = 5) {
@@ -65,13 +65,6 @@ export class ResearchContext {
   }
 
   /**
-   * Add a finding from research.
-   */
-  addFinding(finding: string): void {
-    this.findings.push(finding);
-  }
-
-  /**
    * Get formatted sources for citation.
    */
   getFormattedSources(): string {
@@ -81,23 +74,19 @@ export class ResearchContext {
   }
 
   /**
-   * Generate final response with citations.
+   * Generate final response with source citations appended.
    */
   generateResponse(answer: string): {
     answer: string;
     sources: Source[];
     steps: ResearchStep[];
   } {
-    // Add citations to answer
-    let citedAnswer = answer;
-    this.sources.forEach((source, index) => {
-      // Simple citation replacement - could be smarter
-      const citation = `[${index + 1}]`;
-      // This is a placeholder - actual citation logic would be more sophisticated
-    });
+    const citationBlock = this.sources.length > 0
+      ? "\n\nSources:\n" + this.getFormattedSources()
+      : "";
 
     return {
-      answer: citedAnswer,
+      answer: answer + citationBlock,
       sources: this.sources,
       steps: this.steps,
     };

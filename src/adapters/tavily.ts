@@ -26,6 +26,15 @@ interface TavilyExtractResponse {
   }>;
 }
 
+interface TavilyCrawlResponse {
+  results?: Array<{
+    title?: string;
+    url?: string;
+    rawContent?: string;
+    raw_content?: string;
+  }>;
+}
+
 /**
  * Tavily search adapter.
  * Implements the SearchAdapter interface for Tavily's search API.
@@ -122,39 +131,10 @@ export class TavilyAdapter implements SearchAdapter {
     }
 
     const limit = this.sanitizeLimit(options?.limit);
-    
-    // Use search to find related pages from the same domain
-    const domain = new URL(url.trim()).hostname;
-    const searchResponse = await fetchJson<TavilySearchResponse>(
-      `${this.baseUrl}/search`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          query: `site:${domain}`,
-          search_depth: "basic",
-          include_answer: false,
-          max_results: limit,
-        }),
-      },
-      { label: "Tavily crawl search" }
-    );
-
     const normalizedUrl = url.trim();
-    const uniqueUrls = [
-      normalizedUrl,
-      ...(searchResponse.results || [])
-        .map((result) => result.url)
-        .filter((candidate): candidate is string => !!candidate),
-    ].filter((candidate, index, allCandidates) => allCandidates.indexOf(candidate) === index)
-      .slice(0, limit);
 
-    // Extract content from all URLs
-    const extractResponse = await fetchJson<TavilyExtractResponse>(
-      `${this.baseUrl}/extract`,
+    const response = await fetchJson<TavilyCrawlResponse>(
+      `${this.baseUrl}/crawl`,
       {
         method: "POST",
         headers: {
@@ -162,14 +142,15 @@ export class TavilyAdapter implements SearchAdapter {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          urls: uniqueUrls,
-          include_images: false,
+          url: normalizedUrl,
+          limit,
+          extract_depth: "basic",
         }),
       },
-      { label: "Tavily crawl extract" }
+      { label: "Tavily crawl", timeoutMs: 120_000 }
     );
 
-    return (extractResponse.results || []).map(result => ({
+    return (response.results || []).map((result) => ({
       url: result.url || "",
       title: result.title || "",
       content: result.rawContent || result.raw_content || "",

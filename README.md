@@ -42,7 +42,7 @@ The current implementation remains local-first, but the runtime is now being org
 |------------|-------------------|-----------|
 | `search` | SearXNG, Tavily, Exa, Brave, Serper | Manual random pool |
 | `extract` | Tavily, Exa, Jina, Firecrawl | Manual random pool |
-| `crawl` | Tavily, Firecrawl | Manual random pool |
+| `crawl` | Tavily, Firecrawl, Exa | Manual random pool |
 
 ## Provider Overlap
 
@@ -91,6 +91,7 @@ npm test
 - `docs/NORTH_STAR.md` - Product direction and architectural intent
 - `docs/architecture.md` - Runtime architecture and seams
 - `docs/PROGRESS.md` - Current implementation status
+- `docs/CONFIGURATION.md` - Configuration reference and precedence
 - `docs/CAPABILITY_MATRIX.md` - Required maintenance matrix for providers vs capabilities
 - `docs/providers/README.md` - Provider docs index
 - `docs/providers/*.md` - Per-provider detail pages

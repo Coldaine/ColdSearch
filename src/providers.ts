@@ -5,7 +5,7 @@ import { JinaAdapter } from "./adapters/jina.js";
 import { SearXNGAdapter } from "./adapters/searxng.js";
 import { SerperAdapter } from "./adapters/serper.js";
 import { TavilyAdapter } from "./adapters/tavily.js";
-import type { CapabilityName } from "./types.js";
+import type { CapabilityName, Config } from "./types.js";
 import type { SearchAdapter } from "./types.js";
 
 export interface ProviderMetadata {
@@ -32,7 +32,7 @@ export const providerRegistry = {
   },
   exa: {
     displayName: "Exa",
-    capabilities: ["search", "extract"],
+    capabilities: ["search", "extract", "crawl"],
     docsPath: "docs/providers/exa.md",
     createAdapter: () => new ExaAdapter(),
   },
@@ -50,7 +50,7 @@ export const providerRegistry = {
   },
   firecrawl: {
     displayName: "Firecrawl",
-    capabilities: ["extract", "crawl"],
+    capabilities: ["search", "extract", "crawl"],
     docsPath: "docs/providers/firecrawl.md",
     createAdapter: () => new FirecrawlAdapter(),
   },
@@ -87,4 +87,42 @@ export function providerSupportsCapability(
 
 export function createRegisteredAdapter(provider: string): SearchAdapter {
   return getProviderMetadata(provider).createAdapter();
+}
+
+/**
+ * Shared provider resolution logic used by both CLI dry-run and FanoutEngine.
+ * Validates config/capability and applies strategy (all vs random).
+ */
+export function resolveCapabilityProviders(
+  config: Config,
+  capability: CapabilityName,
+  options: { providers?: string[]; singleProvider?: boolean }
+): { providers: string[] } {
+  const capConfig = config.capabilities[capability];
+  if (!capConfig) {
+    throw new Error(`No configuration found for capability: ${capability}`);
+  }
+
+  const selected = options.providers && options.providers.length > 0
+    ? options.providers
+    : capConfig.providers;
+
+  if (!selected.length) {
+    throw new Error(`No providers configured for ${capability}`);
+  }
+
+  for (const provider of selected) {
+    if (!config.providers[provider]) {
+      throw new Error(`Provider '${provider}' is not configured`);
+    }
+    if (!providerSupportsCapability(provider, capability)) {
+      throw new Error(`Provider '${provider}' does not implement capability '${capability}'`);
+    }
+  }
+
+  const useSingleProvider = options.singleProvider || capConfig.strategy === "random";
+  if (!useSingleProvider) return { providers: selected };
+
+  const randomIndex = Math.floor(Math.random() * selected.length);
+  return { providers: [selected[randomIndex]] };
 }

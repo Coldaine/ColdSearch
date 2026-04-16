@@ -61,6 +61,12 @@ function isIPv4InCidr(ip: string, network: string, prefixBits: number): boolean 
   return (ipValue & mask) === (networkValue & mask);
 }
 
+function extractIPv4FromMapped(address: string): string | null {
+  // Handle IPv4-mapped IPv6 like ::ffff:127.0.0.1 or ::ffff:10.0.0.1
+  const match = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  return match ? match[1] : null;
+}
+
 function isBlockedIpAddress(address: string): boolean {
   const version = isIP(address);
 
@@ -80,9 +86,16 @@ function isBlockedIpAddress(address: string): boolean {
   }
 
   if (version === 6) {
+    // Check for IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1)
+    const mappedV4 = extractIPv4FromMapped(address);
+    if (mappedV4 && isBlockedIpAddress(mappedV4)) {
+      return true;
+    }
+
     const normalized = address.toLowerCase();
     return (
       normalized === "::1" ||
+      normalized === "::" ||
       normalized.startsWith("fc") ||
       normalized.startsWith("fd") ||
       normalized.startsWith("fe8") ||

@@ -14,6 +14,22 @@ Firecrawl turns websites into LLM-ready data. It handles JavaScript rendering, p
 export FIRECRAWL_API_KEY="fc-..."
 ```
 
+## Configuration Example
+
+```toml
+[providers.firecrawl]
+[providers.firecrawl.keyPool]
+keys = ["env:FIRECRAWL_API_KEY"]
+```
+
+## Capabilities
+
+| Capability | Vendor | ColdSearch | Notes |
+|------------|--------|------------|-------|
+| `search` | ✅ | ✅ | Implemented by `search()` in `src/adapters/firecrawl.ts` |
+| `extract` | ✅ | ✅ | Implemented by `extract()` in `src/adapters/firecrawl.ts` |
+| `crawl` | ✅ | ✅ | Implemented by async `crawl()` job polling in `src/adapters/firecrawl.ts` |
+
 ## Available Tools
 
 ### 1. `firecrawl_scrape`
