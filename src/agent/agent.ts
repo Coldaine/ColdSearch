@@ -23,6 +23,8 @@ export interface AgentOptions {
   llmProvider?: "anthropic" | "openai";
   /** LLM model */
   model?: string;
+  /** LLM base URL override (e.g. for Groq, OpenRouter, local models) */
+  llmBaseUrl?: string;
   /** Config path */
   configPath?: string;
   /** Execution backend implementation */
@@ -144,7 +146,7 @@ export class SearchAgent {
   private backend: ExecutionBackend;
 
   constructor(options: AgentOptions = {}) {
-    this.llm = createLLMClient(options.llmProvider, options.model);
+    this.llm = createLLMClient(options.llmProvider, options.model, options.llmBaseUrl);
     this.backend = options.executionBackend ?? new LocalExecutionBackend(options.configPath);
   }
 

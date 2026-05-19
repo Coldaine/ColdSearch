@@ -38,10 +38,12 @@ export interface LLMClient {
 export class ClaudeClient implements LLMClient {
   private apiKey: string;
   private defaultModel: string;
+  private baseUrl: string;
 
-  constructor(apiKey: string, model = "claude-3-sonnet-20240229") {
+  constructor(apiKey: string, model = "claude-3-sonnet-20240229", baseUrl = "https://api.anthropic.com/v1") {
     this.apiKey = apiKey;
     this.defaultModel = model;
+    this.baseUrl = baseUrl;
   }
 
   async complete(
@@ -54,7 +56,7 @@ export class ClaudeClient implements LLMClient {
         input_tokens?: number;
         output_tokens?: number;
       };
-    }>("https://api.anthropic.com/v1/messages", {
+    }>(`${this.baseUrl}/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -93,10 +95,12 @@ export class ClaudeClient implements LLMClient {
 export class OpenAIClient implements LLMClient {
   private apiKey: string;
   private defaultModel: string;
+  private baseUrl: string;
 
-  constructor(apiKey: string, model = "gpt-4o") {
+  constructor(apiKey: string, model = "gpt-4o", baseUrl = "https://api.openai.com/v1") {
     this.apiKey = apiKey;
     this.defaultModel = model;
+    this.baseUrl = baseUrl;
   }
 
   async complete(
@@ -110,7 +114,7 @@ export class OpenAIClient implements LLMClient {
         completion_tokens?: number;
         total_tokens?: number;
       };
-    }>("https://api.openai.com/v1/chat/completions", {
+    }>(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -143,23 +147,47 @@ export class OpenAIClient implements LLMClient {
 }
 
 /**
+ * Known provider aliases that auto-configure the base URL.
+ * All of these use the OpenAI-compatible chat completions API.
+ */
+const PROVIDER_ALIASES: Record<string, { baseUrl: string; defaultModel: string; envKey: string }> = {
+  openai: { baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o", envKey: "OPENAI_API_KEY" },
+  groq: { baseUrl: "https://api.groq.com/openai/v1", defaultModel: "llama-3.1-70b-versatile", envKey: "GROQ_API_KEY" },
+  openrouter: { baseUrl: "https://openrouter.ai/api/v1", defaultModel: "openai/gpt-4o", envKey: "OPENROUTER_API_KEY" },
+  cerebras: { baseUrl: "https://api.cerebras.ai/v1", defaultModel: "llama3.1-70b", envKey: "CEREBRAS_API_KEY" },
+  xai: { baseUrl: "https://api.x.ai/v1", defaultModel: "grok-2", envKey: "XAI_GROK_API_KEY" },
+};
+
+/**
  * Create an LLM client from environment.
  */
 export function createLLMClient(
-  provider: "anthropic" | "openai" = "anthropic",
-  model?: string
+  provider: "anthropic" | "openai" | string = "anthropic",
+  model?: string,
+  baseUrl?: string
 ): LLMClient {
   if (provider === "anthropic") {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY environment variable not set");
     }
-    return new ClaudeClient(apiKey, model);
+    return new ClaudeClient(apiKey, model, baseUrl);
   }
 
+  // Check for known provider aliases
+  const alias = PROVIDER_ALIASES[provider];
+  if (alias) {
+    const apiKey = process.env[alias.envKey];
+    if (!apiKey) {
+      throw new Error(`${alias.envKey} environment variable not set`);
+    }
+    return new OpenAIClient(apiKey, model || alias.defaultModel, baseUrl || alias.baseUrl);
+  }
+
+  // Fallback: treat as custom provider using OpenAI-compatible API
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY environment variable not set");
   }
-  return new OpenAIClient(apiKey, model);
+  return new OpenAIClient(apiKey, model, baseUrl);
 }

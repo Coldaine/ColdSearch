@@ -27,6 +27,8 @@ interface ExtendedCLIOptions extends CLIOptions {
   llmProvider?: "anthropic" | "openai";
   /** LLM model for agent */
   model?: string;
+  /** LLM base URL override */
+  llmBaseUrl?: string;
   /** Maximum agent steps */
   maxSteps?: number;
   /** Maximum sources for agent */
@@ -120,7 +122,7 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--llm":
         i++;
         const llm = args[i];
-        if (!["anthropic", "openai"].includes(llm)) {
+        if (!["anthropic", "openai", "groq", "openrouter", "cerebras", "xai"].includes(llm)) {
           throw new Error(`Invalid LLM provider: ${llm}`);
         }
         options.llmProvider = llm as "anthropic" | "openai";
@@ -129,6 +131,11 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--model":
         i++;
         options.model = args[i];
+        break;
+
+      case "--llm-base-url":
+        i++;
+        options.llmBaseUrl = args[i];
         break;
 
       case "--max-steps":
@@ -155,8 +162,14 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
 
       default:
         if (!arg.startsWith("-")) {
-          // Collect query parts
-          options.query = args.slice(i).join(" ");
+          // Collect query parts — stop at next flag
+          const queryParts: string[] = [];
+          let j = i;
+          while (j < args.length && !args[j].startsWith("-")) {
+            queryParts.push(args[j]);
+            j++;
+          }
+          options.query = queryParts.join(" ");
           return options;
         }
         throw new Error(`Unknown option: ${arg}`);
@@ -192,8 +205,9 @@ Options:
     --rerank STRATEGY    Reranker: rrf|score|none (default: rrf)
     
   Agent Options (requires --agent):
-    --llm PROVIDER       LLM provider: anthropic|openai (default: anthropic)
+    --llm PROVIDER       LLM provider: anthropic|openai|groq|openrouter|cerebras|xai (default: anthropic)
     --model MODEL        LLM model name
+    --llm-base-url URL   Override base URL for the LLM API endpoint
     --max-steps N        Maximum research steps (default: 5)
     --max-sources N      Maximum sources to collect (default: 5)
     
@@ -341,6 +355,7 @@ async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
     configPath: options.config,
     llmProvider: options.llmProvider,
     model: options.model,
+    llmBaseUrl: options.llmBaseUrl,
     maxSteps: options.maxSteps,
     maxSources: options.maxSources,
   });
