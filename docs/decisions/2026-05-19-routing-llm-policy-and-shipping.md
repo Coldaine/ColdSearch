@@ -73,8 +73,18 @@ Does **not** prove search relevance, live API contracts, or that operator `confi
 
 - Prior work lived on `codex/ci-governance-runtime-completion` (PR #4). This branch replaces that head for review against `feat/multi-provider-capabilities`.
 
+## Tracked follow-up (GitHub issues)
+
+Do not lose these — they capture everything called out in the May 2026 session but not implemented in PR #5:
+
+| Issue | Scope |
+|-------|--------|
+| [#6](https://github.com/Coldaine/ColdSearch/issues/6) | Config bootstrap, `config.example.toml`, OpenAI-compatible base URL, routing UX bugs, agent fetch vs extract |
+| [#7](https://github.com/Coldaine/ColdSearch/issues/7) | CI job consolidation, narrower triggers, OpenAI client tests |
+| [#8](https://github.com/Coldaine/ColdSearch/issues/8) | **Long-term:** GitHub search playbook, ranked search tools, agent reminders (stars, last commit, etc.) |
+
 ## Open questions (short)
 
-1. Default OpenAI-compatible base URL for agent mode (env vs TOML)?
-2. Should agent `fetch` use the `extract` capability pool instead of raw HTTP?
-3. Ship operator bootstrap (copy example config, Doppler note) in README?
+1. Default OpenAI-compatible base URL for agent mode (env vs TOML)? → **#6**
+2. Should agent `fetch` use the `extract` capability pool instead of raw HTTP? → **#6**
+3. Ship operator bootstrap (copy example config, Doppler note) in README? → **#6**
