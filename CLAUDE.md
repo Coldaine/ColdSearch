@@ -23,3 +23,4 @@ npm link              # makes `usearch` available globally for local dev
 - Config changes never require a code change or rebuild.
 - Provider names never appear in the agent-facing interface.
 - Every adapter normalizes to the shared result schema before returning.
+- **Do not call the Anthropic API** from ColdSearch (`api.anthropic.com`). Agent mode uses OpenAI only when an LLM is required.

@@ -24,7 +24,7 @@ interface ExtendedCLIOptions extends CLIOptions {
   /** Reranker strategy */
   rerank?: "rrf" | "score" | "none";
   /** LLM provider for agent */
-  llmProvider?: "anthropic" | "openai";
+  llmProvider?: "openai";
   /** LLM model for agent */
   model?: string;
   /** Maximum agent steps */
@@ -120,10 +120,12 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--llm":
         i++;
         const llm = args[i];
-        if (!["anthropic", "openai"].includes(llm)) {
-          throw new Error(`Invalid LLM provider: ${llm}`);
+        if (llm !== "openai") {
+          throw new Error(
+            `Invalid LLM provider: ${llm}. ColdSearch agent mode supports openai only (Anthropic API is not used).`
+          );
         }
-        options.llmProvider = llm as "anthropic" | "openai";
+        options.llmProvider = "openai";
         break;
 
       case "--model":
@@ -192,7 +194,7 @@ Options:
     --rerank STRATEGY    Reranker: rrf|score|none (default: rrf)
     
   Agent Options (requires --agent):
-    --llm PROVIDER       LLM provider: anthropic|openai (default: anthropic)
+    --llm PROVIDER       LLM provider: openai only (requires OPENAI_API_KEY)
     --model MODEL        LLM model name
     --max-steps N        Maximum research steps (default: 5)
     --max-sources N      Maximum sources to collect (default: 5)

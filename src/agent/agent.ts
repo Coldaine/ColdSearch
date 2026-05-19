@@ -19,14 +19,16 @@ export interface AgentOptions {
   maxSteps?: number;
   /** Maximum sources to collect */
   maxSources?: number;
-  /** LLM provider */
-  llmProvider?: "anthropic" | "openai";
+  /** LLM provider (OpenAI only) */
+  llmProvider?: "openai";
   /** LLM model */
   model?: string;
   /** Config path */
   configPath?: string;
   /** Execution backend implementation */
   executionBackend?: ExecutionBackend;
+  /** Optional injected LLM (tests); defaults to createLLMClient() */
+  llm?: LLMClient;
 }
 
 interface ValidatedFetchTarget {
@@ -144,8 +146,10 @@ export class SearchAgent {
   private backend: ExecutionBackend;
 
   constructor(options: AgentOptions = {}) {
-    this.llm = createLLMClient(options.llmProvider, options.model);
-    this.backend = options.executionBackend ?? new LocalExecutionBackend(options.configPath);
+    this.llm =
+      options.llm ?? createLLMClient(options.llmProvider ?? "openai", options.model);
+    this.backend =
+      options.executionBackend ?? new LocalExecutionBackend(options.configPath);
   }
 
   /**

@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SearchAgent } from "../dist/agent/agent.js";
 import { ResearchContext } from "../dist/agent/context.js";
+import { createLLMClient } from "../dist/agent/llm.js";
+
+test("createLLMClient rejects non-openai providers", () => {
+  assert.throws(
+    () => createLLMClient("anthropic"),
+    /Unsupported LLM provider/
+  );
+});
 
 function makeFakeLLM(responses) {
   let i = 0;
@@ -15,8 +23,6 @@ function makeFakeLLM(responses) {
 }
 
 test("tool dispatch routes to backend search via the search tool", async () => {
-  process.env.ANTHROPIC_API_KEY ||= "test-key";
-
   const calls = [];
   const backend = {
     search: async (query) => {
@@ -29,11 +35,13 @@ test("tool dispatch routes to backend search via the search tool", async () => {
     },
   };
 
-  const agent = new SearchAgent({ executionBackend: backend });
-  agent.llm = makeFakeLLM([
+  const agent = new SearchAgent({
+    executionBackend: backend,
+    llm: makeFakeLLM([
     JSON.stringify({ type: "tool", tool: "search", args: ["hello"] }),
     JSON.stringify({ type: "final", answer: "done" }),
-  ]);
+    ]),
+  });
 
   const out = await agent.research("goal", { maxSteps: 2 });
   assert.equal(calls.length, 1);
@@ -44,8 +52,10 @@ test("tool dispatch routes to backend search via the search tool", async () => {
 });
 
 test("SSRF guard blocks loopback, link-local, and metadata hostnames", async () => {
-  process.env.ANTHROPIC_API_KEY ||= "test-key";
-  const agent = new SearchAgent({ executionBackend: { search: async () => ({ results: [], providersUsed: [], errors: {} }) } });
+  const agent = new SearchAgent({
+    executionBackend: { search: async () => ({ results: [], providersUsed: [], errors: {} }) },
+    llm: makeFakeLLM([""]),
+  });
 
   await assert.rejects(
     () => agent.validateFetchUrl("http://localhost:1234/"),
@@ -73,14 +83,12 @@ test("ResearchContext deduplicates sources and enforces maxSources", () => {
 });
 
 test("maxSteps enforcement returns a final answer even if model keeps calling tools", async () => {
-  process.env.ANTHROPIC_API_KEY ||= "test-key";
   const backend = {
     search: async () => ({ results: [], providersUsed: ["brave"], errors: {} }),
   };
-  const agent = new SearchAgent({ executionBackend: backend });
-
-  // First response triggers a tool call, then when the loop ends we return a final payload.
-  agent.llm = {
+  const agent = new SearchAgent({
+    executionBackend: backend,
+    llm: {
     complete: async (messages) => {
       const last = messages[messages.length - 1]?.content || "";
       if (/Maximum steps reached/i.test(last)) {
@@ -88,7 +96,8 @@ test("maxSteps enforcement returns a final answer even if model keeps calling to
       }
       return { content: JSON.stringify({ type: "tool", tool: "search", args: ["q"] }) };
     },
-  };
+    },
+  });
 
   const out = await agent.research("goal", { maxSteps: 1 });
   assert.equal(out.answer, "fallback");

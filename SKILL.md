@@ -70,8 +70,8 @@ Then set your API keys:
 export TAVILY_API_KEY=tvly-...
 export BRAVE_API_KEY=BS...
 export EXA_API_KEY=...
-# For agent mode:
-export ANTHROPIC_API_KEY=sk-ant-...
+# For agent mode (OpenAI only — no Anthropic API):
+export OPENAI_API_KEY=sk-...
 ```
 
 ## Commands
@@ -198,8 +198,8 @@ coldsearch --agent --max-steps 10 --max-sources 5 "latest fusion energy developm
 ### Agent Options
 
 - `--agent` or `-a` — Enable agent mode
-- `--llm PROVIDER` — LLM provider: `anthropic` (default) or `openai`
-- `--model MODEL` — LLM model name (e.g., `claude-3-opus`, `gpt-4o`)
+- `--llm openai` — Agent LLM (OpenAI only; requires `OPENAI_API_KEY`)
+- `--model MODEL` — LLM model name (e.g., `gpt-4o`)
 - `--max-steps N` — Maximum research steps (default: 5)
 - `--max-sources N` — Maximum sources to collect (default: 5)
 
@@ -281,7 +281,7 @@ coldsearch --agent --max-steps 15 --max-sources 8 "history of quantum computing"
 - Node.js >= 18
 - Config file at `~/.config/coldsearch/config.toml`
 - API keys for configured providers
-- For agent mode: ANTHROPIC_API_KEY or OPENAI_API_KEY
+- For agent mode: `OPENAI_API_KEY` (Anthropic API is not used)
 
 ## Troubleshooting
 
