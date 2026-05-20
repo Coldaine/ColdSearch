@@ -124,6 +124,13 @@ function isBlockedIpAddress(address: string): boolean {
   return false;
 }
 
+function normalizeHostname(hostname: string): string {
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    return hostname.slice(1, -1);
+  }
+  return hostname;
+}
+
 function isBlockedHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase();
   return (
@@ -331,15 +338,17 @@ Be thorough but efficient. Focus on authoritative sources.`;
       throw new Error(`Unsupported fetch URL protocol: ${parsedUrl.protocol}`);
     }
 
-    if (isBlockedHostname(parsedUrl.hostname)) {
-      throw new Error(`Refusing to fetch internal hostname: ${parsedUrl.hostname}`);
+    const host = normalizeHostname(parsedUrl.hostname);
+
+    if (isBlockedHostname(host)) {
+      throw new Error(`Refusing to fetch internal hostname: ${host}`);
     }
 
-    if (isBlockedIpAddress(parsedUrl.hostname)) {
-      throw new Error(`Refusing to fetch non-public IP: ${parsedUrl.hostname}`);
+    if (isBlockedIpAddress(host)) {
+      throw new Error(`Refusing to fetch non-public IP: ${host}`);
     }
 
-    const resolvedAddresses = await lookup(parsedUrl.hostname, { all: true, verbatim: true });
+    const resolvedAddresses = await lookup(host, { all: true, verbatim: true });
     if (resolvedAddresses.some((entry) => isBlockedIpAddress(entry.address))) {
       throw new Error(
         `Refusing to fetch hostname resolving to a non-public IP: ${parsedUrl.hostname}`
