@@ -119,7 +119,12 @@ export class ExaAdapter implements SearchAdapter {
         ? Math.max(1, Math.floor(rawLimit))
         : 10;
 
-    const domain = new URL(normalizedUrl).hostname;
+    let domain: string;
+    try {
+      domain = new URL(normalizedUrl).hostname;
+    } catch {
+      throw new Error(`Invalid crawl URL: ${normalizedUrl}`);
+    }
 
     // Discover candidate pages via Exa search, then fetch contents with livecrawl.
     const searchData = await fetchJson<{

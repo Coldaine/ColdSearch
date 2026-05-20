@@ -406,7 +406,7 @@ function buildExecutionPlan(capability: "search" | "extract" | "crawl", options:
     const keyPreview = getKeyReference(pool, provider);
 
     const warnings = [];
-    if (keyCount > 0) {
+    if (keyCount > 0 && pool?.keys?.length) {
       const first = pool.keys[0];
       if (first.startsWith("env:")) {
         const varName = first.slice(4);
@@ -448,7 +448,10 @@ async function runStatus(options: ExtendedCLIOptions): Promise<void> {
   const keyPools = Object.fromEntries(
     Object.entries(config.providers).map(([provider, cfg]) => [
       provider,
-      { keys: cfg.keyPool.keys.length, strategy: cfg.keyPool.strategy || "round-robin" },
+      {
+        keys: cfg.keyPool?.keys?.length ?? 0,
+        strategy: cfg.keyPool?.strategy || "round-robin",
+      },
     ])
   );
 
@@ -462,7 +465,8 @@ async function runStatus(options: ExtendedCLIOptions): Promise<void> {
       : usagePath;
 
     if (resolved && fs.existsSync(resolved)) {
-      const lines = fs.readFileSync(resolved, "utf8").split("\n").filter(Boolean);
+      const allLines = fs.readFileSync(resolved, "utf8").split("\n").filter(Boolean);
+      const lines = allLines.length > 5000 ? allLines.slice(-5000) : allLines;
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
       for (const line of lines) {

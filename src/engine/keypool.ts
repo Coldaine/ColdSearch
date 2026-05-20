@@ -1,5 +1,6 @@
 import type { KeyPool } from "../types.js";
 import { resolveBWSSecret } from "../resolvers/bws.js";
+import { safeKeyRef } from "../logging/usage.js";
 
 /**
  * Result of resolving a key from the pool.
@@ -70,7 +71,7 @@ export class KeyPoolManager {
 
     const keyRef = pool.keys[keyIndex];
     const value = await this.resolveKeyRef(keyRef);
-    return { value, ref: keyRef };
+    return { value, ref: safeKeyRef(keyRef, provider) };
   }
 
   /**

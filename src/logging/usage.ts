@@ -24,20 +24,21 @@ function expandHome(p: string): string {
   return p;
 }
 
-/**
- * Get a safe key reference string for logging/display.
- * Returns the key reference (e.g. "env:TAVILY_API_KEY", "bws:my-secret")
- * rather than any fragment of the resolved secret value.
- * This avoids leaking stable fragments of live secrets in log files.
- */
-export function getKeyReference(keyPool: KeyPool | undefined, provider: string): string {
-  if (!keyPool || !keyPool.keys.length) return `${provider}:keyless`;
-  // For dry-run preview, show the first key reference as representative.
-  // At runtime, FanoutEngine uses KeyResult.ref from the keypool which
-  // reflects the actually-selected key slot.
-  return keyPool.keys[0];
+/** Never log raw literal API keys from config. */
+export function safeKeyRef(keyRef: string, provider: string): string {
+  if (keyRef.startsWith("env:") || keyRef.startsWith("bws:")) {
+    return keyRef;
+  }
+  return `${provider}:literal`;
 }
 
+/**
+ * Safe key reference for dry-run / status display.
+ */
+export function getKeyReference(keyPool: KeyPool | undefined, provider: string): string {
+  if (!keyPool?.keys.length) return `${provider}:keyless`;
+  return safeKeyRef(keyPool.keys[0], provider);
+}
 
 export class UsageLogger {
   private path: string;
@@ -63,4 +64,3 @@ export class UsageLogger {
     }
   }
 }
-

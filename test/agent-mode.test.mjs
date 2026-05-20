@@ -57,6 +57,10 @@ test("SSRF guard blocks loopback, link-local, and metadata hostnames", async () 
     /refusing to fetch non-public ip/i
   );
   await assert.rejects(
+    () => agent.validateFetchUrl("http://[::ffff:7f00:1]/"),
+    /refusing to fetch.*non-public ip/i
+  );
+  await assert.rejects(
     () => agent.validateFetchUrl("http://169.254.169.254/latest/meta-data/"),
     /refusing to fetch internal hostname/i
   );

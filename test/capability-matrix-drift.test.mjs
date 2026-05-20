@@ -4,9 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { providerRegistry } from "../dist/providers.js";
+import { parseCapabilityMatrixColdSearchSupport } from "./_dual-matrix.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
 const CAPABILITIES = /** @type {const} */ (["search", "extract", "crawl"]);
 
 function readUtf8(relPath) {
@@ -15,66 +15,6 @@ function readUtf8(relPath) {
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Parse the "Dual Matrix" markdown table into a map keyed by provider displayName.
- * We treat ✅ and ⚠️ as "declared implemented" for ColdSearch.
- */
-function parseCapabilityMatrixColdSearchSupport(matrixMarkdown) {
-  const dualMatrixStart = matrixMarkdown.indexOf("## Dual Matrix");
-  assert.ok(dualMatrixStart >= 0, "CAPABILITY_MATRIX.md missing '## Dual Matrix' section");
-
-  const afterHeader = matrixMarkdown.slice(dualMatrixStart);
-
-  const rows = afterHeader
-    .split("\n")
-    .filter((line) => /^\|\s*[^|]+\s*\|/.test(line))
-    // drop header separator row
-    .filter((line) => !/^\|\s*-{2,}/.test(line.trim()));
-
-  assert.ok(rows.length >= 2, "Dual Matrix table not found or empty");
-
-  const headerRow = rows[0];
-  const headers = headerRow
-    .split("|")
-    .slice(1, -1)
-    .map((cell) => cell.trim());
-
-  const coldSearchCols = {
-    search: headers.indexOf("ColdSearch `search`"),
-    extract: headers.indexOf("ColdSearch `extract`"),
-    crawl: headers.indexOf("ColdSearch `crawl`"),
-    provider: headers.indexOf("Provider"),
-  };
-
-  for (const [key, idx] of Object.entries(coldSearchCols)) {
-    assert.ok(idx >= 0, `Dual Matrix header missing expected column for ${key}`);
-  }
-
-  /** @type {Record<string, Set<string>>} */
-  const byDisplayName = {};
-
-  for (const row of rows.slice(1)) {
-    const cells = row
-      .split("|")
-      .slice(1, -1)
-      .map((cell) => cell.trim());
-
-    const displayName = cells[coldSearchCols.provider];
-    if (!displayName) continue;
-
-    const support = new Set();
-    for (const cap of CAPABILITIES) {
-      const raw = cells[coldSearchCols[cap]];
-      if (raw === "✅" || raw === "⚠️") {
-        support.add(cap);
-      }
-    }
-    byDisplayName[displayName] = support;
-  }
-
-  return byDisplayName;
 }
 
 function setEq(a, b) {
@@ -99,8 +39,8 @@ test("capability matrix, registry, and adapter method surfaces stay in sync", ()
       setEq(expected, registryCaps),
       [
         `Capability drift for '${providerName}' (${metadata.displayName})`,
-        `- matrix:   [${[...expected].sort().join(", ")}]`,
-        `- registry: [${[...registryCaps].sort().join(", ")}]`,
+        `- matrix:   [${[...expected].sort((a, b) => a.localeCompare(b)).join(", ")}]`,
+        `- registry: [${[...registryCaps].sort((a, b) => a.localeCompare(b)).join(", ")}]`,
       ].join("\n")
     );
 
@@ -109,8 +49,8 @@ test("capability matrix, registry, and adapter method surfaces stay in sync", ()
       setEq(new Set(adapter.capabilities), registryCaps),
       [
         `Adapter capabilities drift for '${providerName}'`,
-        `- adapter.capabilities:  [${[...new Set(adapter.capabilities)].sort().join(", ")}]`,
-        `- registry.capabilities: [${[...registryCaps].sort().join(", ")}]`,
+        `- adapter.capabilities:  [${[...new Set(adapter.capabilities)].sort((a, b) => a.localeCompare(b)).join(", ")}]`,
+        `- registry.capabilities: [${[...registryCaps].sort((a, b) => a.localeCompare(b)).join(", ")}]`,
       ].join("\n")
     );
 

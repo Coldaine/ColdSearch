@@ -4,7 +4,12 @@ export function installFetchMock(handlers) {
   const originalFetch = globalThis.fetch;
 
   globalThis.fetch = async (input, init = {}) => {
-    const url = typeof input === "string" ? input : input.toString();
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof Request
+          ? input.url
+          : String(input);
     const method = (init.method || "GET").toUpperCase();
     const key = `${method} ${url}`;
 

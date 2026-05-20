@@ -38,6 +38,17 @@ test("score-based reranking dedupes by URL and keeps highest normalized score", 
   assert.equal(out[0].url.toLowerCase().replace(/\/$/, ""), "https://x.example/a");
 });
 
+test("rerank limit truncates merged results", () => {
+  const resultsByProvider = new Map([
+    ["p1", [r("a", "https://x.example/a", 1, "p1"), r("b", "https://x.example/b", 0.9, "p1")]],
+    ["p2", [r("c", "https://x.example/c", 0.8, "p2")]],
+  ]);
+
+  const out = rerank(resultsByProvider, { strategy: "score", limit: 2 });
+  assert.equal(out.length, 2);
+  assert.equal(out[0].url, "https://x.example/a");
+});
+
 test("deduplication by URL preserves highest-scored entry for 'none' strategy", () => {
   const resultsByProvider = new Map([
     ["p1", [r("low", "https://x.example/a", 0.1, "p1")]],

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { providerRegistry } from "../dist/providers.js";
+import { parseCapabilityMatrixColdSearchSupport } from "./_dual-matrix.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const capabilityMatrix = fs.readFileSync(
@@ -23,57 +24,6 @@ const CAPABILITIES = /** @type {const} */ (["search", "extract", "crawl"]);
 
 function readProviderDoc(relPath) {
   return fs.readFileSync(path.join(repoRoot, relPath), "utf8");
-}
-
-function parseCapabilityMatrixColdSearchSupport(matrixMarkdown) {
-  const dualMatrixStart = matrixMarkdown.indexOf("## Dual Matrix");
-  assert.ok(dualMatrixStart >= 0, "CAPABILITY_MATRIX.md missing '## Dual Matrix' section");
-
-  const afterHeader = matrixMarkdown.slice(dualMatrixStart);
-  const rows = afterHeader
-    .split("\n")
-    .filter((line) => /^\|\s*[^|]+\s*\|/.test(line))
-    .filter((line) => !/^\|\s*-{2,}/.test(line.trim()));
-
-  assert.ok(rows.length >= 2, "Dual Matrix table not found or empty");
-
-  const headers = rows[0]
-    .split("|")
-    .slice(1, -1)
-    .map((cell) => cell.trim());
-
-  const idxProvider = headers.indexOf("Provider");
-  const idxSearch = headers.indexOf("ColdSearch `search`");
-  const idxExtract = headers.indexOf("ColdSearch `extract`");
-  const idxCrawl = headers.indexOf("ColdSearch `crawl`");
-  assert.ok(idxProvider >= 0 && idxSearch >= 0 && idxExtract >= 0 && idxCrawl >= 0, "Dual Matrix headers changed");
-
-  /** @type {Record<string, Set<string>>} */
-  const byDisplayName = {};
-
-  for (const row of rows.slice(1)) {
-    const cells = row
-      .split("|")
-      .slice(1, -1)
-      .map((cell) => cell.trim());
-
-    const displayName = cells[idxProvider];
-    if (!displayName) continue;
-
-    const support = new Set();
-    const vals = {
-      search: cells[idxSearch],
-      extract: cells[idxExtract],
-      crawl: cells[idxCrawl],
-    };
-
-    for (const cap of CAPABILITIES) {
-      if (vals[cap] === "✅" || vals[cap] === "⚠️") support.add(cap);
-    }
-    byDisplayName[displayName] = support;
-  }
-
-  return byDisplayName;
 }
 
 function findSection(markdown, headingText) {
@@ -174,12 +124,12 @@ test("provider docs capability tables match central CAPABILITY_MATRIX.md", () =>
     }
 
     assert.deepEqual(
-      [...declared].sort(),
-      [...expected].sort(),
+      [...declared].sort((a, b) => a.localeCompare(b)),
+      [...expected].sort((a, b) => a.localeCompare(b)),
       [
         `Capability drift between provider doc and CAPABILITY_MATRIX.md for '${provider}'`,
-        `- provider doc: [${[...declared].sort().join(", ")}]`,
-        `- matrix:        [${[...expected].sort().join(", ")}]`,
+        `- provider doc: [${[...declared].sort((a, b) => a.localeCompare(b)).join(", ")}]`,
+        `- matrix:        [${[...expected].sort((a, b) => a.localeCompare(b)).join(", ")}]`,
       ].join("\n")
     );
   }
