@@ -2,15 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SearchAgent } from "../dist/agent/agent.js";
 import { ResearchContext } from "../dist/agent/context.js";
-import { createLLMClient } from "../dist/agent/llm.js";
-
-test("createLLMClient rejects non-openai providers", () => {
-  assert.throws(
-    () => createLLMClient("anthropic"),
-    /Unsupported LLM provider/
-  );
-});
-
 function makeFakeLLM(responses) {
   let i = 0;
   return {

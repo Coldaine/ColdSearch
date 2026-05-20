@@ -89,6 +89,7 @@ npm test
 ## Documentation
 
 - `docs/decisions/` - Decision records and session archives (start with `2026-05-19-routing-llm-policy-and-shipping.md`)
+- `docs/contributing/testing.md` - What to test (and what not to duplicate)
 - `docs/NORTH_STAR.md` - Product direction and architectural intent
 - `docs/architecture.md` - Runtime architecture and seams
 - `docs/PROGRESS.md` - Current implementation status

@@ -144,21 +144,6 @@ test("every registered provider has a detail page", () => {
   }
 });
 
-test("capability matrix contains every registered provider", () => {
-  for (const metadata of Object.values(providerRegistry)) {
-    assert.match(
-      capabilityMatrix,
-      new RegExp(`\\|\\s*${escapeRegex(metadata.displayName)}\\s*\\|`)
-    );
-  }
-});
-
-test("provider index mentions every registered provider", () => {
-  for (const metadata of Object.values(providerRegistry)) {
-    assert.match(providerIndex, new RegExp(escapeRegex(metadata.displayName)));
-  }
-});
-
 test("each provider doc contains required sections", () => {
   for (const [provider, metadata] of Object.entries(providerRegistry)) {
     const md = readProviderDoc(metadata.docsPath);

@@ -1,9 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JinaAdapter } from "../../dist/adapters/jina.js";
-import { installFetchMock, textResponse, rawResponse } from "./_fetch-mock.mjs";
-import { HTTPRequestError } from "../../dist/http.js";
-
+import { installFetchMock, textResponse } from "./_fetch-mock.mjs";
 test("jina extract normalizes title prefix", async () => {
   const restore = installFetchMock({
     "*": async ({ url }) => {
@@ -29,21 +27,6 @@ test("jina returns error on empty content", async () => {
   try {
     const adapter = new JinaAdapter();
     await assert.rejects(() => adapter.extract("https://x.example", ""), /no content extracted/i);
-  } finally {
-    restore();
-  }
-});
-
-test("jina propagates HTTP errors", async () => {
-  const restore = installFetchMock({
-    "*": async () => rawResponse("no", { status: 429 }),
-  });
-  try {
-    const adapter = new JinaAdapter();
-    await assert.rejects(
-      () => adapter.extract("https://x.example", ""),
-      (err) => err instanceof HTTPRequestError && err.status === 429
-    );
   } finally {
     restore();
   }

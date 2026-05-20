@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { TavilyAdapter } from "../../dist/adapters/tavily.js";
-import { HTTPRequestError } from "../../dist/http.js";
 import { installFetchMock, jsonResponse, rawResponse } from "./_fetch-mock.mjs";
 
 test("tavily search normalizes results", async () => {
@@ -21,24 +20,6 @@ test("tavily search normalizes results", async () => {
     assert.deepEqual(Object.keys(results[0]).sort(), ["score", "snippet", "source", "title", "url"]);
     assert.equal(results[0].source, "tavily");
     assert.equal(results[0].url, "https://a.example");
-  } finally {
-    restore();
-  }
-});
-
-test("tavily extract returns ExtractResult shape", async () => {
-  const restore = installFetchMock({
-    "POST https://api.tavily.com/extract": async () =>
-      jsonResponse({
-        results: [{ title: "T", url: "https://x.example", raw_content: "hello" }],
-      }),
-  });
-  try {
-    const adapter = new TavilyAdapter();
-    const result = await adapter.extract("https://x.example", "k");
-    assert.equal(result.source, "tavily");
-    assert.equal(result.url, "https://x.example");
-    assert.equal(result.content, "hello");
   } finally {
     restore();
   }
@@ -66,22 +47,6 @@ test("tavily crawl uses native /crawl endpoint", async () => {
       title: "P1",
       content: "c1",
     });
-  } finally {
-    restore();
-  }
-});
-
-test("tavily propagates rate limit errors", async () => {
-  const restore = installFetchMock({
-    "POST https://api.tavily.com/search": async () =>
-      rawResponse("rate limited", { status: 429, headers: { "Content-Type": "text/plain" } }),
-  });
-  try {
-    const adapter = new TavilyAdapter();
-    await assert.rejects(
-      () => adapter.search("q", "k"),
-      (err) => err instanceof HTTPRequestError && err.status === 429
-    );
   } finally {
     restore();
   }

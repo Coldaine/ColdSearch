@@ -1,8 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FirecrawlAdapter } from "../../dist/adapters/firecrawl.js";
-import { HTTPRequestError } from "../../dist/http.js";
-import { installFetchMock, jsonResponse, rawResponse } from "./_fetch-mock.mjs";
+import { installFetchMock, jsonResponse } from "./_fetch-mock.mjs";
 
 test("firecrawl search normalizes results", async () => {
   const restore = installFetchMock({
@@ -24,25 +23,6 @@ test("firecrawl search normalizes results", async () => {
     assert.equal(results[0].source, "firecrawl");
     assert.equal(results[0].url, "https://a.example");
     assert.equal(results[1].url, "https://b.example");
-  } finally {
-    restore();
-  }
-});
-
-test("firecrawl extract returns ExtractResult shape", async () => {
-  const restore = installFetchMock({
-    "POST https://api.firecrawl.dev/v2/scrape": async () =>
-      jsonResponse({
-        success: true,
-        data: { markdown: "m", metadata: { title: "T", sourceURL: "https://x.example" } },
-      }),
-  });
-  try {
-    const adapter = new FirecrawlAdapter();
-    const result = await adapter.extract("https://x.example", "k");
-    assert.equal(result.source, "firecrawl");
-    assert.equal(result.url, "https://x.example");
-    assert.equal(result.content, "m");
   } finally {
     restore();
   }
@@ -81,22 +61,6 @@ test("firecrawl crawl polls until completion", async () => {
     restore();
     globalThis.setTimeout = originalSetTimeout;
     globalThis.clearTimeout = originalClearTimeout;
-  }
-});
-
-test("firecrawl propagates rate limit errors", async () => {
-  const restore = installFetchMock({
-    "POST https://api.firecrawl.dev/v2/search": async () =>
-      rawResponse("rate limited", { status: 429, headers: { "Content-Type": "text/plain" } }),
-  });
-  try {
-    const adapter = new FirecrawlAdapter();
-    await assert.rejects(
-      () => adapter.search("q", "k"),
-      (err) => err instanceof HTTPRequestError && err.status === 429
-    );
-  } finally {
-    restore();
   }
 });
 

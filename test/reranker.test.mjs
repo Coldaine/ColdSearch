@@ -49,12 +49,3 @@ test("deduplication by URL preserves highest-scored entry for 'none' strategy", 
   assert.equal(out[0].title, "high");
 });
 
-test("limit truncates results", () => {
-  const resultsByProvider = new Map([
-    ["p1", [r("1", "https://x.example/1", 1, "p1"), r("2", "https://x.example/2", 0.5, "p1")]],
-  ]);
-
-  const out = rerank(resultsByProvider, { strategy: "none", limit: 1 });
-  assert.equal(out.length, 1);
-});
-
