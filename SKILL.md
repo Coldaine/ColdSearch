@@ -76,6 +76,23 @@ export OPENAI_API_KEY=sk-...
 
 ## Commands
 
+### status — Config and usage summary
+
+```bash
+coldsearch status
+```
+
+Shows capability pools, effective routing strategy, key pool sizes, and recent usage from `~/.config/coldsearch/usage.jsonl` when present.
+
+### Dry-run — Plan without network calls
+
+```bash
+coldsearch search --dry-run "query"
+coldsearch extract --dry-run "https://example.com"
+```
+
+Prints which providers and key references would be used (and env var warnings).
+
 ### search - Search the Web
 
 Search across all configured providers in parallel, combine and rerank results.

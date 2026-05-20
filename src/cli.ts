@@ -9,7 +9,7 @@ import { getKeyReference } from "./logging/usage.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import type { CLIOptions } from "./types.js";
+import type { CapabilityName, CLIOptions, Config } from "./types.js";
 
 /**
  * Extended CLI options including mode-specific options.
@@ -230,6 +230,21 @@ Examples:
 }
 
 /**
+ * Label CLI JSON mode field from what actually ran (not just --single-provider flag).
+ */
+function describeCliOutputMode(
+  config: Config,
+  capability: CapabilityName,
+  options: ExtendedCLIOptions,
+  providersUsedCount: number
+): "single-provider" | "fanout" {
+  if (options.singleProvider) return "single-provider";
+  const cap = config.capabilities[capability];
+  if (cap?.strategy === "random") return "single-provider";
+  return providersUsedCount > 1 ? "fanout" : "single-provider";
+}
+
+/**
  * Format output based on options.
  */
 function formatOutput(data: unknown, options: ExtendedCLIOptions): string {
@@ -252,6 +267,7 @@ async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
     return;
   }
 
+  const config = loadConfig(options.config);
   const backend = new LocalExecutionBackend(options.config);
 
   const result = await backend.search(options.query, {
@@ -262,7 +278,12 @@ async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
   });
 
   const output = {
-    mode: options.singleProvider ? "single-provider" : "fanout",
+    mode: describeCliOutputMode(
+      config,
+      "search",
+      options,
+      result.providersUsed.length
+    ),
     command: "search",
     query: options.query,
     results: result.results,
@@ -284,6 +305,7 @@ async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
     return;
   }
 
+  const config = loadConfig(options.config);
   const backend = new LocalExecutionBackend(options.config);
 
   const result = await backend.extract(options.query, {
@@ -293,7 +315,7 @@ async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
   });
 
   const output = {
-    mode: options.singleProvider ? "single-provider" : "fanout",
+    mode: describeCliOutputMode(config, "extract", options, 1),
     command: "extract",
     url: options.query,
     result: result.result,
@@ -314,6 +336,7 @@ async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
     return;
   }
 
+  const config = loadConfig(options.config);
   const backend = new LocalExecutionBackend(options.config);
 
   const result = await backend.crawl(options.query, {
@@ -323,7 +346,7 @@ async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
   });
 
   const output = {
-    mode: options.singleProvider ? "single-provider" : "fanout",
+    mode: describeCliOutputMode(config, "crawl", options, 1),
     command: "crawl",
     url: options.query,
     results: result.results,
@@ -383,7 +406,7 @@ function buildExecutionPlan(capability: "search" | "extract" | "crawl", options:
     const keyPreview = getKeyReference(pool, provider);
 
     const warnings = [];
-    if (keyCount > 0) {
+    if (keyCount > 0 && pool?.keys?.length) {
       const first = pool.keys[0];
       if (first.startsWith("env:")) {
         const varName = first.slice(4);
@@ -414,14 +437,21 @@ async function runStatus(options: ExtendedCLIOptions): Promise<void> {
   const byCapability = Object.fromEntries(
     Object.entries(config.capabilities).map(([capability, cfg]) => [
       capability,
-      { providers: cfg.providers, strategy: cfg.strategy || "all" },
+      {
+        providers: cfg.providers,
+        strategy: cfg.strategy ?? null,
+        effective_strategy: cfg.strategy ?? "all",
+      },
     ])
   );
 
   const keyPools = Object.fromEntries(
     Object.entries(config.providers).map(([provider, cfg]) => [
       provider,
-      { keys: cfg.keyPool.keys.length, strategy: cfg.keyPool.strategy || "round-robin" },
+      {
+        keys: cfg.keyPool?.keys?.length ?? 0,
+        strategy: cfg.keyPool?.strategy || "round-robin",
+      },
     ])
   );
 
@@ -435,7 +465,8 @@ async function runStatus(options: ExtendedCLIOptions): Promise<void> {
       : usagePath;
 
     if (resolved && fs.existsSync(resolved)) {
-      const lines = fs.readFileSync(resolved, "utf8").split("\n").filter(Boolean);
+      const allLines = fs.readFileSync(resolved, "utf8").split("\n").filter(Boolean);
+      const lines = allLines.length > 5000 ? allLines.slice(-5000) : allLines;
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
       for (const line of lines) {

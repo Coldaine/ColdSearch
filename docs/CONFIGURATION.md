@@ -96,6 +96,15 @@ Each entry contains:
 - `response_time_ms`
 - `error` (when present)
 
+## Agent LLM (orchestration only)
+
+Agent mode (`--agent`) uses an OpenAI-compatible chat completions endpoint:
+
+- **`OPENAI_API_KEY`** (required for agent mode)
+- **`OPENAI_BASE_URL`** (optional, default `https://api.openai.com/v1/chat/completions`) — set for Ollama, OpenRouter, Azure-style proxies, etc.
+
+This is separate from provider key pools in `config.toml`.
+
 ## CLI flags that interact with config
 
 - `--providers a,b,c`: restrict to a subset of the configured pool

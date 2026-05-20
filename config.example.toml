@@ -20,8 +20,8 @@ providers = ["tavily", "exa", "jina"]
 strategy = "random"
 
 [capabilities.crawl]
-# Crawl websites - 2 providers with random selection
-providers = ["tavily", "firecrawl"]
+# Crawl websites - random selection (use strategy = "all" for sequential failover)
+providers = ["tavily", "firecrawl", "exa"]
 strategy = "random"
 
 # ============================================

@@ -64,9 +64,23 @@ function isIPv4InCidr(ip: string, network: string, prefixBits: number): boolean 
 }
 
 function extractIPv4FromMapped(address: string): string | null {
-  // Handle IPv4-mapped IPv6 like ::ffff:127.0.0.1 or ::ffff:10.0.0.1
-  const match = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  return match ? match[1] : null;
+  const normalized = address.toLowerCase();
+
+  // Dotted form: ::ffff:127.0.0.1
+  const dotted = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) return dotted[1];
+
+  // Hex form: ::ffff:7f00:1 (127.0.0.1)
+  if (!normalized.startsWith("::ffff:")) return null;
+  const suffix = normalized.slice("::ffff:".length);
+  const parts = suffix.split(":");
+  if (parts.length !== 2) return null;
+
+  const hi = Number.parseInt(parts[0], 16);
+  const lo = Number.parseInt(parts[1], 16);
+  if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null;
+
+  return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
 }
 
 function isBlockedIpAddress(address: string): boolean {
@@ -108,6 +122,13 @@ function isBlockedIpAddress(address: string): boolean {
   }
 
   return false;
+}
+
+function normalizeHostname(hostname: string): string {
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    return hostname.slice(1, -1);
+  }
+  return hostname;
 }
 
 function isBlockedHostname(hostname: string): boolean {
@@ -317,15 +338,17 @@ Be thorough but efficient. Focus on authoritative sources.`;
       throw new Error(`Unsupported fetch URL protocol: ${parsedUrl.protocol}`);
     }
 
-    if (isBlockedHostname(parsedUrl.hostname)) {
-      throw new Error(`Refusing to fetch internal hostname: ${parsedUrl.hostname}`);
+    const host = normalizeHostname(parsedUrl.hostname);
+
+    if (isBlockedHostname(host)) {
+      throw new Error(`Refusing to fetch internal hostname: ${host}`);
     }
 
-    if (isBlockedIpAddress(parsedUrl.hostname)) {
-      throw new Error(`Refusing to fetch non-public IP: ${parsedUrl.hostname}`);
+    if (isBlockedIpAddress(host)) {
+      throw new Error(`Refusing to fetch non-public IP: ${host}`);
     }
 
-    const resolvedAddresses = await lookup(parsedUrl.hostname, { all: true, verbatim: true });
+    const resolvedAddresses = await lookup(host, { all: true, verbatim: true });
     if (resolvedAddresses.some((entry) => isBlockedIpAddress(entry.address))) {
       throw new Error(
         `Refusing to fetch hostname resolving to a non-public IP: ${parsedUrl.hostname}`

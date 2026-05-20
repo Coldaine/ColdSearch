@@ -143,7 +143,7 @@ export class TavilyAdapter implements SearchAdapter {
         },
         body: JSON.stringify({
           url: normalizedUrl,
-          limit,
+          max_results: limit,
           extract_depth: "basic",
         }),
       },
