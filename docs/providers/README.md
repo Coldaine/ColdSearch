@@ -11,9 +11,9 @@ This directory contains the per-provider reference pages for ColdSearch.
 
 | Provider | File | ColdSearch Status | Notes |
 |----------|------|-------------------|-------|
-| Tavily | [tavily.md](tavily.md) | partial | search, extract, crawl |
-| Firecrawl | [firecrawl.md](firecrawl.md) | partial | extract, crawl |
-| Exa | [exa.md](exa.md) | partial | search, extract |
+| Tavily | [tavily.md](tavily.md) | complete | search, extract, crawl |
+| Firecrawl | [firecrawl.md](firecrawl.md) | complete | search, extract, crawl |
+| Exa | [exa.md](exa.md) | complete | search, extract, crawl |
 | Brave | [brave.md](brave.md) | partial | search |
 | Serper | [serper.md](serper.md) | partial | search |
 | Jina | [jina.md](jina.md) | partial | extract |

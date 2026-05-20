@@ -11,7 +11,7 @@ export interface NormalizedResult {
   snippet: string;
   /** Normalized relevance score (0-1) */
   score: number;
-  /** Provider name for internal debugging only - never exposed to caller */
+  /** Provider name (e.g. "tavily", "brave") — included in output for traceability */
   source: string;
 }
 
@@ -25,7 +25,7 @@ export interface ExtractResult {
   url: string;
   /** Title of the page */
   title?: string;
-  /** Provider name for internal debugging */
+  /** Provider name (e.g. "jina", "firecrawl") — included in output for traceability */
   source: string;
 }
 
@@ -120,6 +120,13 @@ export interface Config {
   capabilities: Record<string, CapabilityConfig>;
   /** Provider configurations */
   providers: Record<string, ProviderConfig>;
+  /** Optional operational logging configuration */
+  logging?: {
+    usage?: {
+      /** Usage log path (JSONL) */
+      path?: string;
+    };
+  };
 }
 
 /**

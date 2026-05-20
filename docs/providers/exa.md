@@ -14,6 +14,22 @@ Exa is a neural search engine designed for AI applications. It uses embeddings-b
 export EXA_API_KEY="..."
 ```
 
+## Configuration Example
+
+```toml
+[providers.exa]
+[providers.exa.keyPool]
+keys = ["env:EXA_API_KEY"]
+```
+
+## Capabilities
+
+| Capability | Vendor | ColdSearch | Notes |
+|------------|--------|------------|-------|
+| `search` | ✅ | ✅ | Implemented by `search()` in `src/adapters/exa.ts` |
+| `extract` | ✅ | ✅ | Implemented by `extract()` in `src/adapters/exa.ts` |
+| `crawl` | ⚠️ | ✅ | Implemented by `crawl()` via site discovery + `contents` (livecrawl preferred) |
+
 ## Available Tools
 
 ### 1. `exa_search`

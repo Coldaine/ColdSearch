@@ -1,7 +1,8 @@
 import { createAdapter } from "../adapters/index.js";
-import { keyPoolManager } from "./keypool.js";
+import { KeyPoolManager, createKeyPoolManager } from "./keypool.js";
 import { rerank, type RerankerOptions } from "./reranker.js";
-import { providerSupportsCapability } from "../providers.js";
+import { resolveCapabilityProviders } from "../providers.js";
+import { UsageLogger } from "../logging/usage.js";
 import type {
   CapabilityName,
   Config,
@@ -9,6 +10,7 @@ import type {
   ExtractResult,
   CrawlResult,
 } from "../types.js";
+import { performance } from "node:perf_hooks";
 
 /**
  * Fanout operation type.
@@ -47,9 +49,13 @@ interface ProviderResult {
  */
 export class FanoutEngine {
   private config: Config;
+  private usageLogger: UsageLogger;
+  private keyPool: KeyPoolManager;
 
   constructor(config: Config) {
     this.config = config;
+    this.usageLogger = new UsageLogger({ path: config.logging?.usage?.path });
+    this.keyPool = createKeyPoolManager();
     this.initializeKeyPools();
   }
 
@@ -60,50 +66,24 @@ export class FanoutEngine {
     for (const [provider, providerConfig] of Object.entries(
       this.config.providers
     )) {
-      keyPoolManager.register(provider, providerConfig.keyPool);
+      this.keyPool.register(provider, providerConfig.keyPool);
     }
   }
 
   /**
    * Get providers for a capability, applying strategy.
+   * Delegates to the shared resolveCapabilityProviders() so that
+   * dry-run and actual execution use the same selection logic.
    */
   private getProvidersForCapability(
     capability: CapabilityName,
     options: FanoutOptions
   ): string[] {
-    const capabilityConfig = this.config.capabilities[capability];
-    if (!capabilityConfig) {
-      throw new Error(`No configuration found for capability: ${capability}`);
-    }
-
-    const providers = options.providers || capabilityConfig.providers;
-
-    if (providers.length === 0) {
-      throw new Error(`No providers configured for ${capability}`);
-    }
-    
-    for (const provider of providers) {
-      if (!this.config.providers[provider]) {
-        throw new Error(`Provider '${provider}' is not configured`);
-      }
-
-      if (!providerSupportsCapability(provider, capability)) {
-        throw new Error(
-          `Provider '${provider}' does not implement capability '${capability}'`
-        );
-      }
-    }
-
-    // Check if single provider mode
-    const useSingleProvider =
-      options.singleProvider || capabilityConfig.strategy === "random";
-
-    if (useSingleProvider) {
-      // Pick one random provider
-      const randomIndex = Math.floor(Math.random() * providers.length);
-      return [providers[randomIndex]];
-    }
-
+    const { providers } = resolveCapabilityProviders(
+      this.config,
+      capability,
+      { providers: options.providers, singleProvider: options.singleProvider }
+    );
     return providers;
   }
 
@@ -179,6 +159,8 @@ export class FanoutEngine {
 
     // Try providers in order (or single random provider)
     for (const provider of providers) {
+      const start = performance.now();
+      let keyRef = "none";
       try {
         const adapter = createAdapter(provider);
 
@@ -187,10 +169,21 @@ export class FanoutEngine {
           continue;
         }
 
-        // Get API key if provider has keys configured (keyless providers like Jina use empty string)
-        const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
+        // Get API key + safe logging reference (keyless providers like Jina return empty string)
+        const keyResult = await this.keyPool.getNextKeyWithRefOrEmpty(provider);
+        const apiKey = keyResult.value;
+        keyRef = keyResult.ref;
         const result = await adapter.extract(url, apiKey, {
           providerOptions: this.config.providers[provider]?.options,
+        });
+
+        this.usageLogger.write({
+          timestamp: new Date().toISOString(),
+          provider,
+          capability: "extract",
+          key: keyRef,
+          success: true,
+          response_time_ms: Math.round(performance.now() - start),
         });
         return {
           result,
@@ -199,6 +192,15 @@ export class FanoutEngine {
         };
       } catch (error) {
         errors[provider] = (error as Error).message;
+        this.usageLogger.write({
+          timestamp: new Date().toISOString(),
+          provider,
+          capability: "extract",
+          key: keyRef,
+          success: false,
+          response_time_ms: Math.round(performance.now() - start),
+          error: (error as Error).message,
+        });
       }
     }
 
@@ -218,6 +220,8 @@ export class FanoutEngine {
 
     // Try providers in order (or single random provider)
     for (const provider of providers) {
+      const start = performance.now();
+      let keyRef = "none";
       try {
         const adapter = createAdapter(provider);
 
@@ -226,11 +230,22 @@ export class FanoutEngine {
           continue;
         }
 
-        // Get API key if provider has keys configured (keyless providers use empty string)
-        const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
+        // Get API key + safe logging reference (keyless providers return empty string)
+        const keyResult = await this.keyPool.getNextKeyWithRefOrEmpty(provider);
+        const apiKey = keyResult.value;
+        keyRef = keyResult.ref;
         const results = await adapter.crawl(url, apiKey, {
           limit: options.limit,
           providerOptions: this.config.providers[provider]?.options,
+        });
+
+        this.usageLogger.write({
+          timestamp: new Date().toISOString(),
+          provider,
+          capability: "crawl",
+          key: keyRef,
+          success: true,
+          response_time_ms: Math.round(performance.now() - start),
         });
         return {
           results: results,
@@ -239,6 +254,15 @@ export class FanoutEngine {
         };
       } catch (error) {
         errors[provider] = (error as Error).message;
+        this.usageLogger.write({
+          timestamp: new Date().toISOString(),
+          provider,
+          capability: "crawl",
+          key: keyRef,
+          success: false,
+          response_time_ms: Math.round(performance.now() - start),
+          error: (error as Error).message,
+        });
       }
     }
 
@@ -252,11 +276,24 @@ export class FanoutEngine {
     provider: string,
     query: string
   ): Promise<ProviderResult> {
+    const start = performance.now();
+    let keyRef = "none";
     try {
-      const apiKey = await keyPoolManager.getNextKeyOrEmpty(provider);
+      const keyResult = await this.keyPool.getNextKeyWithRefOrEmpty(provider);
+      const apiKey = keyResult.value;
+      keyRef = keyResult.ref;
       const adapter = createAdapter(provider);
       const results = await adapter.search(query, apiKey, {
         providerOptions: this.config.providers[provider]?.options,
+      });
+
+      this.usageLogger.write({
+        timestamp: new Date().toISOString(),
+        provider,
+        capability: "search",
+        key: keyRef,
+        success: true,
+        response_time_ms: Math.round(performance.now() - start),
       });
 
       return {
@@ -264,6 +301,15 @@ export class FanoutEngine {
         results,
       };
     } catch (error) {
+      this.usageLogger.write({
+        timestamp: new Date().toISOString(),
+        provider,
+        capability: "search",
+        key: keyRef,
+        success: false,
+        response_time_ms: Math.round(performance.now() - start),
+        error: (error as Error).message,
+      });
       return {
         provider,
         results: [],

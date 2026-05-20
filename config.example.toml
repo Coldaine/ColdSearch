@@ -114,3 +114,12 @@ keys = ["env:FIRECRAWL_API_KEY"]
 #
 # Force single provider mode explicitly:
 #   coldsearch search --single-provider "query"
+
+# ============================================
+# USAGE LOGGING (OPTIONAL)
+# ============================================
+# Usage logs are written as JSONL for operational visibility.
+# Default: ~/.config/coldsearch/usage.jsonl
+#
+#[logging.usage]
+#path = "~/.config/coldsearch/usage.jsonl"

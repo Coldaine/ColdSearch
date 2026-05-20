@@ -13,6 +13,22 @@ Brave Search API provides web, news, image, and video search with an independent
 export BRAVE_API_KEY="BSA..."
 ```
 
+## Configuration Example
+
+```toml
+[providers.brave]
+[providers.brave.keyPool]
+keys = ["env:BRAVE_API_KEY"]
+```
+
+## Capabilities
+
+| Capability | Vendor | ColdSearch | Notes |
+|------------|--------|------------|-------|
+| `search` | ✅ | ✅ | Implemented by `search()` in `src/adapters/brave.ts` |
+| `extract` | ❌ | ❌ | Not implemented |
+| `crawl` | ❌ | ❌ | Not implemented |
+
 ## Available Tools
 
 ### 1. `brave_web_search`
