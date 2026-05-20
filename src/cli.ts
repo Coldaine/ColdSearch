@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { APP_NAME, LEGACY_APP_NAME, formatVersionString } from "./app.js";
+import { APP_NAME, formatVersionString } from "./app.js";
 import { SearchAgent } from "./agent/agent.js";
 import { LocalExecutionBackend } from "./execution/backend.js";
 import { loadConfig } from "./config.js";
@@ -186,7 +186,6 @@ ${APP_NAME} - Unified search CLI
 
 Usage: ${APP_NAME} [command] [options] "<query|url>"
 
-Compatibility alias: ${LEGACY_APP_NAME}
 
 Commands:
   search [options] "query"    Search the web (default)
