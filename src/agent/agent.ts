@@ -7,7 +7,7 @@ import {
   LocalExecutionBackend,
   type ExecutionBackend,
 } from "../execution/backend.js";
-import { createLLMClient, type LLMClient } from "./llm.js";
+import { createLLMClient, type LLMClient, type LLMProvider } from "./llm.js";
 import { tools, parseAgentPayload } from "./tools.js";
 import { ResearchContext } from "./context.js";
 
@@ -19,16 +19,16 @@ export interface AgentOptions {
   maxSteps?: number;
   /** Maximum sources to collect */
   maxSources?: number;
-  /** LLM provider (OpenAI only) */
-  llmProvider?: "openai";
+  /** LLM provider */
+  llmProvider?: LLMProvider;
   /** LLM model */
   model?: string;
+  /** LLM base URL override (e.g. for Groq, OpenRouter, local models) */
+  llmBaseUrl?: string;
   /** Config path */
   configPath?: string;
   /** Execution backend implementation */
   executionBackend?: ExecutionBackend;
-  /** Optional injected LLM (tests); defaults to createLLMClient() */
-  llm?: LLMClient;
 }
 
 interface ValidatedFetchTarget {
@@ -146,10 +146,8 @@ export class SearchAgent {
   private backend: ExecutionBackend;
 
   constructor(options: AgentOptions = {}) {
-    this.llm =
-      options.llm ?? createLLMClient(options.llmProvider ?? "openai", options.model);
-    this.backend =
-      options.executionBackend ?? new LocalExecutionBackend(options.configPath);
+    this.llm = createLLMClient(options.llmProvider, options.model, options.llmBaseUrl);
+    this.backend = options.executionBackend ?? new LocalExecutionBackend(options.configPath);
   }
 
   /**

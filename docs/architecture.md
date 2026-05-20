@@ -1,6 +1,6 @@
 ---
 title: Architecture
-date: 2026-04-12
+date: 2026-05-19
 author: Patrick MacLyman
 status: living
 doc_type: architecture
@@ -88,6 +88,90 @@ All networked operations should run through shared request handling with:
 
 This applies to provider adapters and LLM calls. Agent-mode LLM calls use OpenAI only; ColdSearch does not call the Anthropic API.
 
+## Agent Mode
+
+ColdSearch includes a ReAct-style research agent (`src/agent/agent.ts`). It is invoked with `--agent` and uses an LLM to drive multi-step research.
+
+### Agent Loop
+
+```
+User goal → LLM plans → tool execution → LLM observes → repeat → synthesize
+```
+
+The agent goes through cycles of:
+1. **Plan** — LLM receives system prompt + conversation history and decides next action
+2. **Execute** — the agent parses a structured JSON payload and runs the requested tool
+3. **Observe** — tool output is fed back into the conversation
+4. **Repeat** — up to `maxSteps` (default 5), then forced synthesis
+
+Each LLM response must be a JSON object: `{"type":"tool","tool":"search","args":["query"]}` or `{"type":"final","answer":"..."}`. Malformed responses trigger a format-correction retry from the system prompt.
+
+If max steps are reached without a final answer, the agent appends a forced-synthesis instruction. If that also fails, it retries once more with stricter formatting.
+
+### Tools
+
+Three tools are available to the agent, defined in `src/agent/tools.ts`:
+
+| Tool | Args | What it does |
+|------|------|-------------|
+| `search` | `[query]` | Fanout search via the execution backend, returns normalized results with RRF scores |
+| `fetch` | `[url]` | Fetches and extracts text from a URL (HTML → plain text) |
+| `refine` | `[currentQuery, intent]` | Uses the LLM to generate a better search query from the current one + expressed intent |
+
+Tools execute through a `ToolContext` that provides the search function, fetch function, and LLM client. This keeps the tool definitions provider-agnostic.
+
+### SSRF Protection
+
+The agent's `fetchContent()` method (`src/agent/agent.ts`) implements multi-layer protection against Server-Side Request Forgery:
+
+1. **Protocol check** — only `http:` and `https:` allowed
+2. **Hostname blocklist** — `localhost`, `.localhost`, `metadata.google.internal`, `169.254.169.254`
+3. **IP blocklist** — all RFC 1918 private ranges, loopback, link-local, unique local IPv6
+4. **DNS resolution check** — resolves the hostname and checks all returned addresses against the IP blocklist (catches DNS rebinding)
+5. **IPv4-mapped IPv6 detection** — extracts and checks embedded IPv4 in `::ffff:x.x.x.x` addresses
+6. **Content-type enforcement** — only `text/html`, `application/xhtml+xml`, and `text/*` accepted
+7. **Body size cap** — 1MB maximum fetch body
+8. **Timeout** — 10-second fetch timeout
+
+### Research Context
+
+`src/agent/context.ts` tracks the agent's state across steps:
+
+- Source deduplication by URL
+- Step logging with timestamps
+- Source cap enforcement (`maxSources`)
+- Citation formatting (appends `\n\nSources:\n[1] Title (url)\n[2] ...` to final answer)
+
+### LLM Provider Model
+
+`src/agent/llm.ts` provides a unified `LLMClient` interface with two implementations:
+
+- `ClaudeClient` — Anthropic Messages API (`https://api.anthropic.com/v1/messages`)
+- `OpenAIClient` — OpenAI-compatible chat completions (`{baseUrl}/chat/completions`)
+
+Provider aliases auto-configure base URL, default model, and environment variable:
+
+| Alias | Base URL | Default Model | Env Key |
+|-------|----------|--------------|---------|
+| `anthropic` | `https://api.anthropic.com/v1` | `claude-3-sonnet-20240229` | `ANTHROPIC_API_KEY` |
+| `openai` | `https://api.openai.com/v1` | `gpt-4o` | `OPENAI_API_KEY` |
+| `groq` | `https://api.groq.com/openai/v1` | `llama-3.1-70b-versatile` | `GROQ_API_KEY` |
+| `openrouter` | `https://openrouter.ai/api/v1` | `openai/gpt-4o` | `OPENROUTER_API_KEY` |
+| `cerebras` | `https://api.cerebras.ai/v1` | `llama3.1-70b` | `CEREBRAS_API_KEY` |
+| `xai` | `https://api.x.ai/v1` | `grok-2` | `XAI_GROK_API_KEY` |
+
+Custom endpoints are supported via `--llm-base-url` for any OpenAI-compatible API.
+
+### System Prompt
+
+The agent receives a structured system prompt that:
+- Declares the available tools and their signatures
+- Prescribes the ReAct research process (search → fetch → refine → repeat → synthesize)
+- Requires structured JSON responses (tool calls and final answers)
+- Sets the max step count from configuration
+
+The user's goal becomes the first user message in the conversation.
+
 ## Future Hybrid Direction
 
 The long-term target is not MCP. The long-term target is hybrid execution with the CLI still in front.
@@ -110,3 +194,5 @@ The point of that future mode is centralization:
 - no container-based workflow on this laptop
 - no provider-hopping fallback after selection
 - no attempt to expose every vendor tool directly in the CLI
+- no streaming agent responses (SSE)
+- no agent mode as a long-running service
