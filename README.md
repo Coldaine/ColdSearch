@@ -19,6 +19,8 @@ usearch --help
 
 Configuration lives at `~/.config/coldsearch/config.toml`. The runtime also falls back to `~/.config/usearch/config.toml` if the new path does not exist yet.
 
+**First run:** copy `config.example.toml` to that path, set provider env vars (or use Bitwarden `bws:` refs), and fix `providers.searxng.options.baseUrl` if you use SearXNG. Optional: `doppler run -- coldsearch search "query"` to inject secrets without putting keys in the file.
+
 ## What ColdSearch Is
 
 - A CLI-first interface over multiple search providers
@@ -101,7 +103,6 @@ npm test
 
 ## Roadmap
 
+- Operator bootstrap and OpenAI-compatible agent LLM base URL (see GitHub issues)
 - Harden request lifecycle: timeouts, retries, normalized errors
-- Expand provider coverage without bloating the CLI surface
-- Add lightweight governance for provider/doc drift
 - Prepare a future hybrid execution model for agent-mode async jobs

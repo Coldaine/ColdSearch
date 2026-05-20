@@ -57,22 +57,27 @@ export class OpenAIClient implements LLMClient {
         completion_tokens?: number;
         total_tokens?: number;
       };
-    }>("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": APP_USER_AGENT,
-        Authorization: `Bearer ${this.apiKey}`,
+    }>(
+      process.env.OPENAI_BASE_URL?.trim() ||
+        "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": APP_USER_AGENT,
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: options.model || this.defaultModel,
+          messages,
+          temperature: options.temperature ?? 0.2,
+          max_tokens: options.maxTokens,
+        }),
       },
-      body: JSON.stringify({
-        model: options.model || this.defaultModel,
-        messages,
-        temperature: options.temperature ?? 0.2,
-        max_tokens: options.maxTokens,
-      }),
-    }, {
-      label: "OpenAI completion",
-    });
+      {
+        label: "OpenAI completion",
+      }
+    );
 
     return {
       content: data.choices?.[0]?.message?.content || "",
