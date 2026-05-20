@@ -25,6 +25,7 @@ Search providers expose overlapping tools and provider-specific interfaces. When
 - **Not model-directed routing.** The model or caller should not make arbitrary provider choices with incomplete information.
 - **Not a remote job system yet.** Future remote execution is part of the direction, not the current product shape.
 - **Not a provider mirror.** ColdSearch does not need to expose every vendor capability directly in the CLI.
+- **Not an Anthropic API client.** ColdSearch does not call `api.anthropic.com` for agent mode or anything else at this stage. Agent-mode synthesis uses OpenAI when an LLM is required; routing and search stay on the configured search/extract/crawl providers.
 
 ## Goals
 

@@ -14,9 +14,25 @@ Tavily is a search engine optimized for AI agents and LLMs, providing real-time,
 export TAVILY_API_KEY="tvly-..."
 ```
 
+## Configuration Example
+
+```toml
+[providers.tavily]
+[providers.tavily.keyPool]
+keys = ["env:TAVILY_API_KEY"]
+```
+
+## Capabilities
+
+| Capability | Vendor | ColdSearch | Notes |
+|------------|--------|------------|-------|
+| `search` | ✅ | ✅ | Implemented by `search()` in `src/adapters/tavily.ts` |
+| `extract` | ✅ | ✅ | Implemented by `extract()` in `src/adapters/tavily.ts` |
+| `crawl` | ✅ | ✅ | Implemented by native `POST /crawl` in `crawl()` |
+
 ## Available Tools
 
-ColdSearch currently wires Tavily `search`, `extract`, and a heuristic `crawl` path through `src/adapters/tavily.ts`. Tavily `map`, `answer`, `research`, and Tavily's native `/crawl` surface remain upstream API capabilities that are documented here but not exposed directly by the current ColdSearch adapter.
+ColdSearch wires Tavily `search`, `extract`, and `crawl` through `src/adapters/tavily.ts`. Tavily `map`, `answer`, and `research` remain upstream API capabilities that are documented here but not exposed directly by the current ColdSearch adapter.
 
 ### 1. `tavily_web_search`
 
@@ -202,7 +218,7 @@ Automated multi-search research report.
 | `tavily_news_search` | /search | ✅ | ⚠️ | Same upstream endpoint; topic-specific surface is not separately exposed by ColdSearch |
 | `tavily_extract` | /extract | ✅ | ✅ | Backed by `extract()` in `src/adapters/tavily.ts` |
 | `tavily_map` | /map | ✅ | ❌ | Upstream-only today |
-| `tavily_crawl` | /crawl | ✅ | ⚠️ | ColdSearch implements heuristic crawl behavior via search + extract, not Tavily native `/crawl` |
+| `tavily_crawl` | /crawl | ✅ | ✅ | Backed by `crawl()` in `src/adapters/tavily.ts` |
 | `tavily_answer` | /answer | ✅ | ❌ | Upstream-only today |
 | `tavily_research` | /research | ✅ | ❌ | Upstream-only today |
 

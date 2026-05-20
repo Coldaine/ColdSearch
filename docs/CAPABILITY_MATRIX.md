@@ -32,8 +32,8 @@ Use provider detail pages for full vendor tool inventories.
 | Provider | Vendor Search Surface | Vendor Extract Surface | Vendor Crawl / Discovery Surface | ColdSearch `search` | ColdSearch `extract` | ColdSearch `crawl` | Notes |
 |----------|-----------------------|------------------------|----------------------------------|---------------------|----------------------|--------------------|-------|
 | Tavily | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Broadest current all-rounder |
-| Firecrawl | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | Vendor surface is richer than current adapter support |
-| Exa | ✅ | ✅ | ⚠️ | ✅ | ✅ | ❌ | Strong semantic and research features |
+| Firecrawl | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Vendor surface is richer than current adapter support |
+| Exa | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | Strong semantic and research features |
 | Brave | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Search-focused provider |
 | Serper | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Search-focused Google-backed surface |
 | Jina | ⚠️ | ✅ | ⚠️ | ❌ | ✅ | ❌ | ColdSearch currently uses Reader-style extraction only |

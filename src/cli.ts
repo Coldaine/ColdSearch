@@ -3,7 +3,13 @@
 import { APP_NAME, LEGACY_APP_NAME, formatVersionString } from "./app.js";
 import { SearchAgent } from "./agent/agent.js";
 import { LocalExecutionBackend } from "./execution/backend.js";
-import type { CLIOptions } from "./types.js";
+import { loadConfig } from "./config.js";
+import { resolveCapabilityProviders } from "./providers.js";
+import { getKeyReference } from "./logging/usage.js";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import type { CapabilityName, CLIOptions, Config } from "./types.js";
 
 /**
  * Extended CLI options including mode-specific options.
@@ -11,18 +17,22 @@ import type { CLIOptions } from "./types.js";
 interface ExtendedCLIOptions extends CLIOptions {
   /** Run in agent mode */
   agent?: boolean;
+  /** Print status information and exit */
+  status?: boolean;
   /** Specific providers to use */
   providers?: string[];
   /** Reranker strategy */
   rerank?: "rrf" | "score" | "none";
   /** LLM provider for agent */
-  llmProvider?: "anthropic" | "openai";
+  llmProvider?: "openai";
   /** LLM model for agent */
   model?: string;
   /** Maximum agent steps */
   maxSteps?: number;
   /** Maximum sources for agent */
   maxSources?: number;
+  /** Resolve plan without making network calls */
+  dryRun?: boolean;
 }
 
 /**
@@ -39,11 +49,14 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
   };
 
   // Check if first arg is a command
-  const commands = ["search", "extract", "crawl"];
+  const commands = ["search", "extract", "crawl", "status"];
   let i = 0;
 
   if (args.length > 0 && commands.includes(args[0])) {
     options.command = args[0] as "search" | "extract" | "crawl";
+    if (args[0] === "status") {
+      options.status = true;
+    }
     i = 1;
   }
 
@@ -91,6 +104,10 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
         options.singleProvider = true;
         break;
 
+      case "--dry-run":
+        options.dryRun = true;
+        break;
+
       case "--rerank":
         i++;
         const strategy = args[i];
@@ -103,10 +120,12 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--llm":
         i++;
         const llm = args[i];
-        if (!["anthropic", "openai"].includes(llm)) {
-          throw new Error(`Invalid LLM provider: ${llm}`);
+        if (llm !== "openai") {
+          throw new Error(
+            `Invalid LLM provider: ${llm}. ColdSearch agent mode supports openai only (Anthropic API is not used).`
+          );
         }
-        options.llmProvider = llm as "anthropic" | "openai";
+        options.llmProvider = "openai";
         break;
 
       case "--model":
@@ -162,18 +181,20 @@ Commands:
   search [options] "query"    Search the web (default)
   extract [options] "url"     Extract content from a URL
   crawl [options] "url"       Crawl a website
+  status                      Show configured providers and usage summary
 
 Options:
   Mode Selection:
     -a, --agent          Use search agent mode (multi-step research)
     --single-provider    Use one random provider instead of fanout
+    --dry-run            Print execution plan without network calls
     
   Fanout Options (default mode):
     --providers LIST     Comma-separated providers (default: all configured)
     --rerank STRATEGY    Reranker: rrf|score|none (default: rrf)
     
   Agent Options (requires --agent):
-    --llm PROVIDER       LLM provider: anthropic|openai (default: anthropic)
+    --llm PROVIDER       LLM provider: openai only (requires OPENAI_API_KEY)
     --model MODEL        LLM model name
     --max-steps N        Maximum research steps (default: 5)
     --max-sources N      Maximum sources to collect (default: 5)
@@ -209,6 +230,21 @@ Examples:
 }
 
 /**
+ * Label CLI JSON mode field from what actually ran (not just --single-provider flag).
+ */
+function describeCliOutputMode(
+  config: Config,
+  capability: CapabilityName,
+  options: ExtendedCLIOptions,
+  providersUsedCount: number
+): "single-provider" | "fanout" {
+  if (options.singleProvider) return "single-provider";
+  const cap = config.capabilities[capability];
+  if (cap?.strategy === "random") return "single-provider";
+  return providersUsedCount > 1 ? "fanout" : "single-provider";
+}
+
+/**
  * Format output based on options.
  */
 function formatOutput(data: unknown, options: ExtendedCLIOptions): string {
@@ -225,6 +261,13 @@ function formatOutput(data: unknown, options: ExtendedCLIOptions): string {
  * Run Mode 1: Fanout + Rerank.
  */
 async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
+  if (options.dryRun) {
+    const plan = buildExecutionPlan("search", options);
+    console.log(formatOutput(plan, options));
+    return;
+  }
+
+  const config = loadConfig(options.config);
   const backend = new LocalExecutionBackend(options.config);
 
   const result = await backend.search(options.query, {
@@ -235,7 +278,12 @@ async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
   });
 
   const output = {
-    mode: options.singleProvider ? "single-provider" : "fanout",
+    mode: describeCliOutputMode(
+      config,
+      "search",
+      options,
+      result.providersUsed.length
+    ),
     command: "search",
     query: options.query,
     results: result.results,
@@ -251,6 +299,13 @@ async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
  * Run extract mode.
  */
 async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
+  if (options.dryRun) {
+    const plan = buildExecutionPlan("extract", options);
+    console.log(formatOutput(plan, options));
+    return;
+  }
+
+  const config = loadConfig(options.config);
   const backend = new LocalExecutionBackend(options.config);
 
   const result = await backend.extract(options.query, {
@@ -260,7 +315,7 @@ async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
   });
 
   const output = {
-    mode: options.singleProvider ? "single-provider" : "fanout",
+    mode: describeCliOutputMode(config, "extract", options, 1),
     command: "extract",
     url: options.query,
     result: result.result,
@@ -275,6 +330,13 @@ async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
  * Run crawl mode.
  */
 async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
+  if (options.dryRun) {
+    const plan = buildExecutionPlan("crawl", options);
+    console.log(formatOutput(plan, options));
+    return;
+  }
+
+  const config = loadConfig(options.config);
   const backend = new LocalExecutionBackend(options.config);
 
   const result = await backend.crawl(options.query, {
@@ -284,7 +346,7 @@ async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
   });
 
   const output = {
-    mode: options.singleProvider ? "single-provider" : "fanout",
+    mode: describeCliOutputMode(config, "crawl", options, 1),
     command: "crawl",
     url: options.query,
     results: result.results,
@@ -324,6 +386,125 @@ async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
   console.log(formatOutput(output, options));
 }
 
+function resolveProviderList(capability: "search" | "extract" | "crawl", options: ExtendedCLIOptions) {
+  const config = loadConfig(options.config);
+  const { providers: selected } = resolveCapabilityProviders(
+    config,
+    capability,
+    { providers: options.providers, singleProvider: options.singleProvider }
+  );
+  return { config, providers: selected };
+}
+
+function buildExecutionPlan(capability: "search" | "extract" | "crawl", options: ExtendedCLIOptions) {
+  const { config, providers } = resolveProviderList(capability, options);
+
+  const plannedProviders = providers.map((provider) => {
+    const pool = config.providers[provider]?.keyPool;
+    const keyCount = pool?.keys?.length || 0;
+    const keyStrategy = pool?.strategy || "round-robin";
+    const keyPreview = getKeyReference(pool, provider);
+
+    const warnings = [];
+    if (keyCount > 0 && pool?.keys?.length) {
+      const first = pool.keys[0];
+      if (first.startsWith("env:")) {
+        const varName = first.slice(4);
+        if (!process.env[varName]) warnings.push(`missing env var ${varName}`);
+      }
+    }
+
+    return {
+      provider,
+      capability,
+      key_pool: { count: keyCount, strategy: keyStrategy, preview: keyPreview },
+      warnings: warnings.length ? warnings : undefined,
+    };
+  });
+
+  return {
+    mode: "dry-run",
+    capability,
+    query_or_url: options.query,
+    providers: plannedProviders,
+    estimated_api_calls: plannedProviders.length,
+  };
+}
+
+async function runStatus(options: ExtendedCLIOptions): Promise<void> {
+  const config = loadConfig(options.config);
+
+  const byCapability = Object.fromEntries(
+    Object.entries(config.capabilities).map(([capability, cfg]) => [
+      capability,
+      {
+        providers: cfg.providers,
+        strategy: cfg.strategy ?? null,
+        effective_strategy: cfg.strategy ?? "all",
+      },
+    ])
+  );
+
+  const keyPools = Object.fromEntries(
+    Object.entries(config.providers).map(([provider, cfg]) => [
+      provider,
+      {
+        keys: cfg.keyPool?.keys?.length ?? 0,
+        strategy: cfg.keyPool?.strategy || "round-robin",
+      },
+    ])
+  );
+
+  const usagePath = config.logging?.usage?.path || "~/.config/coldsearch/usage.jsonl";
+
+  const usageSummary: Record<string, { calls: number; successes: number; success_rate: number }> = {};
+
+  try {
+    const resolved = usagePath.startsWith("~/")
+      ? path.join(os.homedir(), usagePath.slice(2))
+      : usagePath;
+
+    if (resolved && fs.existsSync(resolved)) {
+      const allLines = fs.readFileSync(resolved, "utf8").split("\n").filter(Boolean);
+      const lines = allLines.length > 5000 ? allLines.slice(-5000) : allLines;
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+      for (const line of lines) {
+        let entry;
+        try {
+          entry = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        const ts = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
+        if (!Number.isFinite(ts) || ts < cutoff) continue;
+        const provider = entry.provider;
+        if (typeof provider !== "string") continue;
+        if (!usageSummary[provider]) {
+          usageSummary[provider] = { calls: 0, successes: 0, success_rate: 0 };
+        }
+        usageSummary[provider].calls += 1;
+        if (entry.success === true) usageSummary[provider].successes += 1;
+      }
+
+      for (const value of Object.values(usageSummary)) {
+        value.success_rate = value.calls > 0 ? value.successes / value.calls : 0;
+      }
+    }
+  } catch {
+    // best-effort: ignore usage parsing errors
+  }
+
+  const status = {
+    capabilities: byCapability,
+    key_pools: keyPools,
+    usage_log: usagePath,
+    recent_usage_summary_7d: Object.keys(usageSummary).length ? usageSummary : undefined,
+  };
+
+  console.log(formatOutput(status, options));
+}
+
 /**
  * Main CLI entry point.
  */
@@ -337,6 +518,11 @@ async function main(): Promise<void> {
     }
 
     const options = parseArgs(args);
+
+    if (options.status) {
+      await runStatus(options);
+      return;
+    }
 
     if (!options.query.trim()) {
       console.error("Error: Query/URL is required");

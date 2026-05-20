@@ -86,7 +86,7 @@ All networked operations should run through shared request handling with:
 - bounded transient retries
 - normalized error reporting
 
-This applies to provider adapters and LLM calls.
+This applies to provider adapters and LLM calls. Agent-mode LLM calls use OpenAI only; ColdSearch does not call the Anthropic API.
 
 ## Future Hybrid Direction
 

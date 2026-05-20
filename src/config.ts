@@ -30,7 +30,13 @@ function resolveConfigPath(configPath?: string): string {
     return DEFAULT_CONFIG_PATH;
   }
 
-  return LEGACY_CONFIG_PATH;
+  if (existsSync(LEGACY_CONFIG_PATH)) {
+    return LEGACY_CONFIG_PATH;
+  }
+
+  // Neither config exists — use default path for error messaging so guidance
+  // points users at the new brand, not the legacy name.
+  return DEFAULT_CONFIG_PATH;
 }
 
 /**

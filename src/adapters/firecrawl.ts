@@ -15,11 +15,69 @@ import type {
  */
 export class FirecrawlAdapter implements SearchAdapter {
   name = "firecrawl";
-  capabilities: SearchAdapter["capabilities"] = ["extract", "crawl"];
+  capabilities: SearchAdapter["capabilities"] = ["search", "extract", "crawl"];
   private baseUrl = "https://api.firecrawl.dev/v2";
 
-  async search(_query: string, _apiKey: string): Promise<NormalizedResult[]> {
-    throw new Error("Firecrawl does not support search");
+  async search(
+    query: string,
+    apiKey: string,
+    _options?: AdapterCallOptions
+  ): Promise<NormalizedResult[]> {
+    const data = await fetchJson<{
+      success?: boolean;
+      data?: {
+        web?: Array<{
+          title?: string;
+          url?: string;
+          description?: string;
+          markdown?: string;
+          score?: number;
+          metadata?: {
+            title?: string;
+            description?: string;
+            sourceURL?: string;
+          };
+        }>;
+      };
+      error?: string;
+    }>(
+      `${this.baseUrl}/search`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          query,
+          limit: 10,
+          scrapeOptions: {
+            formats: ["markdown"],
+          },
+        }),
+      },
+      { label: "Firecrawl search" }
+    );
+
+    if (!data.success || data.error) {
+      throw new Error(`Firecrawl error: ${data.error || "Unknown error"}`);
+    }
+
+    const results = data.data?.web || [];
+    return results.map((result, index) => {
+      const url = result.url || result.metadata?.sourceURL || "";
+      const title = result.title || result.metadata?.title || "";
+      const snippetSource = result.description || result.metadata?.description || result.markdown || "";
+      const snippet = snippetSource.length > 500 ? `${snippetSource.slice(0, 497)}...` : snippetSource;
+
+      return {
+        title,
+        url,
+        snippet,
+        score: result.score ?? Math.max(0.1, 1 - index * 0.1),
+        source: this.name,
+      };
+    });
   }
 
   async extract(

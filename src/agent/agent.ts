@@ -19,14 +19,16 @@ export interface AgentOptions {
   maxSteps?: number;
   /** Maximum sources to collect */
   maxSources?: number;
-  /** LLM provider */
-  llmProvider?: "anthropic" | "openai";
+  /** LLM provider (OpenAI only) */
+  llmProvider?: "openai";
   /** LLM model */
   model?: string;
   /** Config path */
   configPath?: string;
   /** Execution backend implementation */
   executionBackend?: ExecutionBackend;
+  /** Optional injected LLM (tests); defaults to createLLMClient() */
+  llm?: LLMClient;
 }
 
 interface ValidatedFetchTarget {
@@ -61,6 +63,26 @@ function isIPv4InCidr(ip: string, network: string, prefixBits: number): boolean 
   return (ipValue & mask) === (networkValue & mask);
 }
 
+function extractIPv4FromMapped(address: string): string | null {
+  const normalized = address.toLowerCase();
+
+  // Dotted form: ::ffff:127.0.0.1
+  const dotted = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) return dotted[1];
+
+  // Hex form: ::ffff:7f00:1 (127.0.0.1)
+  if (!normalized.startsWith("::ffff:")) return null;
+  const suffix = normalized.slice("::ffff:".length);
+  const parts = suffix.split(":");
+  if (parts.length !== 2) return null;
+
+  const hi = Number.parseInt(parts[0], 16);
+  const lo = Number.parseInt(parts[1], 16);
+  if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null;
+
+  return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+}
+
 function isBlockedIpAddress(address: string): boolean {
   const version = isIP(address);
 
@@ -80,9 +102,16 @@ function isBlockedIpAddress(address: string): boolean {
   }
 
   if (version === 6) {
+    // Check for IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1)
+    const mappedV4 = extractIPv4FromMapped(address);
+    if (mappedV4 && isBlockedIpAddress(mappedV4)) {
+      return true;
+    }
+
     const normalized = address.toLowerCase();
     return (
       normalized === "::1" ||
+      normalized === "::" ||
       normalized.startsWith("fc") ||
       normalized.startsWith("fd") ||
       normalized.startsWith("fe8") ||
@@ -93,6 +122,13 @@ function isBlockedIpAddress(address: string): boolean {
   }
 
   return false;
+}
+
+function normalizeHostname(hostname: string): string {
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    return hostname.slice(1, -1);
+  }
+  return hostname;
 }
 
 function isBlockedHostname(hostname: string): boolean {
@@ -131,8 +167,10 @@ export class SearchAgent {
   private backend: ExecutionBackend;
 
   constructor(options: AgentOptions = {}) {
-    this.llm = createLLMClient(options.llmProvider, options.model);
-    this.backend = options.executionBackend ?? new LocalExecutionBackend(options.configPath);
+    this.llm =
+      options.llm ?? createLLMClient(options.llmProvider ?? "openai", options.model);
+    this.backend =
+      options.executionBackend ?? new LocalExecutionBackend(options.configPath);
   }
 
   /**
@@ -300,15 +338,17 @@ Be thorough but efficient. Focus on authoritative sources.`;
       throw new Error(`Unsupported fetch URL protocol: ${parsedUrl.protocol}`);
     }
 
-    if (isBlockedHostname(parsedUrl.hostname)) {
-      throw new Error(`Refusing to fetch internal hostname: ${parsedUrl.hostname}`);
+    const host = normalizeHostname(parsedUrl.hostname);
+
+    if (isBlockedHostname(host)) {
+      throw new Error(`Refusing to fetch internal hostname: ${host}`);
     }
 
-    if (isBlockedIpAddress(parsedUrl.hostname)) {
-      throw new Error(`Refusing to fetch non-public IP: ${parsedUrl.hostname}`);
+    if (isBlockedIpAddress(host)) {
+      throw new Error(`Refusing to fetch non-public IP: ${host}`);
     }
 
-    const resolvedAddresses = await lookup(parsedUrl.hostname, { all: true, verbatim: true });
+    const resolvedAddresses = await lookup(host, { all: true, verbatim: true });
     if (resolvedAddresses.some((entry) => isBlockedIpAddress(entry.address))) {
       throw new Error(
         `Refusing to fetch hostname resolving to a non-public IP: ${parsedUrl.hostname}`

@@ -32,7 +32,7 @@ ColdSearch now has:
 
 - `search`: SearXNG, Tavily, Exa, Brave, Serper
 - `extract`: Tavily, Exa, Jina, Firecrawl
-- `crawl`: Tavily, Firecrawl
+- `crawl`: Tavily, Firecrawl, Exa
 
 ### Docs
 
@@ -46,11 +46,11 @@ ColdSearch now has:
 - async job model for agent-mode work
 - centralized remote secrets management
 - broader provider tool-surface exposure in the CLI
-- quota-aware rotation and usage tracking
+- quota-aware rotation
 
 ## Next Implementation Priorities
 
-1. Governance and CI
-2. Tests for docs coverage and runtime seams
-3. Further provider-doc normalization
+1. Operator config bootstrap and routing UX polish (GitHub #6)
+2. OpenAI-compatible agent LLM configuration in TOML (partial: `OPENAI_BASE_URL` env)
+3. CI job consolidation (done on branch stack)
 4. Remote/hybrid execution design docs before code

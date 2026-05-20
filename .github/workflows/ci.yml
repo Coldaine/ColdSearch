@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -7,9 +10,8 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
+  ci:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +26,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Docs sync checks
+        run: npm run test:docs
 
       - name: Test
         run: npm test

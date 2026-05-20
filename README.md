@@ -19,6 +19,8 @@ usearch --help
 
 Configuration lives at `~/.config/coldsearch/config.toml`. The runtime also falls back to `~/.config/usearch/config.toml` if the new path does not exist yet.
 
+**First run:** copy `config.example.toml` to that path, set provider env vars (or use Bitwarden `bws:` refs), and fix `providers.searxng.options.baseUrl` if you use SearXNG. Optional: `doppler run -- coldsearch search "query"` to inject secrets without putting keys in the file.
+
 ## What ColdSearch Is
 
 - A CLI-first interface over multiple search providers
@@ -42,7 +44,7 @@ The current implementation remains local-first, but the runtime is now being org
 |------------|-------------------|-----------|
 | `search` | SearXNG, Tavily, Exa, Brave, Serper | Manual random pool |
 | `extract` | Tavily, Exa, Jina, Firecrawl | Manual random pool |
-| `crawl` | Tavily, Firecrawl | Manual random pool |
+| `crawl` | Tavily, Firecrawl, Exa | Manual random pool |
 
 ## Provider Overlap
 
@@ -88,9 +90,12 @@ npm test
 
 ## Documentation
 
+- `docs/decisions/` - Decision records and session archives (start with `2026-05-19-routing-llm-policy-and-shipping.md`)
+- `docs/contributing/testing.md` - What to test (and what not to duplicate)
 - `docs/NORTH_STAR.md` - Product direction and architectural intent
 - `docs/architecture.md` - Runtime architecture and seams
 - `docs/PROGRESS.md` - Current implementation status
+- `docs/CONFIGURATION.md` - Configuration reference and precedence
 - `docs/CAPABILITY_MATRIX.md` - Required maintenance matrix for providers vs capabilities
 - `docs/providers/README.md` - Provider docs index
 - `docs/providers/*.md` - Per-provider detail pages
@@ -98,7 +103,6 @@ npm test
 
 ## Roadmap
 
+- Operator bootstrap and OpenAI-compatible agent LLM base URL (see GitHub issues)
 - Harden request lifecycle: timeouts, retries, normalized errors
-- Expand provider coverage without bloating the CLI surface
-- Add lightweight governance for provider/doc drift
 - Prepare a future hybrid execution model for agent-mode async jobs
