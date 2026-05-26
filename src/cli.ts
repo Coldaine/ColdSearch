@@ -172,7 +172,8 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
             j++;
           }
           options.query = queryParts.join(" ");
-          return options;
+          i = j;
+          continue;
         }
         throw new Error(`Unknown option: ${arg}`);
     }

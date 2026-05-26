@@ -74,6 +74,14 @@ export class OpenAIClient implements LLMClient {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
+  private chatCompletionsUrl(): string {
+    const normalized = this.baseUrl.replace(/\/$/, "");
+    if (normalized.endsWith("/chat/completions")) {
+      return normalized;
+    }
+    return `${normalized}/chat/completions`;
+  }
+
   async complete(
     messages: LLMMessage[],
     options: LLMOptions = {}
@@ -85,9 +93,7 @@ export class OpenAIClient implements LLMClient {
         completion_tokens?: number;
         total_tokens?: number;
       };
-    }>(
-      `${this.baseUrl}/chat/completions`,
-      {
+    }>(this.chatCompletionsUrl(), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

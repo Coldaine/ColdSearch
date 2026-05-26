@@ -18,7 +18,7 @@ ColdSearch is a unified CLI over overlapping search provider APIs. Fanout search
 - `docs/ADRs/001-fanout-architecture.md` — why fanout with per-provider error isolation
 - `docs/ADRs/002-rrf-reranking.md` — why Reciprocal Rank Fusion over score-based ranking
 - `docs/ADRs/003-react-agent.md` — why ReAct loop with tool-based fetch/search/refine
-- `docs/ADRs/004-ssrf-protection.md` — why multi-layer DNS/IP/hostname blocking in agent mode
+- Agent SSRF protection — implemented in `src/agent/agent.ts`; tracked in [issue #11](https://github.com/Coldaine/ColdSearch/issues/11) (ADR 004)
 
 **Operations:**
 - `docs/CONFIGURATION.md` — config file reference, key pools, environment variable binding

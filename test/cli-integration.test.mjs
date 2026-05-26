@@ -173,6 +173,33 @@ keys = ["k"]
   assert.equal(out.capability, "search");
 });
 
+test("flags after the query positional are still parsed", () => {
+  const result = withTempDir((dir) => {
+    const configPath = writeConfig(
+      dir,
+      `
+[capabilities.search]
+providers = ["brave"]
+
+[providers.brave]
+[providers.brave.keyPool]
+keys = ["k"]
+`.trim()
+    );
+
+    const env = { ...process.env };
+    delete env.OPENAI_API_KEY;
+
+    return runCli(
+      ["search", "--config", configPath, "topic", "--agent"],
+      env
+    );
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /OPENAI_API_KEY/i);
+});
+
 test("cli errors clearly on missing capability config", () => {
   const result = withTempDir((dir) => {
     const configPath = writeConfig(
