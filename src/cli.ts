@@ -2,6 +2,7 @@
 
 import { APP_NAME, LEGACY_APP_NAME, formatVersionString } from "./app.js";
 import { SearchAgent } from "./agent/agent.js";
+import type { LLMProvider } from "./agent/llm.js";
 import { LocalExecutionBackend } from "./execution/backend.js";
 import { loadConfig } from "./config.js";
 import { resolveCapabilityProviders } from "./providers.js";
@@ -24,9 +25,11 @@ interface ExtendedCLIOptions extends CLIOptions {
   /** Reranker strategy */
   rerank?: "rrf" | "score" | "none";
   /** LLM provider for agent */
-  llmProvider?: "openai";
+  llmProvider?: LLMProvider;
   /** LLM model for agent */
   model?: string;
+  /** LLM base URL override */
+  llmBaseUrl?: string;
   /** Maximum agent steps */
   maxSteps?: number;
   /** Maximum sources for agent */
@@ -120,17 +123,22 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--llm":
         i++;
         const llm = args[i];
-        if (llm !== "openai") {
+        if (!["openai", "groq", "openrouter", "cerebras", "xai"].includes(llm)) {
           throw new Error(
-            `Invalid LLM provider: ${llm}. ColdSearch agent mode supports openai only (Anthropic API is not used).`
+            `Invalid LLM provider: ${llm}. Supported: openai, groq, openrouter, cerebras, xai (Anthropic API is not used).`
           );
         }
-        options.llmProvider = "openai";
+        options.llmProvider = llm as LLMProvider;
         break;
 
       case "--model":
         i++;
         options.model = args[i];
+        break;
+
+      case "--llm-base-url":
+        i++;
+        options.llmBaseUrl = args[i];
         break;
 
       case "--max-steps":
@@ -157,9 +165,15 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
 
       default:
         if (!arg.startsWith("-")) {
-          // Collect query parts
-          options.query = args.slice(i).join(" ");
-          return options;
+          const queryParts: string[] = [];
+          let j = i;
+          while (j < args.length && !args[j].startsWith("-")) {
+            queryParts.push(args[j]);
+            j++;
+          }
+          options.query = queryParts.join(" ");
+          i = j;
+          continue;
         }
         throw new Error(`Unknown option: ${arg}`);
     }
@@ -194,8 +208,9 @@ Options:
     --rerank STRATEGY    Reranker: rrf|score|none (default: rrf)
     
   Agent Options (requires --agent):
-    --llm PROVIDER       LLM provider: openai only (requires OPENAI_API_KEY)
+    --llm PROVIDER       LLM: openai|groq|openrouter|cerebras|xai (default: openai)
     --model MODEL        LLM model name
+    --llm-base-url URL   Override OpenAI-compatible API base URL
     --max-steps N        Maximum research steps (default: 5)
     --max-sources N      Maximum sources to collect (default: 5)
     
@@ -366,6 +381,7 @@ async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
     configPath: options.config,
     llmProvider: options.llmProvider,
     model: options.model,
+    llmBaseUrl: options.llmBaseUrl,
     maxSteps: options.maxSteps,
     maxSources: options.maxSources,
   });

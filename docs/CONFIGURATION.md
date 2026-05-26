@@ -101,7 +101,7 @@ Each entry contains:
 Agent mode (`--agent`) uses an OpenAI-compatible chat completions endpoint:
 
 - **`OPENAI_API_KEY`** (required for agent mode)
-- **`OPENAI_BASE_URL`** (optional, default `https://api.openai.com/v1/chat/completions`) — set for Ollama, OpenRouter, Azure-style proxies, etc.
+- **`OPENAI_BASE_URL`** (optional) — API root (`https://api.openai.com/v1`) or full chat-completions URL (`…/v1/chat/completions`); used when `--llm openai` without `--llm-base-url`
 
 This is separate from provider key pools in `config.toml`.
 
