@@ -7,7 +7,7 @@ import {
   LocalExecutionBackend,
   type ExecutionBackend,
 } from "../execution/backend.js";
-import { createLLMClient, type LLMClient } from "./llm.js";
+import { createLLMClient, type LLMClient, type LLMProvider } from "./llm.js";
 import { tools, parseAgentPayload } from "./tools.js";
 import { ResearchContext } from "./context.js";
 
@@ -19,10 +19,12 @@ export interface AgentOptions {
   maxSteps?: number;
   /** Maximum sources to collect */
   maxSources?: number;
-  /** LLM provider (OpenAI only) */
-  llmProvider?: "openai";
+  /** LLM provider (OpenAI-compatible) */
+  llmProvider?: LLMProvider;
   /** LLM model */
   model?: string;
+  /** Override LLM API base URL (OpenAI-compatible /chat/completions) */
+  llmBaseUrl?: string;
   /** Config path */
   configPath?: string;
   /** Execution backend implementation */
@@ -168,7 +170,12 @@ export class SearchAgent {
 
   constructor(options: AgentOptions = {}) {
     this.llm =
-      options.llm ?? createLLMClient(options.llmProvider ?? "openai", options.model);
+      options.llm ??
+      createLLMClient(
+        options.llmProvider ?? "openai",
+        options.model,
+        options.llmBaseUrl
+      );
     this.backend =
       options.executionBackend ?? new LocalExecutionBackend(options.configPath);
   }

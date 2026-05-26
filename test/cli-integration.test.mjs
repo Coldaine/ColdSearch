@@ -141,6 +141,38 @@ keys = ["k"]
   assert.doesNotMatch(result.stderr, /brave/i);
 });
 
+test("query parser stops at the next flag token", () => {
+  const result = withTempDir((dir) => {
+    const configPath = writeConfig(
+      dir,
+      `
+[capabilities.search]
+providers = ["brave"]
+
+[providers.brave]
+[providers.brave.keyPool]
+keys = ["k"]
+`.trim()
+    );
+
+    return runCli([
+      "search",
+      "--config",
+      configPath,
+      "--dry-run",
+      "--json",
+      "hello world",
+      "--limit",
+      "3",
+    ]);
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const out = JSON.parse(result.stdout);
+  assert.equal(out.query_or_url, "hello world");
+  assert.equal(out.capability, "search");
+});
+
 test("cli errors clearly on missing capability config", () => {
   const result = withTempDir((dir) => {
     const configPath = writeConfig(

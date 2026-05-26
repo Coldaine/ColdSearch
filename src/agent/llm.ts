@@ -1,6 +1,6 @@
 /**
  * LLM client interface for the search agent.
- * OpenAI only — ColdSearch does not call the Anthropic API.
+ * OpenAI-compatible HTTP only — ColdSearch does not call the Anthropic API.
  */
 import { APP_USER_AGENT } from "../app.js";
 import { fetchJson } from "../http.js";
@@ -32,18 +32,46 @@ export interface LLMClient {
   complete(messages: LLMMessage[], options?: LLMOptions): Promise<LLMResponse>;
 }
 
-export type LLMProvider = "openai";
+export type LLMProvider = "openai" | "groq" | "openrouter" | "cerebras" | "xai";
+
+const PROVIDER_ALIASES: Record<
+  Exclude<LLMProvider, "openai">,
+  { baseUrl: string; defaultModel: string; envKey: string }
+> = {
+  groq: {
+    baseUrl: "https://api.groq.com/openai/v1",
+    defaultModel: "llama-3.1-70b-versatile",
+    envKey: "GROQ_API_KEY",
+  },
+  openrouter: {
+    baseUrl: "https://openrouter.ai/api/v1",
+    defaultModel: "openai/gpt-4o",
+    envKey: "OPENROUTER_API_KEY",
+  },
+  cerebras: {
+    baseUrl: "https://api.cerebras.ai/v1",
+    defaultModel: "llama3.1-70b",
+    envKey: "CEREBRAS_API_KEY",
+  },
+  xai: {
+    baseUrl: "https://api.x.ai/v1",
+    defaultModel: "grok-2",
+    envKey: "XAI_GROK_API_KEY",
+  },
+};
 
 /**
- * OpenAI client.
+ * OpenAI-compatible chat completions client.
  */
 export class OpenAIClient implements LLMClient {
   private apiKey: string;
   private defaultModel: string;
+  private baseUrl: string;
 
-  constructor(apiKey: string, model = "gpt-4o") {
+  constructor(apiKey: string, model = "gpt-4o", baseUrl = "https://api.openai.com/v1") {
     this.apiKey = apiKey;
     this.defaultModel = model;
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   async complete(
@@ -58,8 +86,7 @@ export class OpenAIClient implements LLMClient {
         total_tokens?: number;
       };
     }>(
-      process.env.OPENAI_BASE_URL?.trim() ||
-        "https://api.openai.com/v1/chat/completions",
+      `${this.baseUrl}/chat/completions`,
       {
         method: "POST",
         headers: {
@@ -95,23 +122,45 @@ export class OpenAIClient implements LLMClient {
   }
 }
 
+function resolveOpenAiBaseUrl(baseUrl?: string): string {
+  return (
+    baseUrl?.trim() ||
+    process.env.OPENAI_BASE_URL?.trim() ||
+    "https://api.openai.com/v1"
+  ).replace(/\/$/, "");
+}
+
 /**
  * Create an LLM client from environment.
  * Anthropic is intentionally unsupported — do not add api.anthropic.com calls here.
  */
 export function createLLMClient(
   provider: LLMProvider = "openai",
-  model?: string
+  model?: string,
+  baseUrl?: string
 ): LLMClient {
-  if (provider !== "openai") {
+  if (provider === "openai") {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY environment variable not set");
+    }
+    return new OpenAIClient(apiKey, model, resolveOpenAiBaseUrl(baseUrl));
+  }
+
+  const alias = PROVIDER_ALIASES[provider as Exclude<LLMProvider, "openai">];
+  if (!alias) {
     throw new Error(
-      `Unsupported LLM provider "${provider}". ColdSearch agent mode uses OpenAI only (OPENAI_API_KEY).`
+      `Unsupported LLM provider "${provider}". Supported: openai, groq, openrouter, cerebras, xai.`
     );
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env[alias.envKey];
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY environment variable not set");
+    throw new Error(`${alias.envKey} environment variable not set`);
   }
-  return new OpenAIClient(apiKey, model);
+  return new OpenAIClient(
+    apiKey,
+    model || alias.defaultModel,
+    baseUrl || alias.baseUrl
+  );
 }
