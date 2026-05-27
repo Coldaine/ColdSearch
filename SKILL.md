@@ -215,10 +215,13 @@ coldsearch --agent --max-steps 10 --max-sources 5 "latest fusion energy developm
 ### Agent Options
 
 - `--agent` or `-a` — Enable agent mode
-- `--llm openai` — Agent LLM (OpenAI only; requires `OPENAI_API_KEY`)
+- `--llm PROVIDER` — Agent LLM provider: `openai` (default), `groq`, `openrouter`, `cerebras`, or `xai`. All speak the OpenAI-compatible Chat Completions API. The Anthropic API is intentionally not supported.
 - `--model MODEL` — LLM model name (e.g., `gpt-4o`)
+- `--llm-base-url URL` — Override the OpenAI-compatible API base URL (also settable via `OPENAI_BASE_URL` env var)
 - `--max-steps N` — Maximum research steps (default: 5)
 - `--max-sources N` — Maximum sources to collect (default: 5)
+
+Required env var depends on `--llm`: `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, or `XAI_GROK_API_KEY`.
 
 ### Agent Output Schema
 
@@ -293,12 +296,25 @@ coldsearch --agent "compare tokamak vs stellarator fusion approaches"
 coldsearch --agent --max-steps 15 --max-sources 8 "history of quantum computing"
 ```
 
+## Logging
+
+Usage is logged to `~/.config/coldsearch/usage.jsonl` by default (JSON Lines: timestamp, provider, capability, key reference, success, response time, error). Override the path in `config.toml`:
+
+```toml
+[logging.usage]
+path = "~/.config/coldsearch/usage.jsonl"
+```
+
+Logging is best-effort and never breaks core operations. View aggregated stats with `coldsearch status` (last 7 days).
+
+> **Note:** There is no `--log` flag in the current runtime. Logging verbosity is not user-tunable today. If you see references to `--log` elsewhere, treat them as deferred / not implemented.
+
 ## Requirements
 
 - Node.js >= 18
-- Config file at `~/.config/coldsearch/config.toml`
+- Config file at `~/.config/coldsearch/config.toml` (legacy fallback: `~/.config/usearch/config.toml`)
 - API keys for configured providers
-- For agent mode: `OPENAI_API_KEY` (Anthropic API is not used)
+- For agent mode: an OpenAI-compatible API key (`OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, or `XAI_GROK_API_KEY` depending on `--llm`). The Anthropic API is intentionally not used.
 
 ## Troubleshooting
 
@@ -309,6 +325,16 @@ coldsearch --agent --max-steps 15 --max-sources 8 "history of quantum computing"
 **"No providers configured"** — Check that `capabilities.search.providers` is set in config.
 
 **"All providers failed"** — Check your API keys and network connection.
+
+## Architecture Cross-Reference
+
+For agent invocation context and architectural decisions, see:
+
+- `AGENTS.md` — project map (start here)
+- `docs/architecture.md` — layers, request lifecycle, agent mode design
+- `docs/ADRs/001-fanout-architecture.md` — why fanout with per-provider error isolation
+- `docs/ADRs/002-rrf-reranking.md` — why RRF is the default reranker
+- `docs/ADRs/003-react-agent.md` — agent mode loop design
 
 ## Available Providers
 

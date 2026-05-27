@@ -1,13 +1,16 @@
 # CLAUDE.md
 
-Read these docs in this order before touching code:
+Project router: see `AGENTS.md` first — it indexes architecture, ADRs, operations, providers, and contributing docs.
 
-1. `docs/NORTH_STAR.md` — directional anchor
-2. `docs/architecture.md` — technical choices, anti-patterns, tricky parts
-3. `docs/PROGRESS.md` — where we are, what's done, what's next
-4. `TASK.md` — current build instructions (when present)
-5. `SKILL.md` — agent invocation contract
-6. `config.example.toml` — example configuration
+Read in this order before touching code:
+
+1. `AGENTS.md` — project map (start here)
+2. `docs/NORTH_STAR.md` — directional anchor
+3. `docs/architecture.md` — technical choices, anti-patterns, tricky parts
+4. `docs/PROGRESS.md` — where we are, what's done, what's next
+5. `SKILL.md` — agent invocation contract (CLI commands and flags)
+6. `docs/ADRs/` — design decisions (fanout, RRF, ReAct, SSRF)
+7. `config.example.toml` — example configuration
 
 ## Build & Test
 
@@ -15,7 +18,7 @@ Read these docs in this order before touching code:
 npm install
 npm run build
 npm run test
-npm link              # makes `usearch` available globally for local dev
+npm link              # makes `coldsearch` (and `usearch` alias) available globally for local dev
 ```
 
 ## Conventions
@@ -23,6 +26,13 @@ npm link              # makes `usearch` available globally for local dev
 - Config changes never require a code change or rebuild.
 - Provider names never appear in the agent-facing interface.
 - Every adapter normalizes to the shared result schema before returning.
-- **Do not call the Anthropic API** from ColdSearch (`api.anthropic.com`). Agent mode uses OpenAI only when an LLM is required.
-- **Backlog:** See GitHub issues [#6](https://github.com/Coldaine/ColdSearch/issues/6) (runtime/config), [#7](https://github.com/Coldaine/ColdSearch/issues/7) (CI/tests), [#8](https://github.com/Coldaine/ColdSearch/issues/8) (long-term GitHub search for agents).
+- **Do not call the Anthropic API** from ColdSearch (`api.anthropic.com`). Agent mode uses OpenAI-compatible providers only when an LLM is required (openai, groq, openrouter, cerebras, xai — see `src/agent/llm.ts`).
+- Agent mode supports a custom OpenAI-compatible base URL via `--llm-base-url` (CLI) or `OPENAI_BASE_URL` (env).
 - **Tests:** Read `docs/contributing/testing.md` before adding adapter or drift tests.
+
+## Backlog
+
+- **Implementation:** [#6](https://github.com/Coldaine/ColdSearch/issues/6) (config bootstrap UX), [#7](https://github.com/Coldaine/ColdSearch/issues/7) (CI/tests), [#14](https://github.com/Coldaine/ColdSearch/issues/14) (run IDs).
+- **Strategic gaps (not yet filed):** read-through result cache for `search`/`extract`; batch mode (`coldsearch batch`) reading JSONL queries with dedup and resumability. See `docs/PROGRESS.md` for sequencing.
+- **Long-term:** [#8](https://github.com/Coldaine/ColdSearch/issues/8) (GitHub-as-search-corpus).
+- **Docs:** [#10](https://github.com/Coldaine/ColdSearch/issues/10) (DEVELOPER.md), [#11](https://github.com/Coldaine/ColdSearch/issues/11) (ADR 004 SSRF).
