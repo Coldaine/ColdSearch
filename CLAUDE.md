@@ -8,9 +8,8 @@ Read in this order before touching code:
 2. `docs/NORTH_STAR.md` — directional anchor
 3. `docs/architecture.md` — technical choices, anti-patterns, tricky parts
 4. `docs/PROGRESS.md` — where we are, what's done, what's next
-5. `SKILL.md` — agent invocation contract (CLI commands and flags)
-6. `docs/ADRs/` — design decisions (fanout, RRF, ReAct, SSRF)
-7. `config.example.toml` — example configuration
+5. `docs/ADRs/` — design decisions (fanout, RRF, ReAct, SSRF)
+6. `config.example.toml` — example configuration
 
 ## Build & Test
 
