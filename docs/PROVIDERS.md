@@ -89,8 +89,8 @@ vendor's own docs (linked) — they go stale fast and are intentionally not mirr
 - `POST /chat/completions` (web-grounded chat) ❌
 
 ### Brave — `src/adapters/brave.ts` · [docs](https://api.search.brave.com/app/documentation/)
-- `GET /web/search` → **search** ✅
-- `/news/search`, `/images/search`, `/videos/search` ❌
+- `GET /res/v1/web/search` → **search** ✅
+- `/res/v1/news/search`, `/res/v1/images/search`, `/res/v1/videos/search` ❌
 - `/suggest` (autocomplete), `/spellcheck` ❌
 - Data-for-AI LLM context (paid) ❌
 
