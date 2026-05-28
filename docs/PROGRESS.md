@@ -34,6 +34,7 @@ Implemented today:
 - usage logging (JSONL) with safe key references
 - `status` command summarising config + 7-day usage rollup
 - `--dry-run` execution planner across search/extract/crawl
+- read-through result cache for `search`/`extract` (file-based JSON under `~/.config/coldsearch/cache/`, on by default, `--no-cache` opt-out)
 
 ### Provider Coverage
 
@@ -44,7 +45,13 @@ Implemented today:
 ### Docs
 
 - provider capability + tool matrix and per-provider coverage in `docs/PROVIDERS.md`
-- design records under `docs/ADRs/` (fanout, RRF, ReAct)
+- design records under `docs/ADRs/` (fanout, RRF, ReAct, SSRF)
+- contributor guide in `docs/DEVELOPER.md`
+
+### CI / testing
+
+- single offline CI job (typecheck → docs-drift → unit suite, ~60 tests)
+- live-provider canary (`scripts/smoke.mjs` + `.github/workflows/canary.yml`, cron + manual dispatch) that exercises the real provider APIs — catches drift the mocked suite cannot
 
 ## What Is Intentionally Deferred
 
@@ -57,21 +64,20 @@ Implemented today:
 
 ## Next Implementation Priorities
 
-The original backlog (config UX, CI, docs) is real but is maintenance. Two strategic gaps are higher leverage and not yet tracked as issues:
+The result cache (Gap A) — previously the top item — **shipped** (PR #26): read-through cache for `search`/`extract`, file-based JSON at `~/.config/coldsearch/cache/`, on by default, provider-agnostic key, `--no-cache` opt-out (and explicit `--providers`/`--single-provider` bypass it). Remaining cache work is Phase A2: `cache stats` / `cache clear` subcommands, a `--freshness` flag, and optional atomic-write + restrictive-permission hardening.
 
-1. **Result cache (Gap A — highest ROI).** Read-through cache for `search` and `extract`. On by default; opt-out via `--no-cache` or `[cache] enabled = false`. Single-tenant operation means no privacy concerns. Storage: SQLite at `~/.config/coldsearch/cache.db`, one table per capability, TTL configurable per capability in TOML. Provider-agnostic cache key (`capability + query/url + normalized options`) so any provider can serve a hit. Phase A1 lands read-through + `--no-cache`; Phase A2 adds `cache stats`/`cache clear` and a `--freshness` flag.
-2. **Batch mode (Gap C).** `coldsearch batch --input queries.jsonl --output results.jsonl --concurrency N` for enrichment workloads. Intra-batch dedup, cache hits short-circuit, resumable by `id` field. Search + extract only for the first cut; crawl deferred.
+1. **Batch mode (Gap C)** — now unblocked by the cache. `coldsearch batch --input queries.jsonl --output results.jsonl --concurrency N` for enrichment workloads: intra-batch dedup, cache hits short-circuit, resumable by `id`. Search + extract first; crawl deferred.
+2. **#6 — config bootstrap UX.** Better error classification (config vs credentials vs reachability), `status` enhancements, agent-LLM base URL in TOML (currently env-only via `OPENAI_BASE_URL`). Folds in the new `[cache]` config keys.
+3. **#14 — structured run IDs** for agent trace correlation. Small; standalone.
+4. **#8 — GitHub-as-search-corpus.** Long-term, deferred.
 
-Then the existing backlog:
+Concurrency / shared state across processes is intentionally **not** prioritized. ColdSearch is single-tenant on a single machine; per-process key pools and JSONL appends are adequate.
 
-3. **#6 — config bootstrap UX.** Better error classification (config vs credentials vs reachability), `status` enhancements, agent-LLM base URL in TOML (currently env-only via `OPENAI_BASE_URL`). Folds in the new `[cache]` config keys from item 1.
-4. **#7 — CI consolidation and agent LLM test coverage.** Adds tests for cache hit/miss + batch dedup/resume once those land.
-5. **#14 — structured run IDs** for agent trace correlation. Small; can run alongside any of the above.
-6. **#10 / #11 — DEVELOPER.md and ADR 004 (SSRF).** Lower urgency.
-7. **#8 — GitHub-as-search-corpus.** Long-term, deferred.
+## Recently shipped
 
-Concurrency / shared state across processes is intentionally **not** on the priority list. ColdSearch is single-tenant on a single machine; per-process key pools and JSONL appends are adequate.
-
-## Branch Hygiene
-
-The remote has several branches that should be cleaned up: `master` (stale, behind main), 12 ephemeral `session/agent_*` branches from Claude Code experiments, and two unmerged feature branches (`feat/unified-coldsearch`, `docs/bugs-and-documentation`) that need a PR-or-drop decision.
+- Result cache (Gap A, Phase A1) — PR #26.
+- Agent default LLM models refreshed to current, verified live (groq `llama-3.3-70b-versatile`, cerebras `gpt-oss-120b`, xai `grok-3`) — the old defaults had been decommissioned.
+- Provider docs consolidated into a single `docs/PROVIDERS.md`; stale SKILL.md and dated session logs removed.
+- `DEVELOPER.md` + `ADR 004` (SSRF) added (closed #10/#11); CLAUDE.md/SKILL.md doc-accuracy fixes (closed #12/#13).
+- Live-provider canary + expanded smoke coverage (search/extract/crawl/agent).
+- Stale remote branches cleaned up (`master`, `session/agent_*`, unmerged feature branches).
