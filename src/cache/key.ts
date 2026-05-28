@@ -1,0 +1,77 @@
+import { createHash } from "node:crypto";
+
+/**
+ * Stable JSON stringify: object keys are emitted in sorted order so that
+ * semantically-equal option objects hash to the same string regardless of
+ * the order their keys were inserted.
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => stableStringify(v)).join(",")}]`;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  const entries = keys
+    .filter((k) => obj[k] !== undefined)
+    .map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`);
+  return `{${entries.join(",")}}`;
+}
+
+/**
+ * Compute a provider-agnostic cache key for a capability call.
+ *
+ * The key intentionally excludes provider / singleProvider / noCache so a cache
+ * entry serves a hit regardless of which provider would have run. Callers must
+ * pass only the request-shaping options that affect the returned payload:
+ *   - search:  { limit, rerankStrategy }  (default rerankStrategy to "rrf")
+ *   - extract: {}                         (the URL alone identifies the request)
+ *
+ * @returns sha256 hex digest of `capability | queryOrUrl | stableStringify(options)`.
+ */
+export function cacheKey(
+  capability: string,
+  queryOrUrl: string,
+  normalizedOptions: Record<string, unknown>
+): string {
+  const payload = `${capability}\n${queryOrUrl}\n${stableStringify(normalizedOptions)}`;
+  return createHash("sha256").update(payload).digest("hex");
+}
+
+/**
+ * Parse a human-friendly duration string into seconds.
+ *
+ * Supports a numeric value with a trailing unit suffix: `s` (seconds),
+ * `m` (minutes), `h` (hours), `d` (days). A bare number is treated as seconds.
+ * Anything unparseable falls back to `fallbackSeconds`.
+ *
+ *   parseDuration("6h")  // 21600
+ *   parseDuration("30m") // 1800
+ *   parseDuration("90")  // 90
+ */
+export function parseDuration(str: string, fallbackSeconds = 21600): number {
+  if (typeof str !== "string") return fallbackSeconds;
+  const trimmed = str.trim();
+  const match = /^(\d+(?:\.\d+)?)\s*([smhd]?)$/i.exec(trimmed);
+  if (!match) return fallbackSeconds;
+
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value < 0) return fallbackSeconds;
+
+  const unit = match[2].toLowerCase();
+  const multipliers: Record<string, number> = {
+    "": 1,
+    s: 1,
+    m: 60,
+    h: 3600,
+    d: 86400,
+  };
+  const multiplier = multipliers[unit];
+  if (multiplier === undefined) return fallbackSeconds;
+
+  const result = Math.round(value * multiplier);
+  if (result <= 0) return fallbackSeconds;
+  return result;
+}

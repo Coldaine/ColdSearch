@@ -127,6 +127,17 @@ export interface Config {
       path?: string;
     };
   };
+  /** Optional read-through result cache configuration */
+  cache?: {
+    /** Enable the cache (defaults to true when unset) */
+    enabled?: boolean;
+    /** Search result TTL (duration string, e.g. "6h"; default "6h") */
+    search_ttl?: string;
+    /** Extract result TTL (duration string, e.g. "24h"; default "24h") */
+    extract_ttl?: string;
+    /** Cache storage directory (default ~/.config/coldsearch/cache) */
+    path?: string;
+  };
 }
 
 /**

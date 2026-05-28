@@ -36,6 +36,8 @@ interface ExtendedCLIOptions extends CLIOptions {
   maxSources?: number;
   /** Resolve plan without making network calls */
   dryRun?: boolean;
+  /** Bypass the read-through result cache */
+  noCache?: boolean;
 }
 
 /**
@@ -109,6 +111,10 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
 
       case "--dry-run":
         options.dryRun = true;
+        break;
+
+      case "--no-cache":
+        options.noCache = true;
         break;
 
       case "--rerank":
@@ -219,6 +225,7 @@ Options:
     -p, --pretty         Pretty print JSON output
     -j, --json           Force JSON output
     -c, --config PATH    Use custom config file
+    --no-cache           Bypass the read-through result cache (search/extract)
     -h, --help           Show this help
     -v, --version        Show version
 
@@ -290,6 +297,7 @@ async function runFanoutMode(options: ExtendedCLIOptions): Promise<void> {
     providers: options.providers,
     rerankStrategy: options.rerank,
     singleProvider: options.singleProvider,
+    noCache: options.noCache,
   });
 
   const output = {
@@ -327,6 +335,7 @@ async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
     limit: options.limit,
     providers: options.providers,
     singleProvider: options.singleProvider,
+    noCache: options.noCache,
   });
 
   const output = {
