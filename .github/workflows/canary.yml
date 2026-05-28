@@ -1,0 +1,43 @@
+name: Canary (live providers)
+
+# Live smoke test against real provider APIs — complements the offline unit suite
+# in ci.yml, which mocks fetch and therefore cannot catch provider API drift.
+#
+# Runs on a schedule and on manual dispatch only — never on push/PR — so it does
+# not gate merges. scripts/smoke.mjs always exercises the keyless Jina path and
+# adds keyed providers when the matching secret is configured, so this job is
+# green even with zero secrets set.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Live smoke test
+        run: node scripts/smoke.mjs
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}

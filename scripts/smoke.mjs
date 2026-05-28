@@ -1,0 +1,144 @@
+#!/usr/bin/env node
+/**
+ * Live smoke test against real providers.
+ *
+ * Unlike the offline unit suite (which mocks fetch), this runs the built CLI
+ * end-to-end against real provider APIs and asserts the normalized output shape.
+ * It is the canary that catches provider drift the mocked tests cannot.
+ *
+ * - Keyless checks (Jina extract) always run — they exercise the full stack
+ *   (config load -> adapter dispatch -> real HTTP -> normalize -> JSON) with no
+ *   secrets, so this script is meaningful even before any keys are configured.
+ * - Keyed checks run only when their API key env var is present; otherwise they
+ *   are skipped (not failed), so the canary is green with zero secrets.
+ *
+ * Exit code is non-zero only when a check that actually ran fails.
+ *
+ * Usage:
+ *   npm run build && node scripts/smoke.mjs
+ *   TAVILY_API_KEY=... node scripts/smoke.mjs
+ */
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const cliPath = path.join(repoRoot, "dist", "cli.js");
+
+if (!fs.existsSync(cliPath)) {
+  console.error(`dist/cli.js not found at ${cliPath} — run "npm run build" first.`);
+  process.exit(1);
+}
+
+/** Each check: name, the env var it needs (null = keyless), and how to run + assert. */
+const CHECKS = [
+  {
+    name: "jina extract (keyless)",
+    requiredEnv: null,
+    config: `
+[capabilities.extract]
+providers = ["jina"]
+strategy = "random"
+
+[providers.jina]
+[providers.jina.keyPool]
+keys = []
+`,
+    args: (cfg) => ["extract", "--config", cfg, "--json", "https://example.com"],
+    assert: (out) => {
+      assertEqual(out.command, "extract", "command");
+      assertEqual(out.provider, "jina", "provider");
+      assertOk(out.result && typeof out.result.content === "string" && out.result.content.length > 0, "result.content is non-empty");
+      assertEqual(out.result.source, "jina", "result.source");
+    },
+  },
+  searchCheck("tavily", "TAVILY_API_KEY"),
+  searchCheck("brave", "BRAVE_API_KEY"),
+  searchCheck("exa", "EXA_API_KEY"),
+  searchCheck("serper", "SERPER_API_KEY"),
+];
+
+function searchCheck(provider, envVar) {
+  return {
+    name: `${provider} search`,
+    requiredEnv: envVar,
+    config: `
+[capabilities.search]
+providers = ["${provider}"]
+strategy = "all"
+
+[providers.${provider}]
+[providers.${provider}.keyPool]
+keys = ["env:${envVar}"]
+`,
+    args: (cfg) => ["search", "--config", cfg, "--json", "--limit", "3", "openai"],
+    assert: (out) => {
+      assertEqual(out.command, "search", "command");
+      assertOk(Array.isArray(out.results) && out.results.length > 0, "results is non-empty array");
+      const r = out.results[0];
+      for (const field of ["title", "url", "snippet", "score", "source"]) {
+        assertOk(field in r, `result has '${field}'`);
+      }
+      assertOk(typeof r.url === "string" && r.url.startsWith("http"), "result.url is a URL");
+      assertOk(typeof r.score === "number", "result.score is a number");
+    },
+  };
+}
+
+function assertOk(cond, label) {
+  if (!cond) throw new Error(`assertion failed: ${label}`);
+}
+function assertEqual(actual, expected, label) {
+  if (actual !== expected) throw new Error(`assertion failed: ${label} — expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+}
+
+function runCheck(check) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-smoke-"));
+  try {
+    const cfg = path.join(dir, "config.toml");
+    fs.writeFileSync(cfg, check.config.trim(), "utf8");
+    const res = spawnSync(process.execPath, [cliPath, ...check.args(cfg)], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 60000,
+      env: process.env,
+    });
+    if (res.status !== 0) {
+      throw new Error(`CLI exited ${res.status}: ${(res.stderr || "").trim() || "(no stderr)"}`);
+    }
+    let out;
+    try {
+      out = JSON.parse(res.stdout);
+    } catch {
+      throw new Error(`output was not valid JSON: ${res.stdout.slice(0, 200)}`);
+    }
+    check.assert(out);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+let passed = 0;
+let skipped = 0;
+let failed = 0;
+
+for (const check of CHECKS) {
+  if (check.requiredEnv && !process.env[check.requiredEnv]) {
+    console.log(`SKIP  ${check.name} (${check.requiredEnv} not set)`);
+    skipped++;
+    continue;
+  }
+  try {
+    runCheck(check);
+    console.log(`PASS  ${check.name}`);
+    passed++;
+  } catch (err) {
+    console.error(`FAIL  ${check.name}: ${err.message}`);
+    failed++;
+  }
+}
+
+console.log(`\n${passed} passed, ${skipped} skipped, ${failed} failed`);
+process.exit(failed > 0 ? 1 : 0);
