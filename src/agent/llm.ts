@@ -40,7 +40,8 @@ const PROVIDER_ALIASES: Record<
 > = {
   groq: {
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.1-70b-versatile",
+    // Default models verified against live provider APIs on 2026-05-28; override with --model.
+    defaultModel: "llama-3.3-70b-versatile",
     envKey: "GROQ_API_KEY",
   },
   openrouter: {
@@ -50,12 +51,14 @@ const PROVIDER_ALIASES: Record<
   },
   cerebras: {
     baseUrl: "https://api.cerebras.ai/v1",
-    defaultModel: "llama3.1-70b",
+    // Cerebras retired its Llama lineup; gpt-oss-120b is the available model that
+    // returns usable message.content (zai-glm-4.7 emits reasoning-only / empty content).
+    defaultModel: "gpt-oss-120b",
     envKey: "CEREBRAS_API_KEY",
   },
   xai: {
     baseUrl: "https://api.x.ai/v1",
-    defaultModel: "grok-2",
+    defaultModel: "grok-3",
     envKey: "XAI_GROK_API_KEY",
   },
 };
