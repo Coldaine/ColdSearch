@@ -217,7 +217,7 @@ coldsearch --agent --max-steps 10 --max-sources 5 "latest fusion energy developm
 - `--agent` or `-a` — Enable agent mode
 - `--llm PROVIDER` — Agent LLM provider: `openai` (default), `groq`, `openrouter`, `cerebras`, or `xai`. All speak the OpenAI-compatible Chat Completions API. The Anthropic API is intentionally not supported.
 - `--model MODEL` — LLM model name (e.g., `gpt-4o`)
-- `--llm-base-url URL` — Override the OpenAI-compatible API base URL (also settable via `OPENAI_BASE_URL` env var)
+- `--llm-base-url URL` — Override the OpenAI-compatible API base URL. Applies to any `--llm` provider. The `OPENAI_BASE_URL` env var is an alternative, but it only takes effect for the default `openai` provider; `groq`/`openrouter`/`cerebras`/`xai` use their built-in base URLs unless `--llm-base-url` is passed.
 - `--max-steps N` — Maximum research steps (default: 5)
 - `--max-sources N` — Maximum sources to collect (default: 5)
 
@@ -298,7 +298,7 @@ coldsearch --agent --max-steps 15 --max-sources 8 "history of quantum computing"
 
 ## Logging
 
-Usage is logged to `~/.config/coldsearch/usage.jsonl` by default (JSON Lines: timestamp, provider, capability, key reference, success, response time, error). Override the path in `config.toml`:
+Usage is logged to `~/.config/coldsearch/usage.jsonl` by default. Each line is a JSON object with the fields `timestamp`, `provider`, `capability`, `key` (masked key reference), `success`, `response_time_ms`, and `error` (present only on failure). Override the path in `config.toml`:
 
 ```toml
 [logging.usage]

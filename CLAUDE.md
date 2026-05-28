@@ -9,7 +9,7 @@ Read in this order before touching code:
 3. `docs/architecture.md` — technical choices, anti-patterns, tricky parts
 4. `docs/PROGRESS.md` — where we are, what's done, what's next
 5. `SKILL.md` — agent invocation contract (CLI commands and flags)
-6. `docs/ADRs/` — design decisions (fanout, RRF, ReAct, SSRF)
+6. `docs/ADRs/` — design decisions (fanout, RRF, ReAct; the SSRF ADR is planned — see [#11](https://github.com/Coldaine/ColdSearch/issues/11))
 7. `config.example.toml` — example configuration
 
 ## Build & Test
@@ -27,7 +27,7 @@ npm link              # makes `coldsearch` (and `usearch` alias) available globa
 - Provider names never appear in the agent-facing interface.
 - Every adapter normalizes to the shared result schema before returning.
 - **Do not call the Anthropic API** from ColdSearch (`api.anthropic.com`). Agent mode uses OpenAI-compatible providers only when an LLM is required (openai, groq, openrouter, cerebras, xai — see `src/agent/llm.ts`).
-- Agent mode supports a custom OpenAI-compatible base URL via `--llm-base-url` (CLI) or `OPENAI_BASE_URL` (env).
+- Agent mode supports a custom OpenAI-compatible base URL via `--llm-base-url` (CLI, applies to any `--llm` provider). The `OPENAI_BASE_URL` env var is also honored, but only for the default `openai` provider.
 - **Tests:** Read `docs/contributing/testing.md` before adding adapter or drift tests.
 
 ## Backlog
