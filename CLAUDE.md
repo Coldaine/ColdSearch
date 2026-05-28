@@ -9,7 +9,7 @@ Read in this order before touching code:
 3. `docs/architecture.md` — technical choices, anti-patterns, tricky parts
 4. `docs/PROGRESS.md` — where we are, what's done, what's next
 5. `SKILL.md` — agent invocation contract (CLI commands and flags)
-6. `docs/ADRs/` — design decisions (fanout, RRF, ReAct; the SSRF ADR is planned — see [#11](https://github.com/Coldaine/ColdSearch/issues/11))
+6. `docs/ADRs/` — design decisions (fanout, RRF, ReAct, SSRF)
 7. `config.example.toml` — example configuration
 
 ## Build & Test

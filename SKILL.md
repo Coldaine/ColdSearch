@@ -335,6 +335,7 @@ For agent invocation context and architectural decisions, see:
 - `docs/ADRs/001-fanout-architecture.md` — why fanout with per-provider error isolation
 - `docs/ADRs/002-rrf-reranking.md` — why RRF is the default reranker
 - `docs/ADRs/003-react-agent.md` — agent mode loop design
+- `docs/ADRs/004-ssrf-protection.md` — SSRF protection in agent fetch (DNS/IP/hostname checks, address pinning)
 
 ## Available Providers
 
