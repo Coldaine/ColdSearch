@@ -37,7 +37,9 @@ export class CacheStore {
 
   constructor(options?: { enabled?: boolean; path?: string }) {
     this.enabled = options?.enabled !== false;
-    this.path = expandHome(options?.path || defaultCachePath());
+    // Guard against a non-string [cache].path from unvalidated TOML.
+    const rawPath = typeof options?.path === "string" ? options.path : undefined;
+    this.path = expandHome(rawPath || defaultCachePath());
   }
 
   private entryPath(capability: string, key: string): string {

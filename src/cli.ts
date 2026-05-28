@@ -393,6 +393,7 @@ async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
     llmBaseUrl: options.llmBaseUrl,
     maxSteps: options.maxSteps,
     maxSources: options.maxSources,
+    noCache: options.noCache,
   });
 
   const result = await agent.research(options.query, {

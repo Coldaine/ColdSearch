@@ -97,6 +97,16 @@ test("parseDuration handles unit suffixes, bare numbers, and fallback", () => {
   assert.equal(parseDuration("90"), 90); // bare number => seconds
   assert.equal(parseDuration("garbage", 99), 99); // fallback
   assert.equal(parseDuration("", 7), 7); // fallback
+  // Numeric input (TOML bare number) is treated as seconds, not rejected.
+  assert.equal(parseDuration(21600), 21600);
+  assert.equal(parseDuration(0, 5), 5); // zero => fallback
+  assert.equal(parseDuration(-10, 5), 5); // negative => fallback
+});
+
+test("non-string [cache].path does not throw (falls back to default)", () => {
+  // loadConfig() returns unvalidated TOML; a non-string path must not crash.
+  assert.doesNotThrow(() => new CacheStore({ path: 123 }));
+  assert.doesNotThrow(() => new CacheStore({ path: ["a"] }));
 });
 
 test("cacheKey is stable across option key order and provider-agnostic", () => {

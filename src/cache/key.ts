@@ -51,7 +51,11 @@ export function cacheKey(
  *   parseDuration("30m") // 1800
  *   parseDuration("90")  // 90
  */
-export function parseDuration(str: string, fallbackSeconds = 21600): number {
+export function parseDuration(str: string | number, fallbackSeconds = 21600): number {
+  // TOML may yield a bare number (e.g. `search_ttl = 21600`) — treat it as seconds.
+  if (typeof str === "number") {
+    return Number.isFinite(str) && str > 0 ? Math.round(str) : fallbackSeconds;
+  }
   if (typeof str !== "string") return fallbackSeconds;
   const trimmed = str.trim();
   const match = /^(\d+(?:\.\d+)?)\s*([smhd]?)$/i.exec(trimmed);

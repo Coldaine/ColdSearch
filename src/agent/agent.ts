@@ -31,6 +31,8 @@ export interface AgentOptions {
   executionBackend?: ExecutionBackend;
   /** Optional injected LLM (tests); defaults to createLLMClient() */
   llm?: LLMClient;
+  /** Bypass the result cache for the agent's internal searches */
+  noCache?: boolean;
 }
 
 interface ValidatedFetchTarget {
@@ -167,6 +169,7 @@ export interface AgentResult {
 export class SearchAgent {
   private llm: LLMClient;
   private backend: ExecutionBackend;
+  private noCache: boolean;
 
   constructor(options: AgentOptions = {}) {
     this.llm =
@@ -178,6 +181,7 @@ export class SearchAgent {
       );
     this.backend =
       options.executionBackend ?? new LocalExecutionBackend(options.configPath);
+    this.noCache = options.noCache ?? false;
   }
 
   /**
@@ -262,6 +266,7 @@ Be thorough but efficient. Focus on authoritative sources.`;
           const result = await this.backend.search(q, {
             limit: 5,
             rerankStrategy: "rrf",
+            noCache: this.noCache,
           });
           // Track sources
           result.results.forEach((r) => context.addSource(r));
