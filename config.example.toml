@@ -123,3 +123,16 @@ keys = ["env:FIRECRAWL_API_KEY"]
 #
 #[logging.usage]
 #path = "~/.config/coldsearch/usage.jsonl"
+
+# ============================================
+# RESULT CACHE (OPTIONAL)
+# ============================================
+# Read-through cache for `search` and `extract`. On by default; a hit serves
+# without calling any provider. Bypass per-call with --no-cache, or disable
+# entirely with enabled = false. Crawl is never cached in A1.
+# Default storage path: ~/.config/coldsearch/cache
+[cache]
+enabled = true
+search_ttl = "6h"
+extract_ttl = "24h"
+# path = "~/.config/coldsearch/cache"

@@ -31,6 +31,11 @@ export interface FanoutOptions {
   operation?: OperationType;
   /** Force single provider mode (random selection) */
   singleProvider?: boolean;
+  /**
+   * Bypass the read-through result cache. Threaded from the CLI to the
+   * execution backend; FanoutEngine itself ignores this flag.
+   */
+  noCache?: boolean;
 }
 
 /**

@@ -85,6 +85,9 @@ keys = []
 
 [providers.searxng.options]
 baseUrl = "${baseUrl}"
+
+[cache]
+enabled = false
 `.trim()
       );
 
@@ -129,6 +132,9 @@ baseUrl = "http://127.0.0.1:1"
 [providers.brave]
 [providers.brave.keyPool]
 keys = ["k"]
+
+[cache]
+enabled = false
 `.trim()
     );
 
