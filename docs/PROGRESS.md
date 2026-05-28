@@ -43,9 +43,7 @@ Implemented today:
 
 ### Docs
 
-- provider detail pages under `docs/providers/`
-- required capability matrix in `docs/CAPABILITY_MATRIX.md`
-- provider adoption plans under `docs/plans/`
+- provider capability + tool matrix and per-provider coverage in `docs/PROVIDERS.md`
 - design records under `docs/ADRs/` (fanout, RRF, ReAct)
 
 ## What Is Intentionally Deferred

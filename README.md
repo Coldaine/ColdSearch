@@ -57,9 +57,7 @@ The core architectural truth is provider overlap, not just three coarse commands
 
 The authoritative comparison lives in:
 
-- `docs/CAPABILITY_MATRIX.md`
-- `docs/providers/README.md`
-- `docs/providers/*.md`
+- `docs/PROVIDERS.md` — capability + tool matrix and per-provider coverage
 
 ## SearXNG
 
@@ -96,10 +94,7 @@ npm test
 - `docs/architecture.md` - Runtime architecture and seams
 - `docs/PROGRESS.md` - Current implementation status
 - `docs/CONFIGURATION.md` - Configuration reference and precedence
-- `docs/CAPABILITY_MATRIX.md` - Required maintenance matrix for providers vs capabilities
-- `docs/providers/README.md` - Provider docs index
-- `docs/providers/*.md` - Per-provider detail pages
-- `docs/plans/*.md` - Provider adoption plans that must exist before implementation
+- `docs/PROVIDERS.md` - Capability + tool matrix and per-provider coverage (single source of truth)
 
 ## Roadmap
 

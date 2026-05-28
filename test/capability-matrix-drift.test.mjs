@@ -24,14 +24,14 @@ function setEq(a, b) {
 }
 
 test("capability matrix, registry, and adapter method surfaces stay in sync", () => {
-  const matrixMarkdown = readUtf8("docs/CAPABILITY_MATRIX.md");
+  const matrixMarkdown = readUtf8("docs/PROVIDERS.md");
   const byDisplayName = parseCapabilityMatrixColdSearchSupport(matrixMarkdown);
 
   for (const [providerName, metadata] of Object.entries(providerRegistry)) {
     const expected = byDisplayName[metadata.displayName];
     assert.ok(
       expected,
-      `CAPABILITY_MATRIX.md missing provider row for '${metadata.displayName}' (${providerName})`
+      `PROVIDERS.md missing provider row for '${metadata.displayName}' (${providerName})`
     );
 
     const registryCaps = new Set(metadata.capabilities);
@@ -66,7 +66,7 @@ test("capability matrix, registry, and adapter method surfaces stay in sync", ()
     assert.match(
       matrixMarkdown,
       new RegExp(`\\|\\s*${escapeRegex(metadata.displayName)}\\s*\\|`),
-      `CAPABILITY_MATRIX.md is missing a table row for '${metadata.displayName}'`
+      `PROVIDERS.md is missing a table row for '${metadata.displayName}'`
     );
   }
 });

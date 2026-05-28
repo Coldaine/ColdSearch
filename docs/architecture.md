@@ -30,7 +30,7 @@ The runtime is driven by provider overlap:
 4. Runtime selects from that configured pool.
 5. Adapters normalize output into shared schemas.
 
-`docs/CAPABILITY_MATRIX.md` is the required comparison document for this layer.
+`docs/PROVIDERS.md` is the required comparison document for this layer.
 
 ## Layers
 

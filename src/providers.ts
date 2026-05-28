@@ -11,7 +11,6 @@ import type { SearchAdapter } from "./types.js";
 export interface ProviderMetadata {
   displayName: string;
   capabilities: CapabilityName[];
-  docsPath: string;
   selfHosted?: boolean;
   optionKeys?: string[];
   createAdapter: () => SearchAdapter;
@@ -21,43 +20,36 @@ export const providerRegistry = {
   tavily: {
     displayName: "Tavily",
     capabilities: ["search", "extract", "crawl"],
-    docsPath: "docs/providers/tavily.md",
     createAdapter: () => new TavilyAdapter(),
   },
   brave: {
     displayName: "Brave",
     capabilities: ["search"],
-    docsPath: "docs/providers/brave.md",
     createAdapter: () => new BraveAdapter(),
   },
   exa: {
     displayName: "Exa",
     capabilities: ["search", "extract", "crawl"],
-    docsPath: "docs/providers/exa.md",
     createAdapter: () => new ExaAdapter(),
   },
   serper: {
     displayName: "Serper",
     capabilities: ["search"],
-    docsPath: "docs/providers/serper.md",
     createAdapter: () => new SerperAdapter(),
   },
   jina: {
     displayName: "Jina",
     capabilities: ["extract"],
-    docsPath: "docs/providers/jina.md",
     createAdapter: () => new JinaAdapter(),
   },
   firecrawl: {
     displayName: "Firecrawl",
     capabilities: ["search", "extract", "crawl"],
-    docsPath: "docs/providers/firecrawl.md",
     createAdapter: () => new FirecrawlAdapter(),
   },
   searxng: {
     displayName: "SearXNG",
     capabilities: ["search"],
-    docsPath: "docs/providers/searxng.md",
     selfHosted: true,
     optionKeys: ["baseUrl"],
     createAdapter: () => new SearXNGAdapter(),

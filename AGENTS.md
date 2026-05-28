@@ -23,12 +23,8 @@ ColdSearch is a unified CLI over overlapping search provider APIs. Fanout search
 **Operations:**
 - `docs/CONFIGURATION.md` — config file reference, key pools, environment variable binding
 - `docs/KEY_MANAGEMENT.md` — BWS integration, key rotation, secret resolution
-- `docs/CAPABILITY_MATRIX.md` — provider × capability grid
+- `docs/PROVIDERS.md` — capability + tool matrix and per-provider coverage (single source of truth)
 - `docs/BWS_INTEGRATION.md` — Bitwarden Secrets Manager resolver details
-
-**Provider docs:**
-- `docs/providers/README.md` — index
-- `docs/providers/*.md` — per-provider detail (capabilities, API shape, rate limits, key format)
 
 **Contributing:**
 - `docs/DEVELOPER.md` — how to add a new provider, adapter contract, testing expectations
@@ -38,7 +34,7 @@ ColdSearch is a unified CLI over overlapping search provider APIs. Fanout search
 - Config changes never require a code change or rebuild.
 - Provider names never appear in the agent-facing interface.
 - Every adapter normalizes to the shared result schema before returning.
-- New providers require: adapter + provider doc + capability matrix update + plan doc.
+- New providers require: adapter + a Dual Matrix row in docs/PROVIDERS.md + tests.
 
 ## Build
 
