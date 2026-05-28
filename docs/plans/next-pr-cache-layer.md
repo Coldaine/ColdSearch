@@ -1,8 +1,7 @@
 # Plan — Next PR: Read-Through Result Cache (Gap A, Phase A1)
 
 > Scope note: this plan is deliberately narrowed to **one shippable PR**. It is
-> the highest-ROI item from the 2026-05-27 session
-> (`docs/sessions/2026-05-27-roadmap-and-ci-review.md`). Batch mode and the rest
+> the highest-ROI item from the 2026-05-27 roadmap/CI review. Batch mode and the rest
 > of the backlog are explicitly out of scope and listed at the end.
 
 ## Context

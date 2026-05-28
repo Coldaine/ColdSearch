@@ -30,6 +30,5 @@ body:
     attributes:
       label: Documentation requirements
       options:
-        - label: Adoption plan exists under `docs/plans/`
-        - label: Provider page will be added or updated under `docs/providers/`
-        - label: `docs/CAPABILITY_MATRIX.md` will be updated
+        - label: A Dual Matrix row will be added/updated in `docs/PROVIDERS.md`
+        - label: A vendor-tool section will be added/updated in `docs/PROVIDERS.md`

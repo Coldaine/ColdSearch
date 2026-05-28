@@ -5,8 +5,6 @@
 
 ## Checklist
 
-- [ ] updated `docs/CAPABILITY_MATRIX.md` if provider support or routing changed
-- [ ] updated `docs/providers/*.md` if provider behavior or coverage changed
-- [ ] added or updated `docs/plans/<provider>.md` for any new provider
+- [ ] updated `docs/PROVIDERS.md` if provider support, coverage, or routing changed
 - [ ] added or updated tests for behavior changes
 - [ ] called out any secret, config, or migration impact

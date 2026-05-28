@@ -6,8 +6,9 @@ const CAPABILITIES = /** @type {const} */ (["search", "extract", "crawl"]);
  * Parse only the first markdown table under "## Dual Matrix" (ignore later tables).
  */
 export function parseCapabilityMatrixColdSearchSupport(matrixMarkdown) {
-  const dualMatrixStart = matrixMarkdown.indexOf("## Dual Matrix");
-  assert.ok(dualMatrixStart >= 0, "CAPABILITY_MATRIX.md missing '## Dual Matrix' section");
+  const dualMatrixHeading = /^## Dual Matrix\s*$/m.exec(matrixMarkdown);
+  assert.ok(dualMatrixHeading, "PROVIDERS.md missing '## Dual Matrix' section");
+  const dualMatrixStart = dualMatrixHeading.index;
 
   const lines = matrixMarkdown.slice(dualMatrixStart).split("\n");
   const tableLines = [];

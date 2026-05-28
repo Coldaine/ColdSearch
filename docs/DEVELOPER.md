@@ -83,7 +83,6 @@ adapter declares (a drift test enforces this):
 acme: {
   displayName: "Acme",
   capabilities: ["search"],
-  docsPath: "docs/providers/acme.md",
   createAdapter: () => new AcmeAdapter(),
 },
 ```
@@ -121,31 +120,15 @@ You get this for free. The `FanoutEngine` wraps each adapter call and writes a
 Key references are masked via `safeKeyRef()`, so **never log raw keys** from
 inside an adapter. Just return normalized results or throw.
 
-### 6. Provider doc — `docs/providers/<name>.md` (required)
+### 6. Document it — `docs/PROVIDERS.md`
 
-`test/providers-docs.test.mjs` fails the build if this is missing or malformed.
-It must contain these `##` sections: **Overview**, **Capabilities**,
-**Configuration Example**, **Authentication**. The Capabilities section needs a
-markdown table whose `Capability` rows and ColdSearch-support column match
-`docs/CAPABILITY_MATRIX.md` (use `✅` / `⚠️`). Copy an existing page such as
-`docs/providers/tavily.md` as a starting point.
+Add a row to the `## Dual Matrix` table in `docs/PROVIDERS.md`. The ColdSearch
+cells must match the registry `capabilities` (enforced by
+`test/capability-matrix-drift.test.mjs`). Also add a short `### <Name>`
+vendor-tool section under "Vendor tool surface". No separate per-provider page,
+no separate `CAPABILITY_MATRIX.md`, and no `docs/plans/` doc are required anymore.
 
-### 7. Update the matrix and the index
-
-- `docs/CAPABILITY_MATRIX.md` — add a row; its ColdSearch-support cells must
-  agree with the registry `capabilities` (enforced by
-  `test/capability-matrix-drift.test.mjs`).
-- `docs/providers/README.md` — add a row. Status is `complete` if all three
-  capabilities are supported, else `partial`; the notes must name each
-  supported capability (enforced by `providers-docs.test.mjs`).
-
-### 8. Plan doc — `docs/plans/<name>.md`
-
-Per repo convention (`AGENTS.md`: *adapter + provider doc + capability matrix +
-plan doc*), copy `docs/plans/TEMPLATE.md` and capture API shape, rate limits,
-and key format.
-
-### 9. Tests
+### 7. Tests
 
 See `docs/contributing/testing.md`. In short:
 
@@ -162,14 +145,12 @@ npm run build
 coldsearch search --dry-run "test query"            # shows providers + masked key refs, no network
 coldsearch --providers acme --single-provider "x"   # exercise just your adapter
 npm test            # build + full suite
-npm run test:docs   # matrix ↔ registry ↔ provider-doc drift only
+npm run test:docs   # Dual Matrix ↔ registry ↔ adapter drift only
 ```
 
 ## Definition of done
 
 - [ ] `src/adapters/<name>.ts` implements `SearchAdapter`, normalizes to the shared schema
 - [ ] Registered in `src/providers.ts` and exported from `src/adapters/index.ts`
-- [ ] `docs/providers/<name>.md` with all four required sections
-- [ ] `docs/CAPABILITY_MATRIX.md` and `docs/providers/README.md` updated
-- [ ] `docs/plans/<name>.md` from the template
+- [ ] Row added to `docs/PROVIDERS.md` Dual Matrix + vendor-tool section
 - [ ] `npm test` and `npm run test:docs` green
