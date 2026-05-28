@@ -92,6 +92,7 @@ Confirm cache hits via `usage.jsonl` line-count delta (a hit writes no usage ent
 - [x] Session record + this plan — landed in PR #20.
 - [x] Canary smoke workflow + `scripts/smoke.mjs` — landed in PR #20 (live-provider
       drift detection; the gap the cache work will eventually lean on for safety).
-- [ ] **Cache layer (this plan)** — not started; awaiting storage decision above.
-- [ ] Batch mode — deferred (depends on cache).
-- [ ] Branch cleanup; issues #6, #7, #10, #11, #14 — deferred.
+- [x] **Cache layer (Phase A1, this plan)** — landed in PR #26. Storage decision resolved: **file-based JSON** (`~/.config/coldsearch/cache/<capability>/<sha256>.json`). On by default, provider-agnostic key, `--no-cache` opt-out.
+- [ ] Cache Phase A2 — `cache stats`/`cache clear`, `--freshness`, atomic-write + restrictive-perms hardening.
+- [ ] Batch mode — next; now unblocked by the cache.
+- [x] Branch cleanup done; issues #10/#11/#12/#13 closed; #7 closed. Remaining: #6, #14.
