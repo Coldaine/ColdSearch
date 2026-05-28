@@ -149,8 +149,8 @@ keys = ["env:${envVar}"]
 function agentCheck(provider, envVar) {
   return {
     name: `agent research (${provider})`,
-    // Requires both the LLM key (gated here) and TAVILY_API_KEY for the search tool.
-    requiredEnv: envVar,
+    // Requires both the LLM key and TAVILY_API_KEY (the agent's search tool uses tavily).
+    requiredEnv: [envVar, "TAVILY_API_KEY"],
     timeoutMs: 120000,
     // Explicit model: the built-in groq default (llama-3.1-70b-versatile) is decommissioned.
     config: `
@@ -209,8 +209,14 @@ let skipped = 0;
 let failed = 0;
 
 for (const check of CHECKS) {
-  if (check.requiredEnv && !process.env[check.requiredEnv]) {
-    console.log(`SKIP  ${check.name} (${check.requiredEnv} not set)`);
+  const requiredEnv = Array.isArray(check.requiredEnv)
+    ? check.requiredEnv
+    : check.requiredEnv
+      ? [check.requiredEnv]
+      : [];
+  const missingEnv = requiredEnv.find((name) => !process.env[name]);
+  if (missingEnv) {
+    console.log(`SKIP  ${check.name} (${missingEnv} not set)`);
     skipped++;
     continue;
   }
