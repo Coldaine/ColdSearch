@@ -28,6 +28,7 @@ ColdSearch is a unified CLI over overlapping search provider APIs. Fanout search
 
 **Contributing:**
 - `docs/DEVELOPER.md` — how to add a new provider, adapter contract, testing expectations
+- `docs/contributing/ci.md` — CI pipeline + **how to read a red check** (incl. the SonarCloud public API); read before dismissing any failed check
 
 ## Conventions
 
@@ -35,6 +36,7 @@ ColdSearch is a unified CLI over overlapping search provider APIs. Fanout search
 - Provider names never appear in the agent-facing interface.
 - Every adapter normalizes to the shared result schema before returning.
 - New providers require: adapter + a Dual Matrix row in docs/PROVIDERS.md + tests.
+- A red check is a question, not a fact — read the reason (`docs/contributing/ci.md`) before characterizing or overriding it.
 
 ## Build
 

@@ -13,7 +13,11 @@ function stableStringify(value: unknown): string {
     return `[${value.map((v) => stableStringify(v)).join(",")}]`;
   }
   const obj = value as Record<string, unknown>;
-  const keys = Object.keys(obj).sort();
+  // Explicit comparator (satisfies SonarCloud S2871). `<`/`>` on strings is the
+  // same UTF-16 code-unit order the bare `.sort()` already used — deterministic
+  // and locale-independent, which is exactly what a reproducible cache key needs
+  // (localeCompare would make the key locale-sensitive, i.e. worse here).
+  const keys = Object.keys(obj).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const entries = keys
     .filter((k) => obj[k] !== undefined)
     .map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`);
