@@ -42,7 +42,7 @@ gh api repos/Coldaine/ColdSearch/commits/$SHA/status \
 
 ## SonarCloud specifically
 
-ColdSearch is a **public** repo, so its SonarCloud project is public too — every finding is readable **anonymously, no login**, via the Web API. There is no "I couldn't see it without the dashboard."
+This project's SonarCloud project is configured **public**, so its findings are readable **anonymously** via the Web API — the `curl` commands below were run with no token and returned data. (SonarCloud visibility is set in SonarCloud and is independent of GitHub repo visibility; it just happens to be public here — don't assume a public GitHub repo implies a public Sonar project.) So there's no "I couldn't see it without the dashboard."
 
 - Project key: `Coldaine_ColdSearch`
 - Analysis mode: **Automatic Analysis** — the SonarCloud GitHub App scans on push; there is deliberately no scanner step in `ci.yml`.
@@ -59,9 +59,9 @@ Swap `&pullRequest=<PR#>` for `&branch=main` to inspect a branch instead of a PR
 
 ### Tuning what SonarCloud flags
 
-Because analysis is automatic, **`sonar-project.properties` is ignored** — SonarCloud reads **`.sonarcloud.properties`** at the repo root instead. It honors `sonar.sources/exclusions/inclusions`, `sonar.tests/test.exclusions`, `sonar.sourceEncoding`, and `sonar.cpd.exclusions` — but **not** `sonar.issue.ignore.multicriteria`.
+Because analysis is automatic, **`sonar-project.properties` is ignored** — SonarCloud reads **`.sonarcloud.properties`** at the repo root instead. It honors `sonar.sources/exclusions/inclusions`, `sonar.tests/test.exclusions`, `sonar.sourceEncoding`, and `sonar.cpd.exclusions` — but **not** `sonar.issue.ignore.multicriteria`. Note: pattern syntax in this file is more restricted than CI-based analysis (wildcard support is limited), so verify any exclusion pattern against the docs below before relying on it.
 
-- **Duplication / coverage noise from tests** → exclude it in `.sonarcloud.properties` (e.g. `sonar.cpd.exclusions=test/**`).
+- **Duplication / coverage noise from tests** → exclude it via `sonar.cpd.exclusions` (confirm the exact pattern syntax against the docs below — the Automatic-Analysis form is restricted), or set the exclusion in the SonarCloud UI, which uses standard path patterns.
 - **A rule firing as a false positive** → in priority order: (1) fix the code to satisfy the rule, (2) add `// NOSONAR` on the offending line, or (3) mark the issue *Accept / False Positive* in the dashboard (the only option that needs a SonarCloud login). Prefer (1) or (3) over blanket rule-disabling.
 
 Docs: <https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automatic-analysis/>
