@@ -38,6 +38,14 @@ ColdSearch is a unified CLI over overlapping search provider APIs. Fanout search
 - New providers require: adapter + a Dual Matrix row in docs/PROVIDERS.md + tests.
 - A red check is a question, not a fact — read the reason (`docs/contributing/ci.md`) before characterizing or overriding it.
 
+## Merge protocol (agents)
+
+`main` requires PRs — no direct push, no admin/agent bypass. Beyond `ci`, a **`merge-gate`** check blocks merge until **both**: (1) ~15 min have passed since the head commit (cooldown; resets on each push, so reviewers can post), and (2) you post a PR **comment** containing exactly:
+
+> I have read all checks and review comments on this PR and affirm I have addressed all valid findings.
+
+If `merge-gate` is red, **read its summary** — it states the remaining cooldown and the phrase. CodeRabbit and other bots are advisory. Full detail: `docs/contributing/ci.md` → "Merge protocol".
+
 ## Build
 
 ```bash

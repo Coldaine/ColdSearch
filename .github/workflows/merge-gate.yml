@@ -1,0 +1,123 @@
+name: merge-gate
+
+# Autonomous merge gate for agent-driven PRs (no human-in-the-loop).
+#
+# A status check that stays red until BOTH:
+#   1. a short cooldown has elapsed since the HEAD commit — gives async reviewers
+#      (CodeRabbit, Sonar, GitGuardian, ...) time to post, and resets on every
+#      push so the attestation always covers the FINAL code; and
+#   2. an attestation comment containing the exact phrase has been posted AFTER
+#      the head commit.
+#
+# SELF-DESCRIBING: when red, the check's summary states exactly what remains
+# (cooldown countdown + the literal phrase to post). An agent that reads a
+# failing check — per AGENTS.md "Merge protocol" / docs/contributing/ci.md —
+# discovers the protocol without prior knowledge.
+#
+# CodeRabbit and other bots stay ADVISORY: their comments are what you read and
+# attest to; the merge does NOT require them to be green (free-tier / flaky).
+#
+# ROLLOUT: ship as an ADVISORY check first. Only add `merge-gate` to the required
+# status checks once it is observed reporting correctly on a real PR — with
+# enforce_admins=true a buggy *required* check would block every merge.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created, edited]
+  schedule:
+    - cron: "*/5 * * * *" # re-evaluate open PRs so the cooldown can clear on its own
+  workflow_dispatch:
+
+permissions:
+  checks: write
+  pull-requests: read
+  issues: read
+  contents: read
+
+env:
+  COOLDOWN_MINUTES: "15"
+  ATTESTATION_PHRASE: "I have read all checks and review comments on this PR and affirm I have addressed all valid findings."
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to a commit SHA (supply-chain hardening); trailing comment tracks the tag.
+      - name: Evaluate merge gate
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const COOLDOWN_MIN = parseInt(process.env.COOLDOWN_MINUTES, 10);
+            const PHRASE = process.env.ATTESTATION_PHRASE.trim();
+            const { owner, repo } = context.repo;
+
+            // Decide which PR(s) to evaluate based on the triggering event.
+            let numbers = [];
+            if (context.eventName === 'pull_request') {
+              numbers = [context.payload.pull_request.number];
+            } else if (context.eventName === 'issue_comment') {
+              if (!context.payload.issue.pull_request) return; // comment on a plain issue
+              numbers = [context.payload.issue.number];
+            } else {
+              // schedule / workflow_dispatch: sweep every open PR
+              const prs = await github.paginate(github.rest.pulls.list, {
+                owner, repo, state: 'open', per_page: 100,
+              });
+              numbers = prs.map(p => p.number);
+            }
+
+            const now = Date.now();
+            for (const number of numbers) {
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              if (pr.state !== 'open') continue;
+              const sha = pr.head.sha;
+
+              // Cooldown is measured from the HEAD commit, so a new push restarts it.
+              const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: sha });
+              const headTime = new Date(commit.commit.committer.date).getTime();
+              const ageMin = Math.floor((now - headTime) / 60000);
+              const remaining = Math.max(0, COOLDOWN_MIN - ageMin);
+              const cooldownOk = ageMin >= COOLDOWN_MIN;
+
+              // Attestation: the exact phrase in a comment posted at/after the head commit.
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: number, per_page: 100,
+              });
+              const attested = comments.some(c =>
+                c.body && c.body.includes(PHRASE) &&
+                new Date(c.created_at).getTime() >= headTime
+              );
+
+              const pass = cooldownOk && attested;
+
+              let title, summary;
+              if (pass) {
+                title = 'Cleared';
+                summary = `✅ Cooldown met (${ageMin}m ≥ ${COOLDOWN_MIN}m) and attestation present after the head commit.`;
+              } else {
+                title = !cooldownOk ? `Cooldown: ~${remaining}m left` : 'Awaiting attestation';
+                const steps = [];
+                if (!cooldownOk) {
+                  steps.push(`⏳ **Cooldown:** ${ageMin}m of ${COOLDOWN_MIN}m elapsed since the head commit — wait ~${remaining}m more. (A new push resets this.)`);
+                }
+                if (!attested) {
+                  steps.push(`📝 **Attestation:** post a PR comment — *after the latest commit* — containing exactly this line:\n\n> ${PHRASE}`);
+                }
+                summary = [
+                  `**merge-gate is blocking this PR.** To clear it (no human approval required):`,
+                  ...steps,
+                  `This enforces a brief cool-off so reviewers (CodeRabbit, Sonar, GitGuardian, …) can post, plus an on-record acknowledgement that you read them. CodeRabbit & co. are advisory — the merge does not require them green. See \`AGENTS.md\` → "Merge protocol".`,
+                ].join('\n\n');
+              }
+
+              await github.rest.checks.create({
+                owner, repo,
+                name: 'merge-gate',
+                head_sha: sha,
+                status: 'completed',
+                conclusion: pass ? 'success' : 'action_required',
+                output: { title, summary },
+              });
+            }

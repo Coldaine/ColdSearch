@@ -10,6 +10,7 @@ How ColdSearch is verified — and, more importantly, **how to read a check that
 |---|---|---|---|
 | `ci.yml` | every push + PR | `typecheck` → `test:docs` (capability-matrix drift) → `test` (full offline suite) | **yes** |
 | `canary.yml` | daily 06:00 UTC + manual dispatch | live smoke test against real provider APIs (`scripts/smoke.mjs`); green even with zero secrets | no |
+| `merge-gate.yml` | PR + comment + every 5 min | autonomous merge gate — cooldown since the head commit + an attestation comment ([Merge protocol](#merge-protocol-agents)) | **yes** (rolling out) |
 
 **External apps that post checks to PRs** (configured outside the repo, via GitHub Apps — not in `.github/`):
 
@@ -20,7 +21,7 @@ How ColdSearch is verified — and, more importantly, **how to read a check that
 | Kilo Code Review | AI review | no |
 | GitGuardian Security Checks | secret scanning | no |
 
-Only `ci` is a **required** status. The rest are advisory — but advisory is not the same as ignorable (see the rule below).
+`ci` is a **required** status, and `merge-gate` is being added as required (see [Merge protocol](#merge-protocol-agents)). The rest are advisory — but advisory is not the same as ignorable (see the rule below).
 
 ## Reading a red check
 
@@ -65,3 +66,16 @@ Because analysis is automatic, **`sonar-project.properties` is ignored** — Son
 - **A rule firing as a false positive** → in priority order: (1) fix the code to satisfy the rule, (2) add `// NOSONAR` on the offending line, or (3) mark the issue *Accept / False Positive* in the dashboard (the only option that needs a SonarCloud login). Prefer (1) or (3) over blanket rule-disabling.
 
 Docs: <https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automatic-analysis/>
+
+## Merge protocol (agents)
+
+`main` is protected: every change lands via a PR — no direct pushes, **no admin/agent bypass** (`enforce_admins` on). Beyond `ci`, a **`merge-gate`** check enforces an autonomous, human-free merge discipline, so an agent can't open a PR and merge it seconds later before the reviewers have spoken:
+
+1. **Cooldown** — a PR cannot merge until ~15 min after its **head commit** (resets on every push, so the gate always covers the final code). The window lets async reviewers — CodeRabbit, SonarCloud, GitGuardian — actually post.
+2. **Attestation** — after reading the checks and review comments, post a PR **comment** (not the PR body) containing exactly:
+
+   > I have read all checks and review comments on this PR and affirm I have addressed all valid findings.
+
+`merge-gate` is **self-describing**: if it's red, read its summary (`gh pr checks` or the check's details) — it states the remaining cooldown and the exact phrase to post. That is the discovery path — a compliant agent reads the failing check and learns what to do, no prior knowledge required.
+
+CodeRabbit and the other review bots are **advisory**: read their comments and address the valid ones, but the merge does **not** require them to be green (free-tier / occasionally flaky). The un-gameable parts are `ci` + the cooldown; the attestation is a forcing-function and an on-record acknowledgement, not a guarantee that the agent actually read anything.
