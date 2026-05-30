@@ -40,7 +40,7 @@ ColdSearch is a unified CLI over overlapping search provider APIs. Fanout search
 
 ## Merge protocol (agents)
 
-`main` requires PRs — no direct push, no admin/agent bypass. Beyond `ci`, a **`merge-gate`** check blocks merge until **both**: (1) ~15 min have passed since the head commit (cooldown; resets on each push, so reviewers can post), and (2) you post a PR **comment** containing exactly:
+`main` requires PRs — no direct push, no admin/agent bypass. Beyond `ci`, the **`merge-gate`** check (rolling out — advisory now, required once verified) gates merge on **both**: (1) ~15 min since the head was **pushed** (cooldown; resets on each push, so reviewers can post), and (2) you, as the PR opener, post a **new** PR comment (editing an older one won't count) containing exactly, on its own line:
 
 > I have read all checks and review comments on this PR and affirm I have addressed all valid findings.
 

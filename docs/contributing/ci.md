@@ -71,8 +71,8 @@ Docs: <https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automa
 
 `main` is protected: every change lands via a PR — no direct pushes, **no admin/agent bypass** (`enforce_admins` on). Beyond `ci`, a **`merge-gate`** check enforces an autonomous, human-free merge discipline, so an agent can't open a PR and merge it seconds later before the reviewers have spoken:
 
-1. **Cooldown** — a PR cannot merge until ~15 min after its **head commit** (resets on every push, so the gate always covers the final code). The window lets async reviewers — CodeRabbit, SonarCloud, GitGuardian — actually post.
-2. **Attestation** — after reading the checks and review comments, post a PR **comment** (not the PR body) containing exactly:
+1. **Cooldown** — a PR cannot merge until ~15 min after the head was **pushed** (measured from when the workflow first observed the push — *not* the commit's author-controlled timestamp — and it resets on every push, so the gate always covers the final code). The window lets async reviewers — CodeRabbit, SonarCloud, GitGuardian — actually post.
+2. **Attestation** — after reading the checks and review comments, post a **new** PR comment, **as the PR opener** (not the PR body; editing an older comment won't count), containing exactly, on its own line:
 
    > I have read all checks and review comments on this PR and affirm I have addressed all valid findings.
 
