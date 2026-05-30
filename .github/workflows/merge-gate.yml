@@ -3,9 +3,10 @@ name: merge-gate
 # Autonomous merge gate for agent-driven PRs (no human-in-the-loop).
 #
 # A status check that stays red until BOTH:
-#   1. a short cooldown has elapsed since the HEAD commit — gives async reviewers
-#      (CodeRabbit, Sonar, GitGuardian, ...) time to post, and resets on every
-#      push so the attestation always covers the FINAL code; and
+#   1. a short cooldown has elapsed since the head was first PUSHED (observed by
+#      this workflow, NOT the commit's author-controlled timestamp) — gives async
+#      reviewers (CodeRabbit, Sonar, GitGuardian, ...) time to post, and resets on
+#      every push so the attestation always covers the FINAL code; and
 #   2. an attestation comment containing the exact phrase has been posted AFTER
 #      the head commit.
 #
@@ -74,20 +75,30 @@ jobs:
               if (pr.state !== 'open') continue;
               const sha = pr.head.sha;
 
-              // Cooldown is measured from the HEAD commit, so a new push restarts it.
-              const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: sha });
-              const headTime = new Date(commit.commit.committer.date).getTime();
-              const ageMin = Math.floor((now - headTime) / 60000);
+              // Anchor the cooldown on when THIS push was first OBSERVED by the
+              // workflow — NOT the commit's embedded committer date, which is
+              // author-controlled and can predate the PR (a stale commit would
+              // satisfy the cooldown instantly). The earliest merge-gate check-run
+              // for this SHA is that first-observed time; a new push => new SHA =>
+              // no prior runs => anchor = now (so the cooldown genuinely resets).
+              const priorRuns = await github.paginate(github.rest.checks.listForRef, {
+                owner, repo, ref: sha, check_name: 'merge-gate', per_page: 100,
+              });
+              const anchorMs = priorRuns.length
+                ? Math.min(...priorRuns.map(r => new Date(r.started_at).getTime()))
+                : now;
+              const ageMin = Math.floor((now - anchorMs) / 60000);
               const remaining = Math.max(0, COOLDOWN_MIN - ageMin);
               const cooldownOk = ageMin >= COOLDOWN_MIN;
 
-              // Attestation: the exact phrase in a comment posted at/after the head commit.
+              // Attestation: the exact phrase in a comment posted at/after this push
+              // was first observed (a comment from before the push does not count).
               const comments = await github.paginate(github.rest.issues.listComments, {
                 owner, repo, issue_number: number, per_page: 100,
               });
               const attested = comments.some(c =>
                 c.body && c.body.includes(PHRASE) &&
-                new Date(c.created_at).getTime() >= headTime
+                new Date(c.created_at).getTime() >= anchorMs
               );
 
               const pass = cooldownOk && attested;
@@ -100,7 +111,7 @@ jobs:
                 title = !cooldownOk ? `Cooldown: ~${remaining}m left` : 'Awaiting attestation';
                 const steps = [];
                 if (!cooldownOk) {
-                  steps.push(`⏳ **Cooldown:** ${ageMin}m of ${COOLDOWN_MIN}m elapsed since the head commit — wait ~${remaining}m more. (A new push resets this.)`);
+                  steps.push(`⏳ **Cooldown:** ${ageMin}m of ${COOLDOWN_MIN}m elapsed since this push was first seen — wait ~${remaining}m more. (A new push resets this.)`);
                 }
                 if (!attested) {
                   steps.push(`📝 **Attestation:** post a PR comment — *after the latest commit* — containing exactly this line:\n\n> ${PHRASE}`);
@@ -116,6 +127,7 @@ jobs:
                 owner, repo,
                 name: 'merge-gate',
                 head_sha: sha,
+                started_at: new Date(anchorMs).toISOString(), // sticky anchor across re-evaluations
                 status: 'completed',
                 conclusion: pass ? 'success' : 'action_required',
                 output: { title, summary },
