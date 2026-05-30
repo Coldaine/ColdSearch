@@ -5,3 +5,7 @@ competitor-analysis/
 .env
 .env.local
 .DS_Store
+
+# AI coding assistant artifacts
+.omc/
+.opencode/
