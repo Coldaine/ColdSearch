@@ -12,10 +12,8 @@ machine-checked against the registry (`src/providers.ts`) and the adapters by
 
 ## Normalized capabilities
 
-ColdSearch normalizes every provider to three capabilities. For these common
-capabilities, provider names do not need to appear in the caller-facing request
-— callers ask for a capability, not a vendor. Provider-specific tools are
-tracked separately in the vendor tool surface below.
+ColdSearch normalizes every provider to three capabilities. Provider names never
+appear in the agent-facing interface — callers ask for a capability, not a vendor.
 
 | Capability | Meaning |
 |------------|---------|
@@ -83,9 +81,18 @@ vendor's own docs (linked) — they go stale fast and are intentionally not mirr
 - `POST /batch/scrape` (bulk) ❌
 
 ### Exa — `src/adapters/exa.ts` · [docs](https://docs.exa.ai)
-- `POST /search` (neural / keyword / fast) → **search** ✅
+- `POST /search` → **search** ✅
+  - **Config-driven options** (set in `config.toml` under `[providers.exa.options]`):
+    - `highlights` — token-efficient excerpts (~10x reduction) for agent workflows
+    - `category` — specialized indexes: `company`, `people`, `research-paper`, `github`, `tweet`, `news`, `personal-site`, `financial-report`
+    - `searchType` — latency control: `auto`, `keyword`, `neural`, `fast`, `instant`, `deep-lite`, `deep`
+    - `maxAgeHours` — cache freshness: `0` = always livecrawl, `-1` = never livecrawl
+    - `includeDomains` / `excludeDomains` — domain filters
+    - `numResults` — result count (default: 10)
+    - `useAutoprompt` — query enhancement (default: true)
+    - `maxCharacters` — text length cap (default: 15000)
 - `POST /contents` (with livecrawl) → **extract** ✅ and backs synthesized **crawl** ✅
-- `POST /findSimilar` (semantic neighbors — unique to Exa) ❌
+- `POST /findSimilar` (semantic neighbors — unique to Exa) ✅ (available via adapter method, not CLI)
 - `POST /answer` ❌
 - `POST /research` (async) ❌
 - `POST /chat/completions` (web-grounded chat) ❌
@@ -109,24 +116,15 @@ vendor's own docs (linked) — they go stale fast and are intentionally not mirr
 - `/search` (general) → **search** ✅ (operator-configured `baseUrl`, optional `SEARXNG_BASE_URL`)
 - category variants (news / images / …) ❌
 
-## Planned provider-tool surface
+## Unexposed surface worth considering
 
-These are active implementation targets for
-`plans/2026-06-22-pr1-provider-tool-surface.md`, except where marked deferred.
-The goal is broad provider-tool reach without lossy normalization:
+These are design choices, not bugs — the adapters expose the common denominator and
+skip vendor specialties. Highest-leverage gaps:
 
-- **Serper** — Google verticals such as news, images, videos, shopping, maps, places, autocomplete, and reviews; scholar and patents stay niche-deferred.
+- **Serper** — 10 Google verticals (news, scholar, images, shopping, maps, patents…); only plain web is wired.
 - **Jina** — `embeddings` + `rerank` could back ColdSearch's own reranking step; plus a free `search`.
-- **Tavily `answer`/`research`** and **Exa `answer`/`research`/`findSimilar`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
-- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`plans/2026-06-22-pr3-batch-runner.md`).
-- **Brave** news, images, videos, suggest, and spellcheck — broad search-adjacent surfaces.
-- **SearXNG** category variants such as news, images, and videos.
-
-Explicitly deferred until real workflows justify them:
-
-- Firecrawl `/agent` and scrape actions that click, type, scroll, or mutate remote state.
-- Brave Data-for-AI paid context products.
-- Narrow academic/legal verticals such as scholar and patents.
+- **Tavily `answer`/`research`** and **Exa `answer`/`research`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
+- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`docs/PROGRESS.md`).
 
 ## Adding a provider
 
