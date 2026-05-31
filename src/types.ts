@@ -46,6 +46,25 @@ export type CapabilityName = "search" | "extract" | "crawl";
 export interface AdapterCallOptions {
   /** Provider-specific options from config */
   providerOptions?: Record<string, unknown>;
+  /** Exa-specific options */
+  exa?: {
+    /** Use highlights (token-efficient excerpts) instead of full text */
+    highlights?: boolean;
+    /** Max characters for full text (when highlights is false) */
+    maxCharacters?: number;
+    /** Category filter: company, people, research-paper, github, tweet, news, personal-site, financial-report */
+    category?: string;
+    /** Search type: auto (default), keyword, neural, fast, instant, deep-lite, deep */
+    searchType?: "auto" | "keyword" | "neural" | "fast" | "instant" | "deep-lite" | "deep";
+    /** Max age of indexed content in hours. 0 = always livecrawl, -1 = never livecrawl */
+    maxAgeHours?: number;
+    /** Domains to include in search results */
+    includeDomains?: string[];
+    /** Domains to exclude from search results */
+    excludeDomains?: string[];
+    /** Use autoprompt (default true) */
+    useAutoprompt?: boolean;
+  };
 }
 
 export interface CrawlCallOptions extends AdapterCallOptions {

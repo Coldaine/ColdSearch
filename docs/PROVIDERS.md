@@ -31,7 +31,7 @@ ColdSearch columns = what the adapter actually implements today.
 |----------|:---------------:|:----------------:|:--------------:|:-------------------:|:--------------------:|:------------------:|-------|
 | Tavily | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Broadest all-rounder |
 | Firecrawl | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Vendor surface is richer than the adapter |
-| Exa | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | Crawl synthesized via discovery + `contents` |
+| Exa | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | Highlights, categories, findSimilar; crawl via discovery + `contents` |
 | Brave | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Search-only vendor |
 | Serper | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Google SERP; search-only vendor |
 | Jina | ⚠️ | ✅ | ⚠️ | ❌ | ✅ | ❌ | Reader extraction only today |
@@ -81,9 +81,14 @@ vendor's own docs (linked) — they go stale fast and are intentionally not mirr
 - `POST /batch/scrape` (bulk) ❌
 
 ### Exa — `src/adapters/exa.ts` · [docs](https://docs.exa.ai)
-- `POST /search` (neural / keyword / fast) → **search** ✅
+- `POST /search` → **search** ✅
+  - Search types: `auto`, `keyword`, `neural`, `fast`, `instant`, `deep-lite`, `deep` ✅
+  - Category filters: `company`, `people`, `research paper`, `github`, `tweet`, `news`, `personal site`, `financial report` ✅
+  - Content modes: `highlights` (token-efficient), `text` (full content) ✅
+  - Freshness: `maxAgeHours` for cache/livecrawl control ✅
+  - Domain filters: `includeDomains`, `excludeDomains` ✅
 - `POST /contents` (with livecrawl) → **extract** ✅ and backs synthesized **crawl** ✅
-- `POST /findSimilar` (semantic neighbors — unique to Exa) ❌
+- `POST /findSimilar` (semantic neighbors — unique to Exa) ✅
 - `POST /answer` ❌
 - `POST /research` (async) ❌
 - `POST /chat/completions` (web-grounded chat) ❌
@@ -114,7 +119,7 @@ skip vendor specialties. Highest-leverage gaps:
 
 - **Serper** — 10 Google verticals (news, scholar, images, shopping, maps, patents…); only plain web is wired.
 - **Jina** — `embeddings` + `rerank` could back ColdSearch's own reranking step; plus a free `search`.
-- **Tavily `answer`/`research`** and **Exa `answer`/`research`/`findSimilar`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
+- **Tavily `answer`/`research`** and **Exa `answer`/`research`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
 - **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`docs/PROGRESS.md`).
 
 ## Adding a provider
