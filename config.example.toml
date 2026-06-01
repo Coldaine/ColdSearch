@@ -31,10 +31,15 @@ strategy = "random"
 # strategy = "random"      → Pick random key per request
 # strategy = "round-robin" → Cycle through keys (default)
 #
-# Key reference formats:
-#   env:VAR_NAME              → Environment variable
-#   bws:SECRET_NAME           → Bitwarden Secrets Manager (by name)
-#   bws:SECRET_UUID           → Bitwarden Secrets Manager (by ID)
+# Key reference formats (preferred to least preferred):
+#   doppler:SECRET_NAME   → Doppler secret (preferred — use this)
+#   env:VAR_NAME          → Environment variable (fallback)
+#   bws:SECRET_NAME       → Bitwarden Secrets Manager (deprecated — migrate to Doppler)
+#
+# DOPPLER AUTHENTICATION:
+#   Dev machine:     Run `doppler login` once — tokens stored in OS keyring by Doppler CLI.
+#   CI/Production:   Set DOPPLER_TOKEN env var (from a Doppler service token, dp.st.xxx).
+#   Never export DOPPLER_TOKEN to disk — inject at runtime via `doppler run -- <cmd>`.
 
 [providers.searxng]
 [providers.searxng.keyPool]
@@ -49,27 +54,26 @@ baseUrl = "https://search.example.internal"
 
 [providers.tavily]
 [providers.tavily.keyPool]
-# Multiple Tavily keys for load balancing
-# Environment variables:
-keys = ["env:TAVILY_API_KEY_1", "env:TAVILY_API_KEY_2"]
-# OR Bitwarden Secrets Manager:
-# keys = ["bws:tavily-api-key-prod", "bws:tavily-api-key-backup"]
+# Doppler (preferred):
+keys = ["doppler:TAVILY_API_KEY_1", "doppler:TAVILY_API_KEY_2"]
 strategy = "random"
 
 [providers.exa]
 [providers.exa.keyPool]
-keys = ["env:EXA_API_KEY"]
-# OR: keys = ["bws:exa-api-key"]
+keys = ["doppler:EXA_API_KEY"]
+
+# Exa-specific options (config-driven, never CLI flags)
+[providers.exa.options]
+# highlights = true          # Token-efficient excerpts (10x token reduction for agents)
+# category = "company"       # Specialized index: company, people
 
 [providers.brave]
 [providers.brave.keyPool]
-keys = ["env:BRAVE_API_KEY"]
-# OR: keys = ["bws:brave-api-key"]
+keys = ["doppler:BRAVE_API_KEY"]
 
 [providers.serper]
 [providers.serper.keyPool]
-keys = ["env:SERPER_API_KEY"]
-# OR: keys = ["bws:serper-api-key"]
+keys = ["doppler:SERPER_API_KEY"]
 
 [providers.jina]
 [providers.jina.keyPool]
@@ -78,23 +82,33 @@ keys = []
 
 [providers.firecrawl]
 [providers.firecrawl.keyPool]
-keys = ["env:FIRECRAWL_API_KEY"]
-# OR: keys = ["bws:firecrawl-api-key"]
+keys = ["doppler:FIRECRAWL_API_KEY"]
 
 # ============================================
-# BITWARDEN SECRETS MANAGER SETUP
+# DOPPLER SETUP (remove BWS section below)
 # ============================================
-# Required environment variables for BWS:
+# 1. Authenticate: doppler login
+# 2. In Doppler, create secrets matching the names above (e.g., TAVILY_API_KEY_1)
+# 3. Never set secrets in the config file — only store secret NAMES, not values
+#
+# For CI, create a Doppler service token and pass via DOPPLER_TOKEN env var:
+#   doppler configs tokens create ci-token --project coldsearch --config prd --plain
+#
+# Run locally with secrets injected:
+#   doppler run -- coldsearch search "query"
+#
+# Or set token in environment (CI pattern):
+#   DOPPLER_TOKEN=dp.st.xxx coldsearch search "query"
+
+# ============================================
+# BITWARDEN SECRETS MANAGER SETUP (DEPRECATED)
+# ============================================
+# Bitwarden Secrets Manager is deprecated and will be removed in a future release.
+# Migrate to Doppler: doppler secrets get SECRET --plain
+#
+# Required environment variables for BWS (only if still using bws: refs):
 #   BWS_ACCESS_TOKEN      → Machine account access token
 #   BWS_ORGANIZATION_ID   → Your Bitwarden organization ID (for name lookups)
-#
-# Get your access token:
-#   1. Go to Bitwarden Admin Console → Machine Accounts
-#   2. Create machine account, assign to projects
-#   3. Generate access token
-#
-# Get organization ID:
-#   bws organization list
 
 # ============================================
 # USAGE EXAMPLES

@@ -1,5 +1,4 @@
 import type { KeyPool } from "../types.js";
-import { resolveBWSSecret } from "../resolvers/bws.js";
 import { safeKeyRef } from "../logging/usage.js";
 
 /**
@@ -8,14 +7,13 @@ import { safeKeyRef } from "../logging/usage.js";
 export interface KeyResult {
   /** The resolved secret value */
   value: string;
-  /** The key reference (e.g. "env:TAVILY_API_KEY", "bws:my-secret", or literal) */
+  /** The key reference (e.g. "env:TAVILY_API_KEY", "doppler:TAVILY_API_KEY", or literal) */
   ref: string;
 }
 
 /**
  * Process-local key pool manager with round-robin and random rotation.
- * Rotation state is safe within a single Node.js process and should not be
- * described as cross-process or distributed coordination.
+ * Rotation state is safe within a single Node.js process.
  */
 export class KeyPoolManager {
   private pools: Map<string, KeyPool> = new Map();
@@ -59,10 +57,8 @@ export class KeyPoolManager {
     let keyIndex: number;
 
     if (strategy === "random") {
-      // Random selection
       keyIndex = Math.floor(Math.random() * pool.keys.length);
     } else {
-      // Round-robin (default)
       const currentIndex = this.indices.get(provider) || 0;
       keyIndex = currentIndex;
       const nextIndex = (currentIndex + 1) % pool.keys.length;
@@ -75,10 +71,11 @@ export class KeyPoolManager {
   }
 
   /**
-   * Resolve a key reference to its actual value.
-   * Supports:
-   *   - env:VAR_NAME for environment variables
-   *   - bws:SECRET_NAME or bws:SECRET_ID for Bitwarden Secrets Manager
+   * Supported secret reference schemes:
+   *   env:VAR_NAME           → environment variable
+   *   doppler:SECRET_NAME    → Doppler secrets (value fetched at runtime from Doppler CLI)
+   *   bws:SECRET_NAME|UUID   → Bitwarden Secrets Manager (deprecated — migrate to Doppler)
+   *   Literal string         → used as-is (for keys embedded in config, discouraged)
    */
   private async resolveKeyRef(keyRef: string): Promise<string> {
     if (keyRef.startsWith("env:")) {
@@ -90,12 +87,69 @@ export class KeyPoolManager {
       return value;
     }
 
+    if (keyRef.startsWith("doppler:")) {
+      const secretName = keyRef.slice(8);
+      return this.resolveDopplerSecret(secretName);
+    }
+
     if (keyRef.startsWith("bws:")) {
       const secretRef = keyRef.slice(4);
-      return resolveBWSSecret(secretRef);
+      return this.resolveBwsSecret(secretRef);
     }
 
     return keyRef;
+  }
+
+  /**
+   * Fetch a secret from Doppler at runtime using the Doppler CLI.
+   * Requires `doppler secrets get SECRET_NAME --plain` to succeed in the
+   * current environment (i.e., Doppler is authenticated via `doppler login`,
+   * or DOPPLER_TOKEN is set in the process environment).
+   *
+   * Secrets are fetched fresh per request — no caching at this layer.
+   * Doppler handles cross-process token management via its own daemon,
+   * so no long-lived token needs to be stored by ColdSearch.
+   */
+  private async resolveDopplerSecret(secretName: string): Promise<string> {
+    const { execSync } = await import("node:child_process");
+
+    try {
+      // Doppler CLI must be on PATH; `doppler secrets get` fetches the
+      // secret value from the Doppler backend using the authenticated
+      // session (dev: browser login; CI/prod: service token in process env).
+      const value = execSync(`doppler secrets get ${secretName} --plain`, {
+        encoding: "utf8",
+        timeout: 10_000,
+        stdio: ["ignore", "pipe", "pipe"],
+      }).trim();
+
+      if (!value) {
+        throw new Error(`Doppler secret "${secretName}" resolved to empty value`);
+      }
+      return value;
+    } catch (err) {
+      const cmd = `doppler secrets get ${secretName} --plain`;
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error(
+          `Doppler CLI not found on PATH. Install from https://doppler.com/docs/cli`
+        );
+      }
+      throw new Error(
+        `Failed to resolve Doppler secret "${secretName}". ` +
+          `Ensure Doppler is authenticated (run 'doppler login') or DOPPLER_TOKEN ` +
+          `is set in the environment. Command: ${cmd}`
+      );
+    }
+  }
+
+  /**
+   * Fetch a secret from Bitwarden Secrets Manager (BWS) at runtime.
+   * DEPRECATED: Migrate to Doppler. This resolver remains for migration
+   * continuity but may be removed in a future release.
+   */
+  private async resolveBwsSecret(secretRef: string): Promise<string> {
+    const { resolveBWSSecret } = await import("../resolvers/bws.js");
+    return resolveBWSSecret(secretRef);
   }
 
   /**
@@ -144,10 +198,3 @@ export class KeyPoolManager {
 export function createKeyPoolManager(): KeyPoolManager {
   return new KeyPoolManager();
 }
-
-/**
- * Global key pool manager instance.
- * Prefer createKeyPoolManager() for new code; this export exists
- * for backward compatibility during migration.
- */
-export const keyPoolManager = new KeyPoolManager();

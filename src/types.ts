@@ -86,7 +86,14 @@ export interface SearchAdapter {
  * Key pool configuration for a provider.
  */
 export interface KeyPool {
-  /** Key references (e.g., "env:TAVILY_API_KEY") */
+  /**
+   * Key references in priority order.
+   * Supported schemes:
+   *   env:VAR_NAME          → environment variable (legacy, use Doppler instead)
+   *   doppler:SECRET_NAME   → Doppler secret (preferred)
+   *   bws:SECRET_NAME|UUID  → Bitwarden Secrets Manager (deprecated)
+   *   Literal string         → used as-is (strongly discouraged)
+   */
   keys: string[];
   /** Rotation strategy (defaults to round-robin) */
   strategy?: "round-robin" | "random";

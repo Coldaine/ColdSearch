@@ -1,312 +1,167 @@
-# Key Management & Security Documentation
+# Key Management
 
-## Current State (As Built)
+**Doppler is the primary secrets manager.** All production and development API keys live there. Bitwarden Secrets Manager (`bws:`) is deprecated and will be removed in a future release.
 
-### Key Storage
+---
 
-**Where keys are stored:**
-- **Doppler-injected environment variables** - preferred operator path when available
-- **Environment variables** - `env:VAR_NAME` references
-- **Bitwarden Secrets Manager** - `bws:SECRET_NAME` or `bws:SECRET_ID` references (NEW)
-- **Config file** (`~/.config/coldsearch/config.toml`) only stores key **references**, not actual keys
-- **In-memory** - Keys are resolved at runtime and held in memory during request processing
+## Supported Secret Reference Schemes
 
-Legacy `usearch` command and `~/.config/usearch/` path references remain compatibility aliases, but the canonical command/path are `coldsearch` and `~/.config/coldsearch/`.
+| Scheme | Status | Use Case |
+|--------|--------|----------|
+| `doppler:SECRET_NAME` | **Preferred** | All environments — dev, CI, production |
+| `env:VAR_NAME` | Fallback | Dev only; avoids Doppler setup on a given machine |
+| `bws:SECRET_NAME\|UUID` | **Deprecated** | Migration only; remove via `doppler secrets get` |
+| Literal string | **Discouraged** | Never commit actual keys to config |
 
-### Supported Key References
+---
 
-```toml
-# Environment variable
-keys = ["env:TAVILY_API_KEY"]
+## Authentication Patterns by Environment
 
-# Bitwarden Secrets Manager - by name
-keys = ["bws:tavily-production-key"]
+### Dev Machine
 
-# Bitwarden Secrets Manager - by ID
-keys = ["bws:550e8400-e29b-41d4-a716-446655440000"]
-```
-
-**Security characteristics:**
-```toml
-[providers.tavily.keyPool]
-keys = ["env:TAVILY_KEY_1", "env:TAVILY_KEY_2"]  # References only
-strategy = "random"
-```
+Doppler CLI stores tokens in the OS keyring after one-time `doppler login`. No environment variables needed.
 
 ```bash
-# Actual keys in environment
-export TAVILY_KEY_1="tvly-..."
-export TAVILY_KEY_2="tvly-..."
+# One-time setup
+doppler login
+
+# Verify auth
+doppler me
+
+# Run coldsearch with secrets injected
+doppler run -- coldsearch search "query"
+
+# Or with a custom project/config
+doppler run --project coldsearch --config dev -- coldsearch search "query"
 ```
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Keys in repo | ✅ Safe | Only `env:` references |
-| Keys in config file | ✅ Safe | Only `env:` references |
-| Keys in memory | ⚠️ Vulnerable | Resolved at runtime, not encrypted |
-| Key logging | ✅ Safe by reference | `safeKeyRef()` logs env/BWS/literal references, never resolved secret values |
-| Key rotation | ✅ Supported | Round-robin or random selection |
+Doppler auto-discovers `doppler.yaml` in the current directory or a parent. Run `doppler setup` in the project root to create one (add to `.gitignore` — never commit it).
 
-### Current Key Pool (As Configured)
+### CI / Production
 
-Based on `config.example.toml`:
-
-| Provider | Keys Configured | Strategy | API Required |
-|----------|-----------------|----------|--------------|
-| **Tavily** | 2 keys (`TAVILY_KEY_1`, `TAVILY_KEY_2`) | `random` | ✅ Yes |
-| **Exa** | 1 key (`EXA_API_KEY`) | default | ✅ Yes |
-| **Brave** | 1 key (`BRAVE_API_KEY`) | default | ✅ Yes |
-| **Serper** | 1 key (`SERPER_API_KEY`) | default | ✅ Yes |
-| **Jina** | 0 keys | - | ❌ No (free tier) |
-| **Firecrawl** | 1 key (`FIRECRAWL_API_KEY`) | default | ✅ Yes |
-
-**Total API keys in rotation: 6 keys across 5 providers**
-
-### Key Rotation (Implemented)
-
-**Per-request random selection:**
-```typescript
-// keypool.ts
-if (strategy === "random") {
-  keyIndex = Math.floor(Math.random() * pool.keys.length);
-}
-```
-
-**What this achieves:**
-- Distributes load across multiple keys
-- Reduces chance of hitting rate limits on single key
-- No guarantee of equal distribution (random is random)
-
-**What's missing:**
-- No quota ledger or remaining-quota rollups by safe key reference
-- No quota awareness (may exhaust one key while others sit idle)
-- No automatic failover when a key is exhausted
-
----
-
-## Usage Tracking (Implemented, Not Quota-Aware)
-
-### Current State
-
-ColdSearch writes usage JSONL after adapter invocations. The log path is configured under `[logging.usage]` and defaults to:
-
-```text
-~/.config/coldsearch/usage.jsonl
-```
-
-Each entry records provider, capability, safe key reference, success/failure, response time, and error text when present. The current log is useful for audit and debugging, but it is not yet a quota ledger.
-
-**Still missing:**
-- Remaining quota per key
-- Provider-specific cost per request
-- Quota-aware key choice
-- Automatic key suspension when a provider rejects or exhausts a key
-- Richer cache/provider/agent flow logs
-
-### Why This Matters
-
-| Provider | Free Tier | Paid Tier | Rate Limit |
-|----------|-----------|-----------|------------|
-| Tavily | 1,000 credits/mo | $0.008/credit | 1,000 req/min |
-| Exa | $10 credits | $5/1K searches | Varies |
-| Brave | 2,000 queries/mo | $3/1K queries | 1 QPS free |
-| Serper | 2,500 credits | $50/50K credits | Unknown |
-| Jina | 1M tokens free | ~$0.02/M tokens | 100 RPM |
-| Firecrawl | 500 credits | ~$0.005/credit | Varies |
-
-**Without quota-aware tracking, you may still:**
-- Hit rate limits unexpectedly
-- Exhaust credits on one key while others have plenty
-- Have incomplete visibility into provider-specific costs
-- Need to inspect logs manually after failures
-
----
-
-## What's Missing (Phase 5: Harden)
-
-### 1. Quota-Aware Key Rotation
-
-**Current:** Random pick from available keys  
-**Needed:** Pick key with most remaining quota
-
-```typescript
-// Proposed
-interface KeyState {
-  key: string;
-  remainingQuota: number;
-  lastUsed: Date;
-  errorCount: number;
-  isExhausted: boolean;
-}
-
-// Select key with max remaining quota
-const key = keys
-  .filter(k => !k.isExhausted)
-  .sort((a, b) => b.remainingQuota - a.remainingQuota)[0];
-```
-
-### 2. Usage Persistence Hardening
-
-**Current:** JSONL usage log
-**Needed:** richer quota/cost tracking if provider economics require it
-
-```typescript
-// Proposed schema
-interface UsageRecord {
-  timestamp: Date;
-  provider: string;
-  keyIndex: number;
-  operation: 'search' | 'extract' | 'crawl';
-  cost: number;  // In provider credits
-  success: boolean;
-  error?: string;
-}
-```
-
-**Possible future storage options:**
-- SQLite: `~/.config/coldsearch/usage.db`
-- Existing JSONL with rollups
-- External observability only if explicitly chosen
-
-### 3. Provider-Specific Quota Fetching
-
-**Challenge:** Each provider has different quota APIs
-
-| Provider | Quota Endpoint | Auth |
-|----------|---------------|------|
-| Tavily | ❌ No API | - |
-| Exa | ❌ No API | - |
-| Brave | ❌ No API | - |
-| Serper | ❌ No API | - |
-| Jina | ❌ No API | - |
-| Firecrawl | ❌ No API | - |
-
-**Reality:** Most providers don't expose quota via API.  
-**Workaround:** Track usage client-side, estimate remaining.
-
-### 4. Pre-Request Quota Check
-
-```typescript
-// Before making request
-if (estimatedRemaining < SAFETY_THRESHOLD) {
-  // Try next key
-  // Or throw "All keys near exhaustion"
-}
-```
-
-### 5. Secure Key Storage Alternatives
-
-**Current:** Environment variables  
-**Alternatives:**
-
-| Method | Security | Complexity | Use Case |
-|--------|----------|------------|----------|
-| Environment vars | Low | Low | Dev/local |
-| 1Password CLI | High | Medium | Personal |
-| AWS Secrets Manager | High | High | Production AWS |
-| HashiCorp Vault | High | High | Enterprise |
-| macOS Keychain | Medium | Medium | Mac dev |
-| systemd credentials | Medium | Medium | Linux prod |
-
----
-
-## Recommended Setup (Production)
-
-### 1. Environment Isolation
+Pass a Doppler service token via `DOPPLER_TOKEN`. Create one scoped to a specific config:
 
 ```bash
-# .env.local (never commit)
-TAVILY_KEY_1="tvly-..."
-TAVILY_KEY_2="tvly-..."
-EXA_API_KEY="..."
-BRAVE_API_KEY="..."
-SERPER_API_KEY="..."
-FIRECRAWL_API_KEY="fc-..."
+# Create via Doppler CLI (one-time, in your dev environment)
+doppler configs tokens create ci-token \
+  --project coldsearch \
+  --config prd \
+  --plain
 ```
 
-```gitignore
-# .gitignore
-.env*
-*.key
-config.toml  # If it contains real keys
-```
-
-### 2. Multiple Key Strategy
-
-```toml
-# config.toml
-[providers.tavily.keyPool]
-keys = [
-  "env:TAVILY_PROD_1",   # Primary
-  "env:TAVILY_PROD_2",   # Secondary
-  "env:TAVILY_BACKUP",   # Emergency
-]
-strategy = "random"
-```
-
-### 3. Usage Monitoring (To Be Implemented)
+Store the returned `dp.st.xxx` value as `DOPPLER_TOKEN` in your CI secrets store (GitHub Secrets, etc.). ColdSearch picks it up automatically — no different code path between dev and CI.
 
 ```bash
-# Check usage
-coldsearch status --provider tavily
-
-# Output:
-# Tavily Key 1: 450/1000 credits remaining (45 days left)
-# Tavily Key 2: 980/1000 credits remaining (12 days left)
+# GitHub Actions pattern
+- name: Run ColdSearch
+  env:
+    DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+  run: doppler run -- coldsearch search "health check"
 ```
 
-### 4. Alerts (To Be Implemented)
+**Never `export DOPPLER_TOKEN=dp.st.xxx`** in shell config files. **Never** commit tokens anywhere.
+
+---
+
+## Runtime Resolution
+
+When `keypool.ts` encounters a secret reference, it resolves it in this order:
+
+```
+doppler:SECRET_NAME  →  doppler secrets get SECRET_NAME --plain
+env:VAR_NAME         →  process.env[VAR_NAME]
+bws:SECRET           →  (deprecated) Bitwarden Secrets Manager
+Literal              →  used as-is (never recommended)
+```
+
+Resolution happens per-request inside the fanout loop. Keys are held in process memory for the duration of the request, then eligible for GC. No keys are ever written to disk.
+
+---
+
+## Error Messages
+
+| Condition | Error surfaces as |
+|-----------|-------------------|
+| `doppler:SECRET` but `DOPPLER_TOKEN` not set | `"DOPPLER_TOKEN environment variable not set and no Doppler CLI login found"` |
+| `env:VAR` referenced but not set | `"Environment variable VAR is not set"` |
+| `bws:SECRET` (deprecated) | `"Bitwarden Secrets Manager support is deprecated; migrate to Doppler"` |
+| Key pool is empty | `"Key pool for PROVIDER is empty"` |
+
+---
+
+## Migration: BWS → Doppler
+
+If your config currently has `bws:` references, migrate them:
+
+1. **In Doppler**, create secrets with the same logical names (e.g., `TAVILY_API_KEY_1`).
+2. **Update** `config.toml` to use `doppler:SECRET_NAME` instead of `bws:SECRET_NAME`.
+3. **Verify** dev auth: `doppler run -- coldsearch status`
+4. **Verify** CI auth: push and confirm the CI job succeeds.
+5. **Remove** `bws:SECRET` references from the config — no code change needed; the resolver rejects them with a clear deprecation message.
+
+For an automated migration script, see `docs/MIGRATION_BWS_DOPPLER.md`.
+
+---
+
+## Configuring a New Machine
 
 ```bash
-# Configure alerts
-coldsearch config set alert.threshold 100  # Alert at 100 credits remaining
-coldsearch config set alert.webhook "https://hooks.slack.com/..."
+# 1. Install Doppler CLI (macOS)
+brew install doppler-cli
+
+# 2. Authenticate
+doppler login
+
+# 3. Navigate to ColdSearch repo
+cd ~/GitHub/coldaine-github-repos/ColdSearch
+
+# 4. Setup Doppler project config (creates doppler.yaml locally)
+doppler setup
+
+# 5. Confirm secrets are accessible
+doppler secrets list
+# Should show: TAVILY_API_KEY_1, TAVILY_API_KEY_2, EXA_API_KEY, ...
+
+# 6. Run
+doppler run -- coldsearch status
 ```
 
 ---
 
-## Action Items
+## Security Properties
 
-### Immediate (Do Now)
-- [ ] Verify `.env` files are in `.gitignore`
-- [ ] Confirm no keys in shell history (`history | grep -E "(tvly-|fc-)"`)
-- [ ] Document actual key count in `~/.config/coldsearch/.keys` (secure file)
-
-### Short Term (This Week)
-- [x] Implement usage logging to JSONL
-- [x] Add `--dry-run` execution planner
-- [x] Create `coldsearch status` command
-- [ ] Add richer cache/provider/agent flow logging
-
-### Medium Term (This Month)
-- [ ] Build quota estimation from usage patterns
-- [ ] Add provider health checks
-- [ ] Implement key exhaustion alerts
-
-### Long Term (Phase 5)
-- [ ] SQLite usage database
-- [ ] Provider-specific quota fetching (if APIs become available)
-- [ ] Automatic key suspension on exhaustion
-- [ ] Integration with secrets managers
+| Property | With Doppler |
+|----------|-------------|
+| Keys in config | ✅ Only secret names, never values |
+| Keys in disk | ✅ None (Doppler never writes to disk in `doppler run --` mode) |
+| Keys in memory | ⚠️ Resolved at request time, eligible for GC after |
+| Key leakage via logs | ⚠️ `safeKeyRef()` strips all but last 4 chars |
+| Token on disk | ✅ `doppler login` stores in OS keyring; `DOPPLER_TOKEN` stays in CI secrets only |
+| Key rotation | ✅ Update in Doppler; all environments pick up on next run |
 
 ---
 
-## Key Inventory Template
+## Quick Reference
 
-Create `~/.config/coldsearch/.keys` (chmod 600):
+```bash
+# Authenticate
+doppler login
 
+# Run with secrets injected
+doppler run -- coldsearch search "query"
+
+# Fetch a single secret (useful in scripts)
+doppler secrets get TAVILY_API_KEY_1 --plain
+
+# List available secrets
+doppler secrets list
+
+# Set a new secret
+doppler secrets set TAVILY_API_KEY_3 "tvly-xxx"
+
+# Create a service token (CI/production)
+doppler configs tokens create ci-token --project coldsearch --config prd --plain
+
+# Verify current auth
+doppler me
 ```
-Provider: Tavily
-- Key 1: tvly-****XXXX (last 4: XXXX) - 450/1000 credits
-- Key 2: tvly-****YYYY (last 4: YYYY) - 980/1000 credits
-
-Provider: Exa
-- Key 1: ****ZZZZ - $7.50 remaining
-
-Provider: Firecrawl
-- Key 1: fc-****AAAA - 320/500 credits
-
-Last Updated: 2026-03-24
-```
-
-**Keep this file secure and updated manually until automated tracking is built.**
