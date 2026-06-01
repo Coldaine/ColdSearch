@@ -36,7 +36,7 @@ export function safeKeyRef(keyRef: string, provider: string): string {
  * Safe key reference for dry-run / status display.
  */
 export function getKeyReference(keyPool: KeyPool | undefined, provider: string): string {
-  if (!keyPool?.keys.length) return `${provider}:keyless`;
+  if (!keyPool?.keys?.length) return `${provider}:keyless`;
   return safeKeyRef(keyPool.keys[0], provider);
 }
 
