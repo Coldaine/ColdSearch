@@ -56,10 +56,18 @@
   </div>
 
   <h2>Notable tornadoes</h2>
-  <div class="card scroll"><table id="t-torn"></table></div>
+  <div class="card scroll"><table>
+    <thead><tr><th>Date</th><th>Event</th><th>Rating</th><th>States</th>
+      <th class="num">Deaths</th><th class="num">Injuries</th><th>Notes</th></tr></thead>
+    <tbody id="t-torn"></tbody>
+  </table></div>
 
   <h2>Earthquake events</h2>
-  <div class="card scroll"><table id="t-eq"></table></div>
+  <div class="card scroll"><table>
+    <thead><tr><th>Date</th><th>Event</th><th>State</th><th class="num">Mag</th>
+      <th class="num">Deaths</th><th class="num">Injuries</th><th>Notes</th></tr></thead>
+    <tbody id="t-eq"></tbody>
+  </table></div>
 
   <footer id="foot"></footer>
 </main>
@@ -142,19 +150,15 @@ toggle(document.getElementById('b-torn'),'torn');
 toggle(document.getElementById('b-eq'),'eq');
 document.getElementById('logscale').onchange=e=>{ state.log=e.target.checked; draw(); };
 
-function table(el, rows, cols){
-  let h='<thead><tr>'+cols.map(c=>'<th>'+c.label+'</th>').join('')+'</tr></thead><tbody>';
-  h+=rows.map(r=>'<tr>'+cols.map(c=>'<td class="'+(c.num?'num':'')+'">'+(r[c.key]??'')+'</td>').join('')+'</tr>').join('');
-  el.innerHTML=h+'</tbody>';
+function fillBody(el, rows, cols){
+  el.innerHTML=rows.map(r=>'<tr>'+cols.map(c=>'<td class="'+(c.num?'num':'')+'">'+(r[c.key]??'')+'</td>').join('')+'</tr>').join('');
 }
-table(document.getElementById('t-torn'), DATA.notable_tornadoes, [
-  {key:'date',label:'Date'},{key:'name',label:'Event'},{key:'rating',label:'Rating'},
-  {key:'states',label:'States'},{key:'deaths',label:'Deaths',num:1},{key:'injuries',label:'Injuries',num:1},
-  {key:'notes',label:'Notes'}]);
-table(document.getElementById('t-eq'), DATA.earthquakes_events, [
-  {key:'date',label:'Date'},{key:'name',label:'Event'},{key:'state',label:'State'},
-  {key:'magnitude',label:'Mag',num:1},{key:'deaths',label:'Deaths',num:1},{key:'injuries',label:'Injuries',num:1},
-  {key:'notes',label:'Notes'}]);
+fillBody(document.getElementById('t-torn'), DATA.notable_tornadoes, [
+  {key:'date'},{key:'name'},{key:'rating'},{key:'states'},
+  {key:'deaths',num:1},{key:'injuries',num:1},{key:'notes'}]);
+fillBody(document.getElementById('t-eq'), DATA.earthquakes_events, [
+  {key:'date'},{key:'name'},{key:'state'},{key:'magnitude',num:1},
+  {key:'deaths',num:1},{key:'injuries',num:1},{key:'notes'}]);
 
 document.getElementById('foot').innerHTML='Sources: '+DATA.sources.map(s=>'<a href="'+s.url+'" target="_blank">'+s.title+'</a>').join(' &middot; ')
   +'<br>'+DATA.caveats.map(c=>'&bull; '+c).join('<br>');
