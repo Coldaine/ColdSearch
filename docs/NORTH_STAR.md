@@ -19,16 +19,16 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 
 **Out:** Provider results, normalized common views where useful, raw provider detail where needed, cache metadata, logs, and enough provenance to understand how the answer was produced.
 
-**Shape:** A stable command/service surface named `coldsearch`, with `usearch` kept as a compatibility alias during migration. Configuration lives at `~/.config/coldsearch/config.toml`, with legacy fallback to `~/.config/usearch/config.toml`. The CLI is the first interface, but the same core should be able to support service, API, and MCP-style entrypoints without duplicating provider logic.
+**Shape:** A stable command/service surface named `coldsearch`, with `usearch` kept as a compatibility alias during migration. Configuration lives at `~/.config/coldsearch/config.toml`, with legacy fallback to `~/.config/usearch/config.toml`. The CLI is the first interface, and the same core should remain usable through service, API, and MCP-style entrypoints without duplicating provider logic.
+
+**LLM endpoint rule:** When ColdSearch needs LLM synthesis, it uses OpenAI-compatible endpoints. It does not call Anthropic APIs.
 
 ## What This Is Not
 
 - **Not a pile of disconnected provider wrappers.** Provider tools should be reachable, but through one audited ColdSearch surface with shared config, logging, key handling, and cache behavior.
 - **Not blind model-directed routing.** The model or caller may request a provider tool when that is intentional, but default routing should be controlled, observable, and comparable.
-- **Not a remote job system yet.** Future remote execution is part of the direction, not the current product shape.
 - **Not obligated to expose every niche vertical.** Broadly useful provider tools should be available. Narrow surfaces such as specialized academic/legal verticals can stay deferred until there is a real workflow.
-- **Not lossy normalization at all costs.** Common shapes are useful, but ColdSearch should not discard provider-specific fields that are needed for evaluation, debugging, or advanced use.
-- **Not an Anthropic API client.** ColdSearch does not call `api.anthropic.com` for agent mode or anything else at this stage. Agent-mode synthesis uses OpenAI when an LLM is required; routing and search stay on the configured search/extract/crawl providers.
+- **Not lossy normalization.** Common views are convenience layers. ColdSearch must preserve raw provider details needed for evaluation, debugging, advanced use, or provider-specific workflows.
 
 ## Goals
 
@@ -44,7 +44,7 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 
 **G6: Preserve Useful Provider Detail.** Common outputs should be easy to consume, but raw provider details should remain accessible when they matter.
 
-**G7: Stable Surface, Flexible Execution.** The CLI remains stable while the same core can later support service/API/MCP entrypoints, daemonization, remote execution, or asynchronous jobs.
+**G7: Stable Surface, Flexible Execution.** The same core should support the CLI and, where useful, service/API/MCP entrypoints, daemonization, remote execution, or asynchronous jobs without duplicating provider logic.
 
 ## Pillars
 
