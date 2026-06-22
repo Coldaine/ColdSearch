@@ -1,0 +1,130 @@
+{
+  "search_id": "search_47c67e3d518642b6a5d736fcf4aa47cf",
+  "session_id": "session_47c67e3d518642b6a5d736fcf4aa47cf",
+  "status": "ok",
+  "results": [
+    {
+      "url": "https://www.npmjs.com/package/@trigger.dev/sdk",
+      "title": "@trigger.dev/sdk - npm",
+      "publish_date": "2025-08-29",
+      "excerpts": [
+        "# @trigger.dev/sdk\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n4\\.4.6 \u2022 Public \u2022 Published a month ago\n\n* Readme\n* Code Beta\n* 11 Dependencies\n* 44 Dependents\n* 777 Versions\n\n# Official TypeScript SDK for Trigger.dev\n\nThe Trigger.dev SDK is a TypeScript/JavaScript library that allows you to define and trigger tasks in your projects.\n\n## About Trigger.dev\n\nTrigger.dev is an open source platform for building and deploying fully-managed AI agents and workflows. Write workflows in normal async TypeScript for everything from simple tasks to long-running AI agents, heavy media processing, complex real-time systems and more. Complete with full observability, managed queues, and elastic infrastructure which handles the horizontal scaling.\n\n## Core features\n\n* Task creation and execution\n* CLI for development and deployment\n* Build system with extensions\n* Management API for runs, schedules, and environment variables\n\n## Key Components:\n* Tasks: Background jobs written in TypeScript/JavaScript\n* CLI: Commands for login, init, dev, deploy\n* Build Extensions: Customize builds (Prisma, Python, FFmpeg, etc.)\n* Management API: Programmatic control over runs and resources\n\n## Getting started\n\nThere are two ways to get started:\n\n1. Create an account in our [web app](https://cloud.trigger.dev) , create a new project and follow the instructions in the onboarding. Build and deploy your first task in minutes.\n2. [Manual setup](https://trigger.dev/docs/manual-setup) in your existing project.\n\n## SDK documentation\n\nFor more information on our SDK, refer to our [docs](https://trigger.dev/docs/introduction) .\n\n## Support\n\nIf you have any questions, please reach out to us on [Discord](https://trigger.dev/discord) and we'll be happy to help.\n\n## Readme\n\n### Keywords\n\nnone\n\n# Provenance\n\nBuilt and signed on\n\n## GitHub Actions\n\n[View build summary](https://github.com/triggerdotdev/trigger.dev/actions/runs/25728892191/attempts/1)\nSource Commit\n\n[github.com/triggerdotdev/trigger.dev@41a486e](https://github.com/triggerdotdev/trigger.dev/tree/41a486ea7e2335c1199564dbbfe8eb6b7efdd88e)\n\nBuild File\n\n[.github/workflows/release.yml](https://github.com/triggerdotdev/trigger.dev/actions/runs/25728892191/workflow)\n\nPublic Ledger\n\n[Transparency log entry](https://search.sigstore.dev/?logIndex=1518457073)\n\nShare feedback\n\n## Package Sidebar\n\n### Install\n\n`npm i @trigger.dev/sdk`\n\n### Repository\n\n[github.com/triggerdotdev/trigger.dev](https://github.com/triggerdotdev/trigger.dev)\n\n### Homepage\n\n[github.com/triggerdotdev/trigger.dev](https://github.com/triggerdotdev/trigger.dev)\n\n### Weekly Downloads\n\n519 315\n\n### Version\n\n4\\.4.6\n\n### License\n\nMIT\n\n### Last publish\n\n13 hours ago\n\n### Collaborators\n\n* mattaitken\n  \n  mattaitken\n* d-k-p\n  \n  d-k-p\n* ericallam\n  \n  ericallam\n* nicknpm\n  \n  nicknpm\n* samejr\n "
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/inngest",
+      "title": "inngest - npm",
+      "publish_date": "2026-05-11",
+      "excerpts": [
+        "# inngest\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n4\\.5.0 \u2022 Public \u2022 Published 4 days ago\n\n* Readme\n* Code Beta\n* 24 Dependencies\n* 50 Dependents\n* 1,134 Versions\n\n[](https://www.inngest.com)  \n  \nInngest is the reliability layer for modern applications. It combines durable execution, events, and queues into a zero-infra platform with built-in observability.\n\n**Works with:**  \n[](https://camo.githubusercontent.com/eaaf8a04e4a575034eb872e9378f13d0cbc9840c7f37b3fb6c22ff3117f90f5e/68747470733a2f2f6a73722e696f2f6c6f676f732f62726f77736572732e737667) [](https://camo.githubusercontent.com/9966e62c4ae3bb673f038cf7ec583cfb510b0828ded0c249a8baf387fe0b313b/68747470733a2f2f6a73722e696f2f6c6f676f732f62756e2e737667) [](https://camo.githubusercontent.com/228a66ff6cc3e67caaeaf660ca7093131075e6f925683b09733ab34a92c304d9/68747470733a2f2f6a73722e696f2f6c6f676f732f64656e6f2e737667) [](https://camo.githubusercontent.\ncom/82cfc8d785bd002f6ca06d513002b95d99de5409668c5525ded71b87b2647a42/68747470733a2f2f6a73722e696f2f6c6f676f732f6e6f64652e737667) [](https://camo.githubusercontent.com/4472c96f7e54105710f5b7aaa10a9b38e25ee687298e3fc75e6ebbe7f1c91413/68747470733a2f2f6a73722e696f2f6c6f676f732f636c6f7564666c6172652d776f726b6572732e737667)\n\nRead the [documentation](https://www.inngest.com/docs?ref=github-inngest-js-readme) and get started in minutes.\n\n[](https://www.npmjs.com/package/inngest)  \n[](https://www.inngest.com/discord) [](https://twitter.com/inngest)\n\n* * *\n\nOn _any_ serverless platform ( [Next.js](https://www.inngest.com/docs/sdk/serve) , [Deno Deploy](https://www.inngest.com/docs/sdk/serve) , [RedwoodJS](https://www.inngest.com/docs/sdk/serve) , [AWS Lambda](https://www.inngest.com/docs/sdk/serve) , and [anything else](https://www.inngest.com/docs/sdk/serve) ) and with no extra infrastructure:\n\n* \u26a1 Write **background jobs**\n* \ud83d\udd50 Create **scheduled and cron jobs**\n* \u267b\ufe0f Build **serverless queues**\n* \ud83e\ude9c Write complex **step functions**\n* \ud83d\ude98 Build **serverless event-driven systems**\n* \ud83e\ude9d Reliably respond to webhooks, with retries and payloads stored for history\n\n\ud83d\udc4b _Have a question or feature request? [Join our Discord](https://www.inngest.com/discord) !_\n\n  \nGetting started \u00b7 Features \u00b7 Version support \u00b7 Contributing \u00b7 [Documentation](https://www.inngest.com/docs?ref=github-inngest-js-readme)\n\n  \n## Getting started\n\n  \nInstall Inngest:\n\n```\nnpm install inngest\n```\n\n### Writing functions\n\nWrite serverless functions and background jobs right in your own code:\n\n```\nimport { Inngest } from \"inngest\" ; \n\n const inngest = new Inngest ( { id : \"my-app\" } ) ; \n\n // This function will be invoked by Inngest via HTTP any time \n // the \"app/user.signup\" event is sent to to Inngest \n export default inngest . createFunction ( \n  { \n    id : \"user-onboarding-communication\" , \n    triggers : [ { eve"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@inngest/agent-kit",
+      "title": "@inngest/agent-kit - npm",
+      "publish_date": null,
+      "excerpts": [
+        "com/concepts/agents) : LLM calls that can be combined with prompts, [tools](https://agentkit.inngest.com/concepts/tools) , and [MCP](https://agentkit.inngest.com/advanced-patterns/mcp) .\n* [**Networks**](https://agentkit.inngest.com/concepts/networks) : a simple way to get Agents to collaborate with a shared State, including handoff.\n* [**State**](https://agentkit.inngest.com/concepts/state) : combines conversation history with a fully typed state machine, used in routing.\n* [**Routers**](https://agentkit.inngest.com/concepts/routers) : where the autonomy lives, from code-based to LLM-based (ex: ReAct) orchestration\n* [**Tracing**](https://agentkit.inngest.com/getting-started/local-development) : debug and optimize your workflow locally and in the cloud with built-in tracing\n\nGet started now by [cloning our examples](https://agentkit.inngest.com/examples/overview) or [exploring the documentation](https://agentkit.inngest.com/overview) .\n\n## Get started\n\n```\nnpm i @ inngest / agent - kit inngest\n```\n\n**Note:** Starting with AgentKit v0.9.0, you need to install `inngest` as a separate dependency alongside `@inngest/agent-kit` . This ensures proper runtime compatibility and prevents conflicts when multiple packages depend on different versions of Inngest.\n\n## MCP Agent example\n\nChoose your favorite MCP server on Smithery (or self-host one) to build an AgentKit Agent using MCP as tools. Here is an example using the [Neon database MCP server](https://smithery.ai/server/neon) :\n\n```\nimport { \n  anthropic , \n  createAgent , \n  createNetwork , \n  createTool , \n } from \"@inngest/agent-kit\" ; \n import { createServer } from \"@inngest/agent-kit/server\" ; \n import { createSmitheryUrl } from \"@smithery/sdk/config.js\" ; \n import { z } from \"zod\" ; \n\n const neonServerUrl = createSmitheryUrl ( \n  \"https://server.smithery.ai/neon/mcp?profile=bored-catshark-da8hf&api_key=EXAMPLE\" \n ) ; \n\n const neonAgent = createAgent ( { \n  name : \"neon-agent\" ,\nsystem : `You are a helpful assistant that help manage a Neon account. \n  IMPORTANT: Call the 'done' tool when the question is answered. \n  ` , \n  tools : [ \n    createTool ( { \n      name : \"done\" , \n      description : \"Call this tool when you are finished with the task.\" , \n      parameters : z . object ( { \n        answer : z . string ( ) . describe ( \"Answer to the user's question.\" ) , \n      } ) , \n      handler : async ( { answer } , { network } ) => { \n        network ?. state . kv . set ( \"answer\" , answer ) ; \n      } , \n    } ) , \n  ] , \n  mcpServers : [ \n    { \n      name : \"neon\" , \n      transport : { \n        type : \"streamable-http\" , \n        url : neonServerUrl . toString ( ) , \n      } , \n    } , \n  ] , \n } ) ; \n\n const neonAgentNetwork = createNetwork ( { \n  name : \"neon-agent\" , \n  agents : [ neonAgent ] , \n  defaultModel : anthropic ( { \n    model "
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/trigger.dev",
+      "title": "trigger.dev - npm",
+      "publish_date": "2026-05-12",
+      "excerpts": [
+        "# trigger.dev\n\n4\\.4.5 \u2022 Public \u2022 Published 8 days ago\n\n* Readme\n* Code Beta\n* 65 Dependencies\n* 1 Dependents\n* 567 Versions\n\n# Trigger.dev CLI\n\nA CLI that allows you to create, run locally and deploy Trigger.dev background tasks.\n\nNote: this only works with Trigger.dev v3 projects and later. For older projects use the [@trigger.dev/cli](https://www.npmjs.com/package/@trigger.dev/cli) package.\n\n## About Trigger.dev\n\nTrigger.dev is an open source platform for building and deploying fully-managed AI agents and workflows. Write workflows in normal async TypeScript for everything from simple tasks to long-running AI agents, heavy media processing, complex real-time systems and more. Complete with full observability, managed queues, and elastic infrastructure which handles the horizontal scaling.\n\n## Commands\n\n|Command |Description |\n| --- | --- |\n| |Login with Trigger.dev so you can perform authenticated actions. |\n|[init](https://trigger.\ndev/docs/cli-init-commands) |Initialize your existing project for development with Trigger.dev. |\n|[dev](https://trigger.dev/docs/cli-dev-commands) |Run your Trigger.dev tasks locally. |\n|[deploy](https://trigger.dev/docs/cli-deploy-commands) |Deploy your Trigger.dev v3 project to the cloud. |\n|[whoami](https://trigger.dev/docs/cli-whoami-commands) |Display the current logged in user and project details. |\n|[logout](https://trigger.dev/docs/cli-logout-commands) |Logout of Trigger.dev. |\n|[list-profiles](https://trigger.dev/docs/cli-list-profiles-commands) |List all of your CLI profiles. |\n|[preview archive](https://trigger.dev/docs/cli-preview-archive) |Archive a preview branch. |\n|[promote](https://trigger.dev/docs/cli-promote-commands) |Promote a previously deployed version to the current version. |\n|[switch](https://trigger.dev/docs/cli-switch) |Switch between CLI profiles. |\n|[update](https://trigger.dev/docs/cli-update-commands) |Updates all `@trigger."
+      ]
+    },
+    {
+      "url": "https://github.com/inngest/agent-kit/releases",
+      "title": "Releases \u00b7 inngest/agent-kit \u00b7 GitHub",
+      "publish_date": null,
+      "excerpts": [
+        "### Patch Changes\n\n* [4a81376](https://github.com/inngest/agent-kit/commit/4a8137686762879ee90aa67379cd254ac66d6031) : replacing the static import of json-schema-to-zod with a dynamic import() inside the function where it's used to resolve crashing when loading agentkit in a cjs project using require()\n\nAssets 2\n\nLoading\n\n## @inngest/use-agent@0.3.0\n\n24 Sep 20:49\n\n@inngest-release-bot inngest-release-bot\n\n@inngest/use-agent@0.3.0\n\n[`7966808`](https://github.com/inngest/agent-kit/commit/7966808a89de97fe3d9f562f80ba9fe5fd123b6a) This commit was created on GitHub.com and signed with GitHub\u2019s **verified signature** .\n\nGPG key ID: B5690EEEBB952194\n\nVerified\n\n[Learn about vigilant mode](https://docs.github.com/github/authenticating-to-github/displaying-verification-statuses-for-all-of-your-commits) .\n\nCompare\n\n@inngest/use-agent@0.3.0\n\n### Minor Changes\n\n* [b175718](https://github.com/inngest/agent-kit/commit/b175718a161af56feeba2c09e61d5f69dcb17a61) : # New Package: @inngest/use-agent\nIntroducing a comprehensive React hooks package for building AI chat interfaces with AgentKit networks.\n  \n  ## What's New\n  \n  **@inngest/use-agent** is a standalone npm package that provides a complete set of React hooks for integrating with AgentKit. This package extracts and consolidates all the React functionality needed to build sophisticated AI chat applications.\n  \n  ### Core Features\n  \n    + **Core Hooks** : `useAgent` , `useChat` , `useThreads` for real-time streaming and thread management\n    + **Utility Hooks** : `useEphemeralThreads` , `useConversationBranching` , `useEditMessage` , `useMessageActions` , `useSidebar` , `useIsMobile`\n    + **Provider System** : `AgentProvider` for shared connections and configuration\n    + **Transport Layer** : Configurable API layer with `DefaultAgentTransport` and custom transport support\n    + **TypeScript Support** : Full type definitions for all hooks and components\n    + **Next."
+      ]
+    },
+    {
+      "url": "https://trigger.dev/",
+      "title": "Trigger.dev | Build and deploy fully-managed AI agents and workflows.",
+      "publish_date": null,
+      "excerpts": [
+        "HIPAA ready Trigger.dev is now HIPAA ready\n\n# Build and deploy fully\u2011managed AI agents and workflows\n\nTrigger.dev is the platform for building AI workflows in TypeScript. Long-running tasks with retries, queues, observability, and elastic scaling.\n\n[Start building now](https://cloud.trigger.dev) [15\\.4k | Open source](https://github.com/triggerdotdev/trigger.dev)\n\nAI agents\n\nMedia processing\n\nMedia generation\n\nHuman in the loop\n\nStreaming\n\nRun Python\n\nMarketing\n\nBrowser automation\n\nScheduled tasks\n\nConcurrency\n\nRetries\n\nSemantic search\n\nEmail sequences\n\n```\n// AI agent with tool calling - works with any model export const researchAgent = task ( { id : \"research-agent\" , run : async ( { topic } : { topic : string } ) => { const messages : CoreMessage [ ] = [ { role : \"user\" , content : ` Research: ${ topic } ` } , ] ; for ( let i = 0 ; i < 10 ; i ++ ) { const { text , toolCalls , steps } = await generateText ( { model : anthropic ( \"claude-opus-4-20250514\" ) , system : \"You are a research assistant with web access.\" , messages , tools : { search , browse , analyze } , maxSteps : 5 , } ) ; if ( ! toolCalls . length ) { return { summary : text , stepsUsed : steps . length } ; } for ( const call of toolCalls ) { const result = await executeTool ( call ) ; messages . push ( { role : \"tool\" , content : result } ) ; } } } , } ) ;\n```\n\nBuild production-ready AI agents with tool calling, automatic retries, and full observability. Use existing Node.js SDKs and code from your repo.\n\n[Learn about AI agents](https://trigger."
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@mastra/inngest?activeTab=code",
+      "title": "@mastra/inngest - npm",
+      "publish_date": "2026-05-14",
+      "excerpts": [
+        "Mastra Inngest integration. Latest version: 1.5.1, last published: 2 days ago. Start using @mastra/inngest in your project by running `npm i @mastra/inngest`. There are 1 other projects in the npm registry using @mastra/inngest."
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@trigger.dev/react",
+      "title": "@trigger.dev/react - npm",
+      "publish_date": null,
+      "excerpts": [
+        "skip to: content package search sign in\n\n\u2764\n\n* Pro\n* Teams\n* Pricing\n* [Documentation](https://docs.npmjs.com)\n\nnpm\n\nSearch\n\n \n\n## @trigger.dev/react\n\n3\\.3.12 \u2022 Public \u2022 Published 8 months ago\n\n* Readme\n* Code Beta\n* 4 Dependencies\n* 3 Dependents\n* 355 Versions\n\nThis package does not have a README. [Add a README](https://docs.npmjs.com/about-package-readme-files) to your package so that users know how to get started.\n\n## Readme\n\n### Keywords\n\nnone\n\n## Package Sidebar\n\n### Install\n\n`npm i @trigger.dev/react`\n\n### Weekly Downloads\n\n1,356\n\n### Version\n\n3\\.3.12\n\n### License\n\nMIT\n\n### Unpacked Size\n\n56\\.1 kB\n\n### Total Files\n\n38\n\n### Last publish\n\n8 months ago\n\n### Collaborators\n\n* \n* \n* \n* \n* \n\n[**Try** on RunKit](https://runkit.com/npm/%40trigger.dev%2Freact)\n\n**Report** malware\n\n## Footer\n\n[](https://github.com/npm)\n\n[](https://github.com)\n\n### Support\n\n* [Help](https://docs.npmjs.com)\n* [Advisories](https://github.com/advisories)\n* [Status](http://status.npmjs.org/)\n* Contact npm\n### Company\n\n* About\n* [Blog](https://github.blog/tag/npm/)\n* Press\n\n### Terms & Policies\n\n* Policies\n* Terms of Use\n* Code of Conduct\n* Privacy"
+      ]
+    },
+    {
+      "url": "https://docs.browserbase.com/welcome/quickstarts/stagehand",
+      "title": "Stagehand - Browserbase Documentation",
+      "publish_date": null,
+      "excerpts": [
+        "> ## Documentation Index\n> Fetch the complete documentation index at: https://docs.browserbase.com/llms.txt\n> Use this file to discover all available pages before exploring further.\n\n# Stagehand\n\n> Build browser agents with Stagehand + Browserbase\n\nThere's a new way to automate the web: by prompting.\n\nBut a single prompt fails on complicated scripts. Stagehand lets you prompt at multiple levels of granularity, from agents to single actions, and interweave Playwright or traditional frameworks when you need them.\n\nUse any major model provider. 22k GitHub stars, 700k+ weekly downloads. Get started in 5 minutes.\n\n<Note>\n  This quickstart uses [Model Gateway](/platform/model-gateway/overview). LLM requests for Stagehand are routed through your Browserbase API key, so you don't need a separate model provider account. You can also [bring your own API key](https://docs.stagehand.dev/v3/configuration/models) if you prefer.\n</Note>\n\n<CardGroup cols={3}>\n<Card title=\"Discord\" icon=\"discord\" href=\"https://discord.gg/stagehand\">\n    Community support\n  </Card>\n\n  <Card title=\"Docs\" icon=\"book\" href=\"https://docs.stagehand.dev\">\n    Full documentation\n  </Card>\n\n  <Card title=\"Templates\" icon=\"rocket\" href=\"https://browserbase.com/templates\">\n    Ready-to-use examples\n  </Card>\n</CardGroup>\n\n## Quickstart\n\n<Steps>\n  <Step title=\"Get your API key\">\n    Your API key is displayed in the [Dashboard Navigation row](https://www.browserbase.com/sessions). The API key is all you need to get started. The project is inferred from your API key.\n\n    <Frame>\n      <img src=\"https://mintcdn.com/browserbase/giE_cpy18f2mWHqr/images/quickstart/api_key.png?fit=max&auto=format&n=giE_cpy18f2mWHqr&q=85&s=4ac94a8f69cec20bd17b2a8788169062\" width=\"3410\" height=\"1864\" data-path=\"images/quickstart/api_key.png\" />\n    </Frame>\n  </Step>\n\n  <Step title=\"Set environment variables\">\n    ```bash theme={null}\n    export BROWSERBASE_API_KEY=\"your-api-key\"\n    ```"
+      ]
+    },
+    {
+      "url": "https://www.browserbase.com/stagehand",
+      "title": "Stagehand | Browserbase",
+      "publish_date": null,
+      "excerpts": [
+        "|Continues to work when the page changes |No |Yes |Yes |\n|Extract data using natural language |No |Yes |Yes |\n|Framework standards |\n|Fast, cheap, and predictable |Yes |Yes |No |\n|Understandable |No |Yes |No |\n|Self-healing |No |Yes |Yes |\n|Open source |No |Yes |No |\n\nStagehand + Browserbase\n\n## Start locally. Deploy to Browserbase.\n\n### Build with Stagehand\n\nStart using Stagehand locally with full feature compatibility. Four primitives (act, extract, observe, agent) all work out of the box. When you're ready for production, connect to Browserbase's cloud browsers with no code changes.\n\n### Scale with Browserbase\n\nOne API key, everything your agent needs. Browserbase gives Stagehand headless browsers with Agent Identity, action caching, session replay, prompt observability, and captcha solving. Deploy instantly with Functions - zero infrastructure.\n\n## Frequently Asked Questions\n\n### What is Stagehand?\n\nStagehand is an open source AI browser automation framework.\nIt gives you four primitives \u2014 act, extract, observe, and agent \u2014 that let you write browser automations using natural language instructions instead of brittle CSS selectors. It's available in TypeScript and Python. ### How is Stagehand different from Playwright or Selenium?\n\nTraditional frameworks like Playwright and Selenium rely on hardcoded selectors that break whenever a site updates its DOM. Stagehand uses AI to resolve instructions like \"click the submit button\" at runtime, so your scripts survive page redesigns without maintenance. You still get deterministic control \u2014 Stagehand isn't a black-box agent. ### Does Stagehand require Browserbase?\n\nNo. Stagehand works locally out of the box with any Chromium browser. Browserbase is optional \u2014 when you're ready for production, you can connect Stagehand to Browserbase's cloud browsers for Agent Identity, session replay, captcha solving, and zero-infrastructure deployment via Functions."
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@inngest/ai",
+      "title": "@inngest/ai - npm",
+      "publish_date": "2025-10-17",
+      "excerpts": [
+        "# @inngest/ai\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n0\\.1.7 \u2022 Public \u2022 Published 8 months ago\n\n* Readme\n* Code Beta\n* 2 Dependencies\n* 6 Dependents\n* 34 Versions\n\n# @inngest/ai\n\nAI adapter package for Inngest, providing type-safe interfaces to various AI providers including OpenAI, Anthropic, Gemini, Grok, and Azure OpenAI.\n\n## Installation\n\n```\nnpm install @inngest/ai\n```\n\n## Usage\n\n```\nimport { openai , anthropic , gemini } from \"@inngest/ai/models\" ; \n\n // Use with Inngest step.ai \n const result = await step . ai . infer ( \"Analyze this data\" , { \n  model : openai ( { model : \"gpt-4\" } ) , \n  body : { \n    messages : [ { role : \"user\" , content : \"What is machine learning?\" } ] , \n  } , \n } ) ;\n```\n\n## Development\n\n### Running Tests\n\nThis package includes comprehensive smoke tests that verify our type definitions work correctly with real AI provider APIs.\n\n#### Unit Tests\n\nRun the standard unit tests (when they exist):\n\n```\npnpm test\n```\n#### Smoke Tests\n\nSmoke tests make actual API calls to AI providers to ensure our type definitions are accurate and complete. **Note: These tests will consume API credits and should only be run when needed.**\n\n##### Setup\n\n1. Copy the environment example file:\n   \n   ```\n   cp .env.example .env\n   ```\n2. Add your API keys to `.env` :\n   \n   ```\n   #  Required for Gemini smoke tests \n   GEMINI_API_KEY=your_gemini_api_key_here\n   \n    #  Optional: Other providers for future smoke tests \n   OPENAI_API_KEY=your_openai_api_key_here\n   ANTHROPIC_API_KEY=your_anthropic_api_key_here\n    #  ... see .env.example for full list\n   ```\n\n##### Running Smoke Tests\n\n```\n#  Run all smoke tests (requires API keys) \npnpm test:smoke\n\n #  Run smoke tests in watch mode for development \npnpm test:smoke:watch\n```\n\n##### What Smoke Tests Cover\n\nThe smoke tests verify:\n\n* **Basic text generation** \\- Simple prompts and responses\n* **Thinking features** \\- Gemini's reasoning capabilities with thinking budgets"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@trigger.dev/sdk?activeTab=dependents",
+      "title": "@trigger.dev/sdk - npm",
+      "publish_date": "2026-05-01",
+      "excerpts": [
+        "Discord | Website | Issues | Docs | Examples \u00b7 The Trigger.dev SDK is <strong>a TypeScript/JavaScript library that allows you to define and trigger tasks in your projects</strong>"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@trigger.dev/core",
+      "title": "@trigger.dev/core - npm",
+      "publish_date": "2026-02-20",
+      "excerpts": [
+        "Core code used across the Trigger.dev SDK and platform. Latest version: 4.4.1, last published: 11 days ago. Start using @trigger.dev/core in your project by running `npm i @trigger.dev/core`. There are 16 other projects in the npm registry using @trigger.dev/core."
+      ]
+    },
+    {
+      "url": "https://news.ycombinator.com/item?id=43426164",
+      "title": "Show HN: AgentKit \u2013 JavaScript Alternative to OpenAI Agents SDK with Native MCP | Hacker News",
+      "publish_date": "2025-03-20",
+      "excerpts": [
+        "AgentKit \u2013 JavaScript Alternative to OpenAI Agents SDK ...\nMar 20, 2025 \u2014 It's fully open-source under the Apache 2 license. If you want to get started: - npm: npm i @inngest/agent-kit. - GitHub: https://github."
+      ]
+    }
+  ],
+  "usage": [
+    {
+      "name": "sku_search",
+      "count": 1
+    },
+    {
+      "name": "sku_extract_excerpts",
+      "count": 4
+    }
+  ],
+  "warnings": []
+}

@@ -17,7 +17,7 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 
 **In:** A query, URL, provider-tool request, or batch of requests.
 
-**Out:** Provider results, normalized common views where useful, raw provider detail where needed, cache metadata, logs, and enough provenance to understand how the answer was produced.
+**Out:** Provider results, normalized common views where useful, raw provider detail where needed, searchable recent cache items, rich logs, and enough provenance to understand how the answer was produced.
 
 **Shape:** A stable command/service surface named `coldsearch`, with `usearch` kept as a compatibility alias during migration. Configuration lives at `~/.config/coldsearch/config.toml`, with legacy fallback to `~/.config/usearch/config.toml`. The CLI is the first interface, and the same core should remain usable through service, API, and MCP-style entrypoints without duplicating provider logic.
 
@@ -38,9 +38,9 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 
 **G3: Use Keys And Quotas Efficiently.** Key pools, provider pools, cache hits, and batch execution should spread usage across available keys and reduce avoidable paid calls.
 
-**G4: Cache And Reuse Prior Work.** Repeated calls over time should be able to hit recent cached search/extract/tool results when policy allows, while still supporting freshness controls.
+**G4: Search And Reuse Prior Work.** ColdSearch should build a searchable local memory of recent search/extract/tool results so later calls can surface relevant prior items before paying providers again. Reuse should prefer retrieval over blind replay; exact response replay is only acceptable when it is painless, explicit, and freshness policy allows it.
 
-**G5: Audit Everything Important.** Requests, selected providers/tools, keys used safely by reference, cache hits/misses, errors, timings, and run IDs should be logged well enough to trace how data moved through the system.
+**G5: Log And Audit Everything Important.** Provider/tool requests, routing choices, selected keys by safe reference, cache lookups, cache hits/misses, retrieved prior items, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs. Logging is a primary product surface because ColdSearch exists partly to compare tools and understand how data moved through the system.
 
 **G6: Preserve Useful Provider Detail.** Common outputs should be easy to consume, but raw provider details should remain accessible when they matter.
 
@@ -52,9 +52,9 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 
 **Comparable Execution.** The runtime should make it easy to compare provider/tool performance instead of hiding every execution choice behind an opaque answer.
 
-**Cache By Default Where Sensible.** The same query, URL, or tool request should not pay provider cost repeatedly when a recent cache hit is acceptable.
+**Searchable Cache, Not Blind Replay.** Cached work should become a searchable recent-results corpus that can be inspected and reused. Avoid building a heavy bespoke cache layer unless a package or simple local store makes it painless; prefer surfacing relevant prior items over silently replaying old responses.
 
-**Audit First.** Important calls should leave inspectable traces. Logging is not an afterthought; it is part of how ColdSearch earns trust.
+**Audit First.** Important calls should leave inspectable traces. Logging is not an afterthought or a debug-only aid; it is part of how ColdSearch earns trust, compares providers, tracks free-quota/key usage, and explains agent behavior after the fact.
 
 **Fail Visible.** When something breaks, the error should make it obvious whether the issue is config, credentials, provider reachability, quota/rate limits, unsupported capability, or provider-specific behavior.
 

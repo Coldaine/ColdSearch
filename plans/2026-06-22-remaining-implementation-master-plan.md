@@ -14,14 +14,14 @@
 
 Yes. The remaining concrete implementation work fits well into four PRs:
 
-1. [PR 1: Cache A2 and Cache Hygiene](./2026-06-22-pr1-cache-a2.md)
+1. [PR 1: Searchable Cache, Cache Operations, and Cache Hygiene](./2026-06-22-pr1-cache-a2.md)
 2. [PR 2: Batch Runner for Search, Extract, and Crawl](./2026-06-22-pr2-batch-runner.md)
 3. [PR 3: Operator Config and Status UX](./2026-06-22-pr3-config-status-ux.md)
 4. [PR 4: Agent Run IDs and Trace Correlation](./2026-06-22-pr4-agent-run-ids.md)
 
 This split is natural because each PR has a different owner surface:
 
-- PR 1 owns cache operations and persistence hygiene.
+- PR 1 owns searchable recent-result memory, cache operations, cache logging, and persistence hygiene.
 - PR 2 owns high-volume execution workflows.
 - PR 3 owns operator setup, diagnostics, and status.
 - PR 4 owns agent traceability.
@@ -36,15 +36,19 @@ Functional now:
 - ReAct agent mode
 - Provider routing and validation
 - Usage JSONL logging
-- Read-through cache for `search` and `extract`
+- Exact read-through cache for `search` and `extract`
 - `--no-cache`
 - Live provider canary workflow
 
 Missing now:
 
+- Searchable recent-result cache/memory
+- `coldsearch cache search`
+- `coldsearch cache recent`
 - `coldsearch cache stats`
 - `coldsearch cache clear`
 - `--freshness`
+- Cache lookup/search/hit/miss logs with selected prior item references
 - Atomic cache writes and restrictive cache-file permissions
 - `coldsearch batch`
 - Batch resumability by stable `id`
@@ -101,15 +105,18 @@ Success looks like:
 - The branch starts clean from current `origin/main`.
 - The existing suite passes before implementation begins.
 
-### PR 1: Cache A2 and Cache Hygiene
+### PR 1: Searchable Cache, Cache Operations, and Cache Hygiene
 
 Plan: [2026-06-22-pr1-cache-a2.md](./2026-06-22-pr1-cache-a2.md)
 
 Success looks like:
 
 - `coldsearch cache stats` works.
+- `coldsearch cache search` works and surfaces relevant recent prior items.
+- `coldsearch cache recent` works and surfaces newest prior items.
 - `coldsearch cache clear` works.
 - `--freshness` works for cached `search` and `extract`.
+- Cache lookup/search/hit/miss behavior is logged without secret values.
 - Cache writes are atomic.
 - Cache files/directories use restrictive permissions where supported.
 - Crawl cache is explicitly decided and documented.
@@ -150,7 +157,7 @@ Success looks like:
 - Controlled concurrency works.
 - Duplicate handling is deterministic.
 - Per-item success/error output is present.
-- Existing cache is used for batch `search` and `extract`.
+- Existing exact cache and searchable recent-result memory are used for batch `search` and `extract`.
 - `npm test` passes.
 - `npm run test:docs` passes.
 
@@ -240,7 +247,7 @@ Review pause:
 - [ ] Run `npm test`.
 - [ ] Run `npm run test:docs`.
 - [ ] Check open GitHub issues and close or update #6, #14, #31 as appropriate.
-- [ ] Epic 5 remains deferred unless explicitly promoted; see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Open a GitHub issue only if promoting it into active work.
+- [ ] Epic 5 stays deferred until you choose to start it; see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md).
 
 Success looks like:
 
@@ -261,6 +268,7 @@ Each PR plan also lists targeted CLI checks. A PR is not ready for review until:
 
 - Its new behavior has focused tests.
 - Existing behavior remains covered.
+- Its new request/cache/provider/agent flow writes enough safe logs to reconstruct what happened.
 - The full suite passes locally.
 - Documentation and provider matrix drift tests pass.
 
@@ -270,7 +278,7 @@ Each PR plan also lists targeted CLI checks. A PR is not ready for review until:
 
 **Plan:** [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md)
 
-Remote execution for long-running agentic research and large batch workloads — CLI submits runs, workers execute, results polled or streamed. **Not part of PR1–PR4.** Status: deferred until explicitly promoted.
+Remote execution for long-running agentic research and large batch workloads — CLI submits runs, workers execute, results polled or streamed. **Not part of PR1–PR4.** Deferred for now.
 
 June 2026 review considered packaged orchestration (Hatchet, Inngest, Trigger.dev), agent harnesses (AI SDK, Mastra, OpenAI Agents SDK, LangGraph; Hermes/Agno as alternate shapes), and Redis for cross-worker cache/rate limits — **no stack chosen yet.** ColdSearch core (adapters, fanout, config routing, `ExecutionBackend` seam) stays regardless.
 
@@ -279,5 +287,4 @@ June 2026 review considered packaged orchestration (Hatchet, Inngest, Trigger.de
 - Cross-process key coordination (often folds into Epic 5 + Redis)
 - Vendor-specific tool and vertical expansion
 
-Promote Epic 5 or other deferred work only through an explicit new goal and plan update.
-
+Epic 5 and other deferred work start only when you decide to — update the plan, then build.

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Resolve issue #14 by adding structured run IDs to agent mode and related logs.
+**Goal:** Resolve issue #14 by adding structured run IDs to agent mode and related logs, while strengthening agent/tool-flow observability.
 
 **Architecture:** Generate or accept a run ID at the CLI/agent boundary, store it on the `SearchAgent`/`ResearchContext`, and pass it through backend search calls so usage logs can correlate provider calls to an agent run.
 
@@ -19,6 +19,7 @@ Implement:
 - `run_id` in agent CLI JSON output
 - `run_id` in agent steps
 - `run_id` in usage logs created by agent-triggered search
+- Richer agent/tool-flow logs with run ID, tool name, selected provider/tool, cache lookup result, timing, and error metadata where available
 - Validation for explicit run IDs
 
 Do not implement:
@@ -27,6 +28,7 @@ Do not implement:
 - Distributed trace IDs
 - Remote trace storage
 - OpenTelemetry
+- Secret or prompt transcript logging beyond the existing explicit output contract
 
 ## Files
 
@@ -71,6 +73,8 @@ Rules:
 - [ ] Pass run ID from agent search tool calls into backend search.
 - [ ] Add `run_id?: string` to `UsageLogEntry`.
 - [ ] Write `run_id` only when present.
+- [ ] Add safe agent/tool-flow log fields needed to reconstruct provider/tool/cache flow.
+- [ ] Confirm no raw API keys or hidden secrets are logged.
 
 ## Required Tests
 
@@ -80,6 +84,7 @@ Rules:
 - [ ] `test/agent-mode.test.mjs`: every agent step includes the same run ID.
 - [ ] `test/cli-integration.test.mjs`: usage entries from agent-triggered search include `run_id`.
 - [ ] `test/cli-integration.test.mjs`: non-agent usage entries remain valid without `run_id`.
+- [ ] `test/cli-integration.test.mjs`: agent/tool-flow logs include safe routing/cache/timing metadata.
 - [ ] `test/agent-payloads.test.mjs`: existing tool payload parsing remains unchanged.
 
 ## Validation
@@ -112,4 +117,3 @@ After implementation:
 - [ ] Re-run `npm test` and `npm run test:docs` after every follow-up commit.
 - [ ] Wait again after every push.
 - [ ] Merge PR 4 only after the review pause is complete and the merge protocol is satisfied.
-

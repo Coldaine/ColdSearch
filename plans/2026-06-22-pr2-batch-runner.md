@@ -4,7 +4,7 @@
 
 **Goal:** Add `coldsearch batch` as a resumable JSONL runner for `search`, `extract`, and `crawl`.
 
-**Architecture:** Build batch as a thin orchestration layer over `LocalExecutionBackend`. Do not bypass backend cache behavior. Keep output append-only so interrupted runs can resume from completed IDs.
+**Architecture:** Build batch as a thin orchestration layer over `LocalExecutionBackend`. Do not bypass backend exact-cache behavior or searchable recent-result memory. Keep output append-only so interrupted runs can resume from completed IDs.
 
 **Tech Stack:** TypeScript, Node.js filesystem/readline APIs, built-in `node:test`, existing provider mocks.
 
@@ -160,4 +160,3 @@ After implementation:
 - [ ] Re-run `npm test` and `npm run test:docs` after every follow-up commit.
 - [ ] Wait again after every push.
 - [ ] Do not start PR 3 until PR 2 is merged unless the user explicitly authorizes parallel work.
-

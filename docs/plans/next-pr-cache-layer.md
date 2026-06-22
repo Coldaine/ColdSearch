@@ -1,5 +1,10 @@
 # Plan — Next PR: Read-Through Result Cache (Gap A, Phase A1)
 
+> Historical note: Phase A1 landed. The current cache direction is no longer
+> just exact read-through replay. Use `plans/2026-06-22-pr1-cache-a2.md` for
+> the active plan: searchable recent-result memory, cache operations, logging,
+> and persistence hygiene.
+
 > Scope note: this plan is deliberately narrowed to **one shippable PR**. It is
 > the highest-ROI item from the 2026-05-27 roadmap/CI review. Batch mode and the rest
 > of the backlog are explicitly out of scope and listed at the end.

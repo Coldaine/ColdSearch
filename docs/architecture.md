@@ -30,8 +30,9 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 | Provider-tool surface | Planned | Vendor tools beyond the three capabilities via ColdSearch |
 | Config-driven routing | Current | `~/.config/coldsearch/config.toml`; provider pools per capability |
 | Key and secret resolution | Current | Doppler-injected environment variables preferred; env refs, optional BWS refs, and keyless providers supported; per-process pools |
-| Result cache | Current | Read-through file cache for search/extract |
-| Usage and audit logging | Current | JSONL usage log; broader trace correlation Planned |
+| Basic cache store | Current | Read-through file cache for search/extract |
+| Searchable result memory | Planned | Index recent search/extract/tool results and surface relevant prior items before provider calls |
+| Usage and audit logging | Current | JSONL usage log; richer flow logs and trace correlation Planned |
 | Agent mode | Current | ReAct loop; OpenAI-compatible LLM dispatch |
 | Service / API / MCP entrypoints | Planned | Same core, thin wrappers |
 | Remote / hybrid execution | Planned | Async jobs behind CLI; centralized secrets |
@@ -48,6 +49,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 | Provider adapters | Current | One module per vendor; shared schema | `docs/PROVIDERS.md` |
 | Provider registry | Current | Capability matrix in code | `src/providers.ts` |
 | Cache store | Current | Read-through JSON cache | `src/cache/` |
+| Observability and result memory | Planned | Rich logs plus searchable recent prior work | `docs/components/cache-and-observability.md` |
 | Agent | Current | ReAct + SSRF-safe fetch | `docs/ADRs/003-react-agent.md`, `docs/ADRs/004-ssrf-protection.md` |
 
 ## Architectural Invariants
@@ -56,7 +58,8 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 - **Doppler for secret injection.** Operator secrets should enter the process through Doppler-managed environment injection where possible; ColdSearch code reads normal environment variables, explicit `env:` refs, optional `bws:` refs, or keyless provider config and must not log secret values.
 - **Interface-agnostic core.** Routing, keys, retries, and normalization must not depend on whether the caller is CLI, API, or MCP (Planned entrypoints).
 - **Comparable execution.** Fanout and per-provider error isolation enable cross-provider comparison (`docs/ADRs/001-fanout-architecture.md`).
-- **Audit by default.** Networked work uses shared request handling, normalized errors, and usage logging (`docs/NORTH_STAR.md` G5).
+- **Logging is a product surface.** Networked work, routing, cache lookup/retrieval, key selection by safe reference, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs (`docs/NORTH_STAR.md` G5).
+- **Searchable cache over blind replay.** Cache work should support retrieval over recent prior results. Exact response replay is secondary and should only be used where it is simple, explicit, and freshness-safe (`docs/NORTH_STAR.md` G4).
 - **No lossy normalization.** Shared schemas are convenience; provider detail stays available when needed (`docs/NORTH_STAR.md` G6).
 - **Provider coverage is documented.** Registry and `docs/PROVIDERS.md` Dual Matrix stay in sync (`npm run test:docs`).
 
