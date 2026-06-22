@@ -89,9 +89,9 @@ npm test
 ## Documentation
 
 - `docs/contributing/testing.md` - What to test (and what not to duplicate)
-- `docs/NORTH_STAR.md` - Product direction and architectural intent
-- `docs/architecture.md` - Runtime architecture and seams
-- `docs/PROGRESS.md` - Current implementation status
+- `docs/NORTH_STAR.md` - Product direction and goals (authority)
+- `docs/architecture.md` - Technical shape, status labels, invariants
+- `plans/` - Active implementation plans (informational)
 - `docs/CONFIGURATION.md` - Configuration reference and precedence
 - `docs/PROVIDERS.md` - Capability + tool matrix and per-provider coverage (single source of truth)
 

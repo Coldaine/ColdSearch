@@ -37,7 +37,6 @@ Do not implement:
 - Modify: `src/logging/usage.ts`
 - Modify: `src/types.ts`
 - Modify: `src/cli.ts`
-- Modify: `docs/PROGRESS.md`
 - Test: `test/agent-mode.test.mjs`
 - Test: `test/agent-payloads.test.mjs`
 - Test: `test/cli-integration.test.mjs`
@@ -72,7 +71,6 @@ Rules:
 - [ ] Pass run ID from agent search tool calls into backend search.
 - [ ] Add `run_id?: string` to `UsageLogEntry`.
 - [ ] Write `run_id` only when present.
-- [ ] Update `docs/PROGRESS.md`.
 
 ## Required Tests
 

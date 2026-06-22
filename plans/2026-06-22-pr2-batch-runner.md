@@ -42,7 +42,6 @@ Do not implement:
 - Modify: `src/types.ts`
 - Modify: `README.md`
 - Modify: `docs/CONFIGURATION.md`
-- Modify: `docs/PROGRESS.md`
 - Test: `test/batch.test.mjs`
 - Test: `test/cli-batch.test.mjs`
 
@@ -113,7 +112,6 @@ coldsearch batch --input queries.jsonl --output results.jsonl --dry-run --json
 - [ ] Add CLI help text.
 - [ ] Update README with a batch section.
 - [ ] Update `docs/CONFIGURATION.md` with batch flags.
-- [ ] Update `docs/PROGRESS.md`.
 
 ## Required Tests
 

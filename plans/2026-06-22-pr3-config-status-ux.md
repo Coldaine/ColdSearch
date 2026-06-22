@@ -40,7 +40,6 @@ Do not implement:
 - Modify: `config.example.toml`
 - Modify: `docs/CONFIGURATION.md`
 - Modify: `docs/KEY_MANAGEMENT.md`
-- Modify: `docs/PROGRESS.md`
 - Test: `test/cli-integration.test.mjs`
 - Test: `test/agent-llm-url.test.mjs`
 - Test: `test/runtime-seams.test.mjs`
@@ -91,7 +90,6 @@ Do not hide the original message. Add category next to it.
 - [ ] Update `docs/CONFIGURATION.md`.
 - [ ] Update `docs/KEY_MANAGEMENT.md` so usage logging/status are no longer described as missing.
 - [ ] Update `config.example.toml`.
-- [ ] Update `docs/PROGRESS.md`.
 
 ## Required Tests
 

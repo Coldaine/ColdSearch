@@ -115,7 +115,7 @@ skip vendor specialties. Highest-leverage gaps:
 - **Serper** — 10 Google verticals (news, scholar, images, shopping, maps, patents…); only plain web is wired.
 - **Jina** — `embeddings` + `rerank` could back ColdSearch's own reranking step; plus a free `search`.
 - **Tavily `answer`/`research`** and **Exa `answer`/`research`/`findSimilar`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
-- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`docs/PROGRESS.md`).
+- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`plans/2026-06-22-pr2-batch-runner.md`).
 
 ## Adding a provider
 

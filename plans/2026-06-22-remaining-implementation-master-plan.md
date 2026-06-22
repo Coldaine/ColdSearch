@@ -26,7 +26,7 @@ This split is natural because each PR has a different owner surface:
 - PR 3 owns operator setup, diagnostics, and status.
 - PR 4 owns agent traceability.
 
-Do not add daemonization, cross-process key coordination, remote execution, or full vendor-specific vertical expansion to these four PRs. Those are real future epics, but they are not required to complete this implementation sequence.
+Do not add remote execution, cross-process key coordination, or full vendor-specific vertical expansion to these four PRs. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md).
 
 ## Current Baseline
 
@@ -239,9 +239,8 @@ Review pause:
 - [ ] Update local `main` from `origin/main`.
 - [ ] Run `npm test`.
 - [ ] Run `npm run test:docs`.
-- [ ] Check `docs/PROGRESS.md` accurately reflects the shipped baseline.
 - [ ] Check open GitHub issues and close or update #6, #14, #31 as appropriate.
-- [ ] Create new deferred epic issues only if the user wants daemonization, cross-process state, remote execution, or vendor-specific expansion promoted into active work.
+- [ ] Epic 5 remains deferred unless explicitly promoted; see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Open a GitHub issue only if promoting it into active work.
 
 Success looks like:
 
@@ -267,12 +266,18 @@ Each PR plan also lists targeted CLI checks. A PR is not ready for review until:
 
 ## Deferred Epics
 
-These are real remaining areas but are outside the four-PR implementation sequence:
+### Epic 5: Remote agentic execution (deferred)
 
-- Cross-process key coordination
-- Full daemon / `coldsearchd`
-- Remote executor
+**Plan:** [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md)
+
+Remote execution for long-running agentic research and large batch workloads — CLI submits runs, workers execute, results polled or streamed. **Not part of PR1–PR4.** Status: deferred until explicitly promoted.
+
+June 2026 review considered packaged orchestration (Hatchet, Inngest, Trigger.dev), agent harnesses (AI SDK, Mastra, OpenAI Agents SDK, LangGraph; Hermes/Agno as alternate shapes), and Redis for cross-worker cache/rate limits — **no stack chosen yet.** ColdSearch core (adapters, fanout, config routing, `ExecutionBackend` seam) stays regardless.
+
+### Other deferred (not numbered epics)
+
+- Cross-process key coordination (often folds into Epic 5 + Redis)
 - Vendor-specific tool and vertical expansion
 
-They should be promoted only through a new explicit goal.
+Promote Epic 5 or other deferred work only through an explicit new goal and plan update.
 
