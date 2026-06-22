@@ -1,10 +1,10 @@
 # Epic 5: Remote Agentic Execution
 
-**Status:** Deferred — not in the active four-PR sequence (PR1–PR4).
+**Status:** Deferred — not in the active five-PR sequence (PR1–PR5).
 
 **Goal (when promoted):** CLI submits long-running research and batch work to a remote execution plane; workers run agentic flows (search → read → refine → synthesize) and normalized capability calls without blocking the terminal. The `coldsearch` CLI remains the operator surface; execution may run elsewhere.
 
-This epic is **not** PR1–PR4. Those PRs extend the in-process CLI on `main`. Epic 5 is a separate track, opened only when explicitly prioritized.
+This epic is **not** PR1–PR5. Those PRs extend the in-process CLI on `main`. Epic 5 is a separate track, opened only when explicitly prioritized.
 
 ---
 
@@ -45,7 +45,7 @@ Research and discussion reviewed packaged options instead of rolling custom daem
 
 ## Research notes (June 2026)
 
-Session web research was run while scoping this epic. Raw `parallel-cli` JSON dumps live in the repo root as disposable artifacts — **do not treat them as docs**. The durable summary is here.
+Session web research was run while scoping this epic. Redacted `parallel-cli` JSON dumps live under `plans/evidence/2026-06-22-remote-agentic-execution/` as review evidence. The durable summary is here.
 
 ### Release snapshot (when research was run)
 
@@ -91,7 +91,7 @@ Session web research was run while scoping this epic. Raw `parallel-cli` JSON du
 
 ### Memory / state products (orthogonal to job orchestration)
 
-**Letta** (formerly MemGPT) is a **stateful memory platform** — typed memory blocks, session continuity, model swaps — not a substitute for Hatchet/Inngest/BullMQ. Relevant only if Epic 5 needs long-horizon agent memory beyond run-scoped trace IDs (PR4).
+**Letta** (formerly MemGPT) is a **stateful memory platform** — typed memory blocks, session continuity, model swaps — not a substitute for Hatchet/Inngest/BullMQ. Relevant only if Epic 5 needs long-horizon agent memory beyond run-scoped trace IDs (PR5).
 
 ### Enterprise / platform-specific (unlikely default for ColdSearch)
 
@@ -127,13 +127,13 @@ Also on the infra search list: **BullMQ** + Redis (queue-only, roll your own wor
 
 ## Out of scope for Epic 5 (unless explicitly added)
 
-- Replacing the four-PR local CLI work.
+- Replacing the active local CLI implementation sequence.
 - Anthropic API as agent LLM (project policy: OpenAI-compatible providers only).
-- Exposing every vendor tool in the CLI.
+- Replacing the active provider-tool surface plan.
 - MCP as the primary product interface (tool transport is fine; CLI + job API is the product).
 
 ## When to start
 
-Deferred until you explicitly decide to build remote execution. No gate beyond that — finish PR1–PR4 first if you want, but Epic 5 does not block them.
+Deferred until you explicitly decide to build remote execution. No gate beyond that — finish PR1–PR5 first if you want, but Epic 5 does not block them.
 
 When you start: pick a stack from the table above, update this plan with the choice, and implement `RemoteExecutionBackend`. No ADR required unless you want one.

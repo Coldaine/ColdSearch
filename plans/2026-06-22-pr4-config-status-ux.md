@@ -1,4 +1,4 @@
-# PR 3: Operator Config and Status UX Implementation Plan
+# PR 4: Operator Config and Status UX Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -19,6 +19,7 @@ Implement:
 - Agent LLM base URL config in TOML
 - Status output improvements
 - Better user-facing error classification
+- Provider-tool coverage diagnostics
 - Documentation updates for config/status/key management
 
 Do not implement:
@@ -68,6 +69,7 @@ Use these categories in machine-readable status/doctor output where practical:
 - `network`
 - `provider`
 - `unsupported_capability`
+- `unsupported_tool`
 
 Do not hide the original message. Add category next to it.
 
@@ -84,6 +86,7 @@ Do not hide the original message. Add category next to it.
 - [ ] Add usage path to status output.
 - [ ] Add missing env var warnings to status output.
 - [ ] Add provider capability coverage to status output.
+- [ ] Add provider-tool coverage to status output.
 - [ ] Add TOML agent LLM base URL support.
 - [ ] Preserve CLI flag precedence over TOML.
 - [ ] Add error classification helpers.
@@ -102,6 +105,7 @@ Do not hide the original message. Add category next to it.
 - [ ] `test/agent-llm-url.test.mjs`: TOML `agent.llm.base_url` is used when CLI flag is absent.
 - [ ] `test/agent-llm-url.test.mjs`: CLI `--llm-base-url` overrides TOML.
 - [ ] `test/runtime-seams.test.mjs`: unsupported provider/capability pairing is classified as `unsupported_capability`.
+- [ ] `test/runtime-seams.test.mjs`: unsupported provider-tool pairing is classified as `unsupported_tool`.
 
 ## Validation
 
@@ -123,17 +127,24 @@ Expected:
 - Status output is JSON-parseable.
 - No command prints raw API keys.
 
+## Success Criteria
+
+- A new operator can generate a starter config without overwriting existing config.
+- `config doctor` explains config, credential, provider, capability, and tool-surface problems clearly.
+- `status --json` exposes paths, cache/logging state, provider coverage, provider-tool coverage, and missing env vars.
+- Agent LLM endpoint config uses OpenAI-compatible endpoint fields and preserves CLI override precedence.
+- Diagnostics improve auditability without printing secret values.
+
 ## PR Review Pause
 
 After implementation:
 
-- [ ] Commit the completed PR 3 scope.
+- [ ] Commit the completed PR 4 scope.
 - [ ] Push the branch.
-- [ ] Open PR 3 only after validation passes.
+- [ ] Open PR 4 only after validation passes.
 - [ ] Wait for CI, merge-gate, and advisory reviewers.
 - [ ] Read inline review threads, flat comments, bot comments, and check summaries.
 - [ ] Address valid findings.
 - [ ] Re-run `npm test` and `npm run test:docs` after every follow-up commit.
 - [ ] Wait again after every push.
-- [ ] Do not start PR 4 until PR 3 is merged unless the user explicitly authorizes parallel work.
-
+- [ ] Do not start PR 5 until PR 4 is merged unless the user explicitly authorizes parallel work.

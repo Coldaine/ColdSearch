@@ -1,7 +1,7 @@
 # Plan — Next PR: Read-Through Result Cache (Gap A, Phase A1)
 
 > Historical note: Phase A1 landed. The current cache direction is no longer
-> just exact read-through replay. Use `plans/2026-06-22-pr1-cache-a2.md` for
+> just exact read-through replay. Use `plans/2026-06-22-pr2-cache-a2.md` for
 > the active plan: searchable recent-result memory, cache operations, logging,
 > and persistence hygiene.
 
@@ -93,7 +93,7 @@ Confirm cache hits via `usage.jsonl` line-count delta (a hit writes no usage ent
 
 ## Status (updated at end of this session)
 
-- [x] Docs refresh (CLAUDE.md, SKILL.md, PROGRESS.md) — landed in PR #20.
+- [x] Docs refresh (CLAUDE.md, SKILL.md, legacy progress handoff) — landed in PR #20.
 - [x] Session record + this plan — landed in PR #20.
 - [x] Canary smoke workflow + `scripts/smoke.mjs` — landed in PR #20 (live-provider
       drift detection; the gap the cache work will eventually lean on for safety).

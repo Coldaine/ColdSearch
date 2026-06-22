@@ -12,8 +12,10 @@ machine-checked against the registry (`src/providers.ts`) and the adapters by
 
 ## Normalized capabilities
 
-ColdSearch normalizes every provider to three capabilities. Provider names never
-appear in the agent-facing interface — callers ask for a capability, not a vendor.
+ColdSearch normalizes every provider to three capabilities. For these common
+capabilities, provider names do not need to appear in the caller-facing request
+— callers ask for a capability, not a vendor. Provider-specific tools are
+tracked separately in the vendor tool surface below.
 
 | Capability | Meaning |
 |------------|---------|
@@ -107,15 +109,24 @@ vendor's own docs (linked) — they go stale fast and are intentionally not mirr
 - `/search` (general) → **search** ✅ (operator-configured `baseUrl`, optional `SEARXNG_BASE_URL`)
 - category variants (news / images / …) ❌
 
-## Unexposed surface worth considering
+## Planned provider-tool surface
 
-These are design choices, not bugs — the adapters expose the common denominator and
-skip vendor specialties. Highest-leverage gaps:
+These are active implementation targets for
+`plans/2026-06-22-pr1-provider-tool-surface.md`, except where marked deferred.
+The goal is broad provider-tool reach without lossy normalization:
 
-- **Serper** — 10 Google verticals (news, scholar, images, shopping, maps, patents…); only plain web is wired.
+- **Serper** — Google verticals such as news, images, videos, shopping, maps, places, autocomplete, and reviews; scholar and patents stay niche-deferred.
 - **Jina** — `embeddings` + `rerank` could back ColdSearch's own reranking step; plus a free `search`.
 - **Tavily `answer`/`research`** and **Exa `answer`/`research`/`findSimilar`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
-- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`plans/2026-06-22-pr2-batch-runner.md`).
+- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`plans/2026-06-22-pr3-batch-runner.md`).
+- **Brave** news, images, videos, suggest, and spellcheck — broad search-adjacent surfaces.
+- **SearXNG** category variants such as news, images, and videos.
+
+Explicitly deferred until real workflows justify them:
+
+- Firecrawl `/agent` and scrape actions that click, type, scroll, or mutate remote state.
+- Brave Data-for-AI paid context products.
+- Narrow academic/legal verticals such as scholar and patents.
 
 ## Adding a provider
 

@@ -78,7 +78,7 @@ if (strategy === "random") {
 - No guarantee of equal distribution (random is random)
 
 **What's missing:**
-- No tracking of which key was used for which request
+- No quota ledger or remaining-quota rollups by safe key reference
 - No quota awareness (may exhaust one key while others sit idle)
 - No automatic failover when a key is exhausted
 
