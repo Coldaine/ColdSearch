@@ -84,6 +84,28 @@ Rules:
 - Errors must identify config, credentials, network, provider, or unsupported-tool failures where practical.
 - Provider-tool calls must honor the same key resolution and timeout rules as normalized capabilities.
 
+## Pass-Through Parity Requirement
+
+Every provider tool added in this PR must be proven against the provider-native path. Do not count a tool as implemented just because `coldsearch tool call` returns JSON.
+
+For each in-scope tool:
+
+1. Run the provider-native API, SDK, or official CLI with a fixed request payload.
+2. Run `coldsearch tool call <provider>.<tool>` with the same request payload.
+3. Confirm both calls hit the real provider path, not a mock.
+4. Compare stable fields and result counts where the provider returns comparable output.
+5. Confirm ColdSearch preserves the provider-native payload in `raw` or documents the exact faithful subset.
+6. Record any normalization or loss. Unexplained loss is a blocker.
+
+Example for Firecrawl `map`:
+
+1. Run Firecrawl-native `POST https://api.firecrawl.dev/v2/map` with `{ "url": "https://docs.firecrawl.dev" }`.
+2. Run `coldsearch tool call firecrawl.map --json-input firecrawl-map.json --json` with the same payload.
+3. Confirm returned URLs overlap and `raw` preserves the Firecrawl response shape.
+4. Confirm usage logs show a Firecrawl provider-tool call with a safe key reference.
+
+Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provider-pass-through-proof.md) as the method. PR 1 extends that Gate 0 method from current normalized paths to newly exposed provider tools.
+
 ## Files
 
 - Modify: `src/cli.ts`
@@ -92,6 +114,7 @@ Rules:
 - Modify: `src/adapters/*.ts`
 - Modify or add: `src/tools/*`
 - Modify: `src/logging/usage.ts`
+- Create: `scripts/provider-pass-through.mjs`
 - Modify: `docs/PROVIDERS.md`
 - Modify: `docs/DEVELOPER.md`
 - Modify: `docs/architecture.md`
@@ -114,6 +137,9 @@ Rules:
 - [ ] Log provider-tool calls with provider, tool, safe key reference, timing, success/error, and run ID when present.
 - [ ] Preserve raw provider payloads in JSON output.
 - [ ] Add concise summaries only where useful and non-lossy.
+- [ ] For each provider tool, write or run a provider-native comparison probe using the same request payload.
+- [ ] Record provider-native vs ColdSearch evidence for every in-scope tool.
+- [ ] Mark any tool with unexplained provider data loss as not done.
 - [ ] Update `docs/PROVIDERS.md` so the tool matrix distinguishes wired, deferred, and niche-deferred tools.
 - [ ] Update `docs/DEVELOPER.md` with the provider-tool adapter contract.
 - [ ] Update `docs/architecture.md` status labels if the provider-tool surface becomes Current.
@@ -124,6 +150,7 @@ Rules:
 - [ ] `test/provider-tools.test.mjs`: unsupported provider/tool pairs fail without a network call.
 - [ ] `test/provider-tools.test.mjs`: raw provider payload is preserved.
 - [ ] `test/provider-tools.test.mjs`: usage log records provider-tool calls without raw secret values.
+- [ ] `test/provider-tools.test.mjs`: provider-tool handlers call the expected provider endpoint or SDK method.
 - [ ] `test/cli-integration.test.mjs`: `tool list --json` is parseable.
 - [ ] `test/cli-integration.test.mjs`: `tool call <provider>.<tool> --json-input - --json` works with a mocked adapter.
 - [ ] `test/capability-matrix-drift.test.mjs`: provider-tool docs and registry do not drift.
@@ -137,6 +164,7 @@ npm test
 npm run test:docs
 node dist/cli.js tool list --json
 echo '{"query":"coldsearch"}' | node dist/cli.js tool call tavily.answer --json-input - --json
+node scripts/provider-pass-through.mjs --provider firecrawl --tool map
 ```
 
 Expected:
@@ -145,6 +173,7 @@ Expected:
 - `tool list --json` includes the in-scope tools.
 - Provider-tool calls return JSON with `provider`, `tool`, `ok`, and `raw`.
 - Unsupported tools fail visibly and do not make provider calls.
+- Provider-native vs ColdSearch evidence exists for every in-scope tool that has credentials/endpoints available.
 - No command prints raw API keys.
 
 ## Success Criteria
@@ -152,6 +181,7 @@ Expected:
 - Broadly useful tools from every configured provider are reachable through ColdSearch.
 - Niche or high-risk tools are explicitly marked deferred, not forgotten.
 - Raw provider details survive end to end.
+- Provider-tool pass-through is proven against native provider paths, not inferred from mocks.
 - Provider-tool calls are auditable in logs.
 - The provider matrix can fail CI when docs and registry drift.
 

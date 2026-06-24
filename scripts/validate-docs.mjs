@@ -50,6 +50,7 @@ const planFiles = [
 
 for (const file of [
   "plans/2026-06-22-remaining-implementation-master-plan.md",
+  "plans/2026-06-23-gate-0-provider-pass-through-proof.md",
   ...planFiles,
   "plans/2026-06-22-epic-5-remote-agentic-execution.md",
   "docs/NORTH_STAR.md",
@@ -60,11 +61,37 @@ for (const file of [
 }
 
 const master = await read("plans/2026-06-22-remaining-implementation-master-plan.md");
+const gate0 = await read("plans/2026-06-23-gate-0-provider-pass-through-proof.md");
+const pr1 = await read("plans/2026-06-22-pr1-provider-tool-surface.md");
 for (const file of planFiles) {
   const basename = path.basename(file);
   if (!master.includes(basename)) {
     fail(`Master plan does not link ${basename}`);
   }
+}
+
+if (!master.includes("2026-06-23-gate-0-provider-pass-through-proof.md")) {
+  fail("Master plan does not link the Gate 0 provider pass-through proof plan.");
+}
+
+if (!master.includes("Provider Pass-Through Proof")) {
+  fail("Master plan is missing Gate 0 provider pass-through proof.");
+}
+
+if (!gate0.includes("provider-native") || !gate0.includes("ColdSearch")) {
+  fail("Gate 0 plan must require provider-native vs ColdSearch comparison.");
+}
+
+if (!gate0.includes("Agent mode") || !gate0.includes("does not cover")) {
+  fail("Gate 0 plan must explicitly exclude agentic testing.");
+}
+
+if (!pr1.includes("Pass-Through Parity Requirement")) {
+  fail("PR 1 plan must include the pass-through parity requirement.");
+}
+
+if (!pr1.includes("provider-native") || !pr1.includes("coldsearch tool call")) {
+  fail("PR 1 plan must require provider-native vs coldsearch tool call evidence.");
 }
 
 if (!master.includes("Non-Negotiable PR Review Pause")) {

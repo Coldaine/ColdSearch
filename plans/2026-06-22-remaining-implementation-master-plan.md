@@ -44,6 +44,7 @@ Functional now:
 
 Missing now:
 
+- Baseline provider-native vs ColdSearch pass-through evidence for every real provider path
 - Controlled provider-tool registry and CLI surface
 - Broad provider tools such as Tavily map/answer/research, Firecrawl map/structured extract/batch scrape, Exa findSimilar/answer/research, Brave verticals, Serper verticals, Jina search/rerank, and SearXNG category variants
 - Provider-tool raw payload preservation
@@ -69,7 +70,7 @@ Missing now:
 - Structured agent run IDs
 - Explicit crawl-cache policy
 
-Baseline verification before this plan split:
+Baseline offline verification before this plan split:
 
 ```bash
 npm test
@@ -77,6 +78,62 @@ npm run test:docs
 ```
 
 Expected: pass.
+
+## Gate 0: Provider Pass-Through Proof
+
+Plan: [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provider-pass-through-proof.md)
+
+Do this before PR 1. This gate exists because mocked tests and generic smoke checks do not prove that ColdSearch is a useful provider pass-through.
+
+Goal:
+
+- Prove that every currently implemented real provider path actually calls the provider, receives real results, and returns useful output through ColdSearch.
+- Compare provider-native output against ColdSearch output for the same request.
+- Identify wrappers that hide, drop, or distort provider data before building more tool surface on top.
+
+Out of scope for Gate 0:
+
+- Agentic testing.
+- LLM answer quality.
+- Remote execution.
+- Cache behavior.
+- Batch behavior.
+
+Required provider paths:
+
+| Provider | Current ColdSearch path | Provider-native path to compare |
+| --- | --- | --- |
+| Tavily | `search`, `extract`, `crawl` | Tavily HTTP API or official SDK for `/search`, `/extract`, `/crawl` |
+| Firecrawl | `search`, `extract`, `crawl` | Firecrawl HTTP API or official SDK/CLI for `/search`, `/scrape`, `/crawl` |
+| Exa | `search`, `extract`, synthesized `crawl` | Exa HTTP API or official SDK for `/search` and `/contents`; record that crawl is synthesized |
+| Brave | `search` | Brave Search HTTP API for web search |
+| Serper | `search` | Serper HTTP API for Google web search |
+| Jina | `extract` | Jina Reader HTTP endpoint |
+| SearXNG | `search` | Configured SearXNG HTTP endpoint |
+
+For each provider path:
+
+- [ ] Run the provider-native request with a fixed query or URL.
+- [ ] Run the matching ColdSearch command with the same query or URL and a single provider selected.
+- [ ] Confirm both paths hit the real provider, not a mock.
+- [ ] Confirm both paths return non-empty real results when the provider succeeds.
+- [ ] Compare stable fields that should survive wrapping: URLs, titles, snippets/content, source/provider, and provider-specific raw fields where available.
+- [ ] Record any intentional transformation or loss. Unexplained loss is a blocker.
+- [ ] Record skipped paths only when a required key or SearXNG endpoint is unavailable.
+- [ ] Do not treat missing credentials as success. Either provision the credential or get an explicit user waiver for that provider path.
+
+Example requirement:
+
+1. Run Firecrawl search through the Firecrawl-native path.
+2. Run the same Firecrawl search through ColdSearch with Firecrawl selected.
+3. Compare whether the response represents the same provider result set and whether ColdSearch preserves enough raw provider detail for later evaluation.
+
+Gate 0 success looks like:
+
+- A provider-path evidence table exists in the PR notes or a committed evidence file.
+- Every implemented provider path is `pass`, `fail`, or `waived-by-user`; none are silently skipped.
+- Failures are fixed or explicitly moved into PR 1 scope before PR 1 starts.
+- The evidence proves current wrappers are not useless normalization shells.
 
 ## Non-Negotiable PR Review Pause
 
@@ -104,6 +161,7 @@ This pause is part of the plan. Skipping it is a plan failure.
 ### Before PR 1
 
 - [ ] Start from current `origin/main`, not the stale local branch.
+- [ ] Complete Gate 0 provider pass-through proof.
 - [ ] Create a feature branch for PR 1.
 - [ ] Run `npm test`.
 - [ ] Run `npm run test:docs`.
@@ -111,6 +169,7 @@ This pause is part of the plan. Skipping it is a plan failure.
 Success looks like:
 
 - The branch starts clean from current `origin/main`.
+- Gate 0 has evidence for each implemented provider path.
 - The existing suite passes before implementation begins.
 
 ### PR 1: Provider Tool Surface
@@ -312,6 +371,7 @@ npm run test:docs
 
 Each PR plan also lists targeted CLI checks. A PR is not ready for review until:
 
+- Provider-native vs ColdSearch pass-through evidence exists for any provider path touched by the PR.
 - Its new behavior has focused tests.
 - Existing behavior remains covered.
 - Its new request/cache/provider/agent flow writes enough safe logs to reconstruct what happened.
