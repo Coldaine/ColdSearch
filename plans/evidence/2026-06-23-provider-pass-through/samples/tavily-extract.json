@@ -1,0 +1,74 @@
+{
+  "provider": "tavily",
+  "path": "extract",
+  "status": "pass",
+  "native": {
+    "ok": true,
+    "result_count": 1,
+    "sample": [
+      {
+        "title": "Welcome - Tavily Docs",
+        "url": "https://docs.tavily.com",
+        "content_length": 1657,
+        "content_preview": "## Documentation Index Fetch the complete documentation index at: </llms.txt> Use this file to discover all available pages before exploring further. ![light logo](https://mintcdn.com/tavilyai/HY1Rnt85q4usR4-R/logo/light.svg?fit=max&auto...",
+        "source": "tavily"
+      }
+    ],
+    "native_shape": [
+      "results[].title",
+      "results[].url",
+      "results[].rawContent/raw_content"
+    ]
+  },
+  "coldsearch": {
+    "ok": true,
+    "result_count": 1,
+    "sample": [
+      {
+        "title": "Welcome - Tavily Docs",
+        "url": "https://docs.tavily.com",
+        "content_length": 1657,
+        "content_preview": "## Documentation Index Fetch the complete documentation index at: </llms.txt> Use this file to discover all available pages before exploring further. ![light logo](https://mintcdn.com/tavilyai/HY1Rnt85q4usR4-R/logo/light.svg?fit=max&auto...",
+        "source": "tavily"
+      }
+    ],
+    "provider": "tavily"
+  },
+  "comparison": {
+    "passed": true,
+    "checks": [
+      {
+        "pass": true,
+        "label": "native returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "native extract content is non-empty"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch extract content is non-empty"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch preserves extracted URL identity"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch preserves provider source on extract result"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch preserves title when native provides one"
+      }
+    ],
+    "notes": [],
+    "detail_loss": [
+      "ColdSearch extract output keeps content, url, title, source; raw provider metadata is not exposed in the normalized result."
+    ]
+  }
+}

@@ -1,6 +1,10 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import {
+  ALLOWED_STATUSES,
+  REQUIRED_PROVIDER_PATHS,
+} from "./provider-pass-through.mjs";
 
 const root = process.cwd();
 const failures = [];
@@ -26,6 +30,22 @@ async function requireFile(relativePath) {
   if (!(await exists(relativePath))) {
     fail(`Missing required file: ${relativePath}`);
   }
+}
+
+async function readJsonl(relativePath) {
+  const text = await read(relativePath);
+  return text
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line, index) => {
+      try {
+        return JSON.parse(line);
+      } catch (error) {
+        fail(`${relativePath}:${index + 1} is not valid JSON: ${error.message}`);
+        return null;
+      }
+    })
+    .filter(Boolean);
 }
 
 async function walk(dir, files = []) {
@@ -155,6 +175,63 @@ if (rootResearchJson.length > 0) {
   fail(`Research JSON artifacts should not live at repo root: ${rootResearchJson.join(", ")}`);
 }
 
+const queryTokenPatterns = [
+  /([?&]|\b)jwt=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
+  /([?&]|\b)redir_token=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
+  /([?&]|\b)access_token=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
+  /([?&]|\b)api_key=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
+];
+
+const providerEvidenceTokenPatterns = [
+  ...queryTokenPatterns,
+  /\bBearer\s+(?!REDACTED\b)[A-Za-z0-9._~+/=-]+/i,
+  /\bX-API-KEY["':\s]+(?!REDACTED\b)[A-Za-z0-9._~+/=-]+/i,
+  /\bX-Subscription-Token["':\s]+(?!REDACTED\b)[A-Za-z0-9._~+/=-]+/i,
+];
+
+const providerEvidenceDir = "plans/evidence/2026-06-23-provider-pass-through";
+await requireFile(`${providerEvidenceDir}/summary.md`);
+await requireFile(`${providerEvidenceDir}/results.jsonl`);
+
+if (await exists(providerEvidenceDir)) {
+  const rows = await readJsonl(`${providerEvidenceDir}/results.jsonl`);
+  const expected = REQUIRED_PROVIDER_PATHS.map((row) => `${row.provider}:${row.path}`);
+  const seen = new Set();
+
+  for (const row of rows) {
+    const key = `${row.provider}:${row.path}`;
+    if (seen.has(key)) {
+      fail(`${providerEvidenceDir}/results.jsonl has duplicate row for ${key}`);
+    }
+    seen.add(key);
+
+    if (!ALLOWED_STATUSES.includes(row.status)) {
+      fail(`${providerEvidenceDir}/results.jsonl has unsupported status for ${key}: ${row.status}`);
+    }
+  }
+
+  for (const key of expected) {
+    if (!seen.has(key)) {
+      fail(`${providerEvidenceDir}/results.jsonl is missing required row ${key}`);
+    }
+  }
+
+  const summary = await read(`${providerEvidenceDir}/summary.md`);
+  for (const status of ALLOWED_STATUSES) {
+    if (!summary.includes(status)) {
+      fail(`${providerEvidenceDir}/summary.md does not enumerate status ${status}`);
+    }
+  }
+
+  const evidenceFiles = await walk(providerEvidenceDir);
+  for (const file of evidenceFiles) {
+    const text = await read(file);
+    if (providerEvidenceTokenPatterns.some((pattern) => pattern.test(text))) {
+      fail(`${file} appears to contain an unredacted signed URL, bearer token, or API key.`);
+    }
+  }
+}
+
 const evidenceDir = "plans/evidence/2026-06-22-remote-agentic-execution";
 if (await exists(evidenceDir)) {
   const evidenceFiles = (await walk(evidenceDir)).filter((file) => file.endsWith(".json"));
@@ -163,13 +240,7 @@ if (await exists(evidenceDir)) {
   }
   for (const file of evidenceFiles) {
     const text = await read(file);
-    const tokenPatterns = [
-      /([?&]|\b)jwt=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
-      /([?&]|\b)redir_token=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
-      /([?&]|\b)access_token=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
-      /([?&]|\b)api_key=(?!REDACTED(?:[&#"'\s]|$))[^&#"'\s]+/i,
-    ];
-    if (tokenPatterns.some((pattern) => pattern.test(text))) {
+    if (queryTokenPatterns.some((pattern) => pattern.test(text))) {
       fail(`${file} appears to contain an unredacted signed URL or API token query parameter.`);
     }
   }

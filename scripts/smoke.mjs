@@ -47,6 +47,9 @@ strategy = "random"
 [providers.jina]
 [providers.jina.keyPool]
 keys = []
+
+[cache]
+enabled = false
 `,
     args: (cfg) => ["extract", "--config", cfg, "--json", "https://example.com"],
     assert: (out) => {
@@ -60,7 +63,7 @@ keys = []
   searchCheck("brave", "BRAVE_API_KEY"),
   searchCheck("exa", "EXA_API_KEY"),
   searchCheck("serper", "SERPER_API_KEY"),
-  extractCheck("tavily", "TAVILY_API_KEY"),
+  extractCheck("tavily", "TAVILY_API_KEY", "https://docs.tavily.com"),
   extractCheck("exa", "EXA_API_KEY"),
   extractCheck("firecrawl", "FIRECRAWL_API_KEY"),
   crawlCheck("tavily", "TAVILY_API_KEY"),
@@ -79,6 +82,9 @@ strategy = "all"
 [providers.${provider}]
 [providers.${provider}.keyPool]
 keys = ["env:${envVar}"]
+
+[cache]
+enabled = false
 `,
     args: (cfg) => ["search", "--config", cfg, "--json", "--limit", "3", "openai"],
     assert: (out) => {
@@ -94,7 +100,7 @@ keys = ["env:${envVar}"]
   };
 }
 
-function extractCheck(provider, envVar) {
+function extractCheck(provider, envVar, url = "https://example.com") {
   return {
     name: `${provider} extract`,
     requiredEnv: envVar,
@@ -106,8 +112,11 @@ strategy = "random"
 [providers.${provider}]
 [providers.${provider}.keyPool]
 keys = ["env:${envVar}"]
+
+[cache]
+enabled = false
 `,
-    args: (cfg) => ["extract", "--config", cfg, "--json", "https://example.com"],
+    args: (cfg) => ["extract", "--config", cfg, "--json", url],
     assert: (out) => {
       assertEqual(out.command, "extract", "command");
       assertEqual(out.provider, provider, "provider");
@@ -132,6 +141,9 @@ strategy = "random"
 [providers.${provider}]
 [providers.${provider}.keyPool]
 keys = ["env:${envVar}"]
+
+[cache]
+enabled = false
 `,
     args: (cfg) => ["crawl", "--config", cfg, "--json", "--limit", "3", "https://docs.tavily.com"],
     assert: (out) => {
@@ -161,6 +173,9 @@ strategy = "all"
 [providers.tavily]
 [providers.tavily.keyPool]
 keys = ["env:TAVILY_API_KEY"]
+
+[cache]
+enabled = false
 `,
     args: (cfg) => ["--agent", "--llm", provider, "--model", "llama-3.1-8b-instant", "--config", cfg, "--json", "--max-steps", "2", "--max-sources", "2", "what is the capital of France"],
     assert: (out) => {

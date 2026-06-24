@@ -7,6 +7,7 @@ import path from "node:path";
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { cacheKey } from "../dist/cache/key.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -208,6 +209,29 @@ keys = ["k"]
 
 test("cli errors clearly on missing capability config", () => {
   const result = withTempDir((dir) => {
+    const cachePath = path.join(dir, "cache");
+    const key = cacheKey("extract", "https://example.com", {});
+    const cacheEntryDir = path.join(cachePath, "extract");
+    fs.mkdirSync(cacheEntryDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(cacheEntryDir, `${key}.json`),
+      JSON.stringify({
+        key,
+        payload: {
+          result: {
+            content: "cached content that must not mask missing config",
+            url: "https://example.com",
+            title: "Cached",
+            source: "jina",
+          },
+          provider: "jina",
+        },
+        created_at: Date.now(),
+        ttl_seconds: 86400,
+      }),
+      "utf8"
+    );
+
     const configPath = writeConfig(
       dir,
       `
@@ -220,6 +244,9 @@ keys = []
 
 [providers.searxng.options]
 baseUrl = "http://127.0.0.1:1"
+
+[cache]
+path = "${cachePath.replaceAll("\\", "/")}"
 `.trim()
     );
 
@@ -229,4 +256,3 @@ baseUrl = "http://127.0.0.1:1"
   assert.equal(result.status, 1);
   assert.match(result.stderr, /No configuration found for capability: extract/i);
 });
-

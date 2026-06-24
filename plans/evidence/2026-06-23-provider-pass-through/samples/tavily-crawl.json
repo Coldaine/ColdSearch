@@ -1,0 +1,92 @@
+{
+  "provider": "tavily",
+  "path": "crawl",
+  "status": "pass",
+  "native": {
+    "ok": true,
+    "result_count": 20,
+    "sample": [
+      {
+        "title": "",
+        "url": "https://docs.tavily.com/",
+        "content_length": 1657,
+        "content_preview": "## Documentation Index Fetch the complete documentation index at: </llms.txt> Use this file to discover all available pages before exploring further. ![light logo](https://mintcdn.com/tavilyai/HY1Rnt85q4usR4-R/logo/light.svg?fit=max&auto..."
+      },
+      {
+        "title": "",
+        "url": "https://docs.tavily.com/changelog",
+        "content_length": 3922,
+        "content_preview": "## Documentation Index Fetch the complete documentation index at: </llms.txt> Use this file to discover all available pages before exploring further. ![light logo](https://mintcdn.com/tavilyai/HY1Rnt85q4usR4-R/logo/light.svg?fit=max&auto..."
+      },
+      {
+        "title": "",
+        "url": "https://docs.tavily.com/welcome",
+        "content_length": 9093,
+        "content_preview": "# Welcome - Tavily Docs > ## Documentation Index > > > Fetch the complete documentation index at: [/llms.txt](https://docs.tavily.com/llms.txt) > > > Use this file to discover all available pages before exploring further. [Skip to main c..."
+      }
+    ],
+    "native_shape": [
+      "results[].title",
+      "results[].url",
+      "results[].rawContent/raw_content"
+    ]
+  },
+  "coldsearch": {
+    "ok": true,
+    "result_count": 20,
+    "sample": [
+      {
+        "title": "",
+        "url": "https://docs.tavily.com/",
+        "content_length": 1657,
+        "content_preview": "## Documentation Index Fetch the complete documentation index at: </llms.txt> Use this file to discover all available pages before exploring further. ![light logo](https://mintcdn.com/tavilyai/HY1Rnt85q4usR4-R/logo/light.svg?fit=max&auto..."
+      },
+      {
+        "title": "",
+        "url": "https://docs.tavily.com/welcome",
+        "content_length": 9093,
+        "content_preview": "# Welcome - Tavily Docs > ## Documentation Index > > > Fetch the complete documentation index at: [/llms.txt](https://docs.tavily.com/llms.txt) > > > Use this file to discover all available pages before exploring further. [Skip to main c..."
+      },
+      {
+        "title": "",
+        "url": "https://docs.tavily.com/changelog",
+        "content_length": 3922,
+        "content_preview": "## Documentation Index Fetch the complete documentation index at: </llms.txt> Use this file to discover all available pages before exploring further. ![light logo](https://mintcdn.com/tavilyai/HY1Rnt85q4usR4-R/logo/light.svg?fit=max&auto..."
+      }
+    ],
+    "provider": "tavily"
+  },
+  "comparison": {
+    "passed": true,
+    "checks": [
+      {
+        "pass": true,
+        "label": "native returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch crawl output names selected provider"
+      },
+      {
+        "pass": true,
+        "label": "native crawl includes at least one page with content"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch crawl includes at least one page with content"
+      },
+      {
+        "pass": true,
+        "label": "native and ColdSearch crawl rows overlap by URL"
+      }
+    ],
+    "notes": [],
+    "detail_loss": [
+      "ColdSearch crawl output keeps url, title, content and top-level provider; raw provider crawl job metadata is not exposed."
+    ]
+  }
+}
