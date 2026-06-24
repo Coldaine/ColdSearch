@@ -1,0 +1,113 @@
+{
+  "provider": "tavily",
+  "path": "search",
+  "status": "pass",
+  "native": {
+    "ok": true,
+    "result_count": 5,
+    "sample": [
+      {
+        "title": "OpenAI - LinkedIn",
+        "url": "https://www.linkedin.com/company/openai",
+        "snippet": "Today we're launching the [OpenAI](https://www.linkedin.com/company/openai?trk=organization_guest_main-feed-card-text) Economic Research Exchange, a new program for external researchers conducting independent research on the economic imp...",
+        "score": 0.8051581,
+        "source": "tavily"
+      },
+      {
+        "title": "It's not you guys, recent OpenAI hire admitted jobsearch was very ...",
+        "url": "https://www.reddit.com/r/OpenAI/comments/1ucuoem/its_not_you_guys_recent_openai_hire_admitted",
+        "snippet": "OpenAI is an AI research and deployment company. OpenAI's mission is to create safe and powerful AI that benefits all of humanity. We are an",
+        "score": 0.80625874,
+        "source": "tavily"
+      },
+      {
+        "title": "OpenAI - YouTube",
+        "url": "https://www.youtube.com/@OpenAI",
+        "snippet": "OpenAI's mission is to ensure that artificial general intelligence benefits all of humanity. Real stories from sales, support, finance, and ops Codex",
+        "score": 0.7734393,
+        "source": "tavily"
+      }
+    ],
+    "native_shape": [
+      "results[].title",
+      "results[].url",
+      "results[].content",
+      "results[].score"
+    ]
+  },
+  "coldsearch": {
+    "ok": true,
+    "result_count": 5,
+    "sample": [
+      {
+        "title": "OpenAI - LinkedIn",
+        "url": "https://www.linkedin.com/company/openai",
+        "snippet": "Today we're launching the [OpenAI](https://www.linkedin.com/company/openai?trk=organization_guest_main-feed-card-text) Economic Research Exchange, a new program for external researchers conducting independent research on the economic imp...",
+        "score": 0.01639344262295082,
+        "source": "tavily"
+      },
+      {
+        "title": "It's not you guys, recent OpenAI hire admitted jobsearch was very ...",
+        "url": "https://www.reddit.com/r/OpenAI/comments/1ucuoem/its_not_you_guys_recent_openai_hire_admitted",
+        "snippet": "OpenAI is an AI research and deployment company. OpenAI's mission is to create safe and powerful AI that benefits all of humanity. We are an",
+        "score": 0.016129032258064516,
+        "source": "tavily"
+      },
+      {
+        "title": "OpenAI - YouTube",
+        "url": "https://www.youtube.com/@OpenAI",
+        "snippet": "OpenAI's mission is to ensure that artificial general intelligence benefits all of humanity. Real stories from sales, support, finance, and ops Codex",
+        "score": 0.015873015873015872,
+        "source": "tavily"
+      }
+    ],
+    "providers_used": [
+      "tavily"
+    ]
+  },
+  "comparison": {
+    "passed": true,
+    "checks": [
+      {
+        "pass": true,
+        "label": "native returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch search result has title"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch search result has url"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch search result has snippet"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch search result has score"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch search result has source"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch preserves provider source on search rows"
+      },
+      {
+        "pass": true,
+        "label": "native and ColdSearch overlap by URL or title"
+      }
+    ],
+    "notes": [],
+    "detail_loss": [
+      "ColdSearch search output keeps title, url, snippet, score, source; raw provider-only fields are not exposed in the normalized result."
+    ]
+  }
+}

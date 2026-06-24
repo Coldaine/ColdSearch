@@ -2,6 +2,7 @@ import { loadConfig } from "../config.js";
 import { FanoutEngine, type FanoutOptions } from "../engine/fanout.js";
 import { CacheStore } from "../cache/cache.js";
 import { cacheKey, parseDuration } from "../cache/key.js";
+import { resolveCapabilityProviders } from "../providers.js";
 import type { Config, CrawlResult, ExtractResult, NormalizedResult } from "../types.js";
 
 type SearchResult = {
@@ -62,7 +63,15 @@ export class LocalExecutionBackend implements ExecutionBackend {
     return true;
   }
 
+  private validateCapability(capability: "search" | "extract" | "crawl", options: FanoutOptions): void {
+    resolveCapabilityProviders(this.config, capability, {
+      providers: options.providers,
+      singleProvider: options.singleProvider,
+    });
+  }
+
   async search(query: string, options: FanoutOptions): Promise<SearchResult> {
+    this.validateCapability("search", options);
     const useCache = this.shouldUseCache(options);
 
     if (useCache) {
@@ -93,6 +102,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
   }
 
   async extract(url: string, options: FanoutOptions): Promise<ExtractOutcome> {
+    this.validateCapability("extract", options);
     const useCache = this.shouldUseCache(options);
 
     if (useCache) {
@@ -122,6 +132,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
 
   crawl(url: string, options: FanoutOptions) {
     // Crawl is not cached in Phase A1.
+    this.validateCapability("crawl", options);
     return this.engine.crawl(url, options);
   }
 }

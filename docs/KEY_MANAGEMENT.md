@@ -5,6 +5,7 @@
 ### Key Storage
 
 **Where keys are stored:**
+- **Doppler-injected environment variables** - preferred operator path when available
 - **Environment variables** - `env:VAR_NAME` references
 - **Bitwarden Secrets Manager** - `bws:SECRET_NAME` or `bws:SECRET_ID` references (NEW)
 - **Config file** (`~/.config/coldsearch/config.toml`) only stores key **references**, not actual keys
@@ -43,7 +44,7 @@ export TAVILY_KEY_2="tvly-..."
 | Keys in repo | ✅ Safe | Only `env:` references |
 | Keys in config file | ✅ Safe | Only `env:` references |
 | Keys in memory | ⚠️ Vulnerable | Resolved at runtime, not encrypted |
-| Key logging | ⚠️ Risk | No explicit protection against logging |
+| Key logging | ✅ Safe by reference | `safeKeyRef()` logs env/BWS/literal references, never resolved secret values |
 | Key rotation | ✅ Supported | Round-robin or random selection |
 
 ### Current Key Pool (As Configured)
@@ -77,22 +78,30 @@ if (strategy === "random") {
 - No guarantee of equal distribution (random is random)
 
 **What's missing:**
-- No tracking of which key was used for which request
+- No quota ledger or remaining-quota rollups by safe key reference
 - No quota awareness (may exhaust one key while others sit idle)
 - No automatic failover when a key is exhausted
 
 ---
 
-## Usage Tracking (NOT IMPLEMENTED)
+## Usage Tracking (Implemented, Not Quota-Aware)
 
-### Current Gap
+### Current State
 
-**We have ZERO visibility into:**
+ColdSearch writes usage JSONL after adapter invocations. The log path is configured under `[logging.usage]` and defaults to:
+
+```text
+~/.config/coldsearch/usage.jsonl
+```
+
+Each entry records provider, capability, safe key reference, success/failure, response time, and error text when present. The current log is useful for audit and debugging, but it is not yet a quota ledger.
+
+**Still missing:**
 - Remaining quota per key
-- Requests made per key
-- Cost per request
-- Which key failed and why
-- Historical usage patterns
+- Provider-specific cost per request
+- Quota-aware key choice
+- Automatic key suspension when a provider rejects or exhausts a key
+- Richer cache/provider/agent flow logs
 
 ### Why This Matters
 
@@ -105,11 +114,11 @@ if (strategy === "random") {
 | Jina | 1M tokens free | ~$0.02/M tokens | 100 RPM |
 | Firecrawl | 500 credits | ~$0.005/credit | Varies |
 
-**Without tracking, you will:**
+**Without quota-aware tracking, you may still:**
 - Hit rate limits unexpectedly
 - Exhaust credits on one key while others have plenty
-- Have no visibility into costs
-- Fail requests with no warning
+- Have incomplete visibility into provider-specific costs
+- Need to inspect logs manually after failures
 
 ---
 
@@ -136,10 +145,10 @@ const key = keys
   .sort((a, b) => b.remainingQuota - a.remainingQuota)[0];
 ```
 
-### 2. Usage Persistence
+### 2. Usage Persistence Hardening
 
-**Current:** Nothing persisted  
-**Needed:** SQLite or file-based tracking
+**Current:** JSONL usage log
+**Needed:** richer quota/cost tracking if provider economics require it
 
 ```typescript
 // Proposed schema
@@ -154,10 +163,10 @@ interface UsageRecord {
 }
 ```
 
-**Storage options:**
+**Possible future storage options:**
 - SQLite: `~/.config/coldsearch/usage.db`
-- JSONL: `~/.config/coldsearch/usage.jsonl`
-- External: PostHog, analytics service
+- Existing JSONL with rollups
+- External observability only if explicitly chosen
 
 ### 3. Provider-Specific Quota Fetching
 
@@ -264,9 +273,10 @@ coldsearch config set alert.webhook "https://hooks.slack.com/..."
 - [ ] Document actual key count in `~/.config/coldsearch/.keys` (secure file)
 
 ### Short Term (This Week)
-- [ ] Implement usage logging to JSONL
-- [ ] Add `--dry-run` flag to estimate cost
-- [ ] Create `coldsearch status` command
+- [x] Implement usage logging to JSONL
+- [x] Add `--dry-run` execution planner
+- [x] Create `coldsearch status` command
+- [ ] Add richer cache/provider/agent flow logging
 
 ### Medium Term (This Month)
 - [ ] Build quota estimation from usage patterns

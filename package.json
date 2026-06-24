@@ -14,7 +14,7 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test --test-reporter=dot test/*.test.mjs test/adapters/*.test.mjs",
-    "test:docs": "npm run build && node --test test/capability-matrix-drift.test.mjs",
+    "test:docs": "npm run build && node --test test/capability-matrix-drift.test.mjs && node scripts/validate-docs.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

@@ -9,3 +9,27 @@ competitor-analysis/
 # AI coding assistant artifacts
 .omc/
 .opencode/
+
+# Local research scratch outputs; durable evidence belongs under plans/evidence/
+.research/
+parallel-cli-output/
+/agent-frameworks*.json
+/agent-products-specific.json
+/coldsearch-*.json
+/hermes-agent-research.json
+/hatchet-2026.json
+/inngest-2026.json
+/trigger-dev-2026.json
+/cloudflare-agents-2026.json
+/composio-rivet.json
+/crewai-language.json
+/language-support-check.json
+/langchain-js-2026.json
+/langgraph-js-2026.json
+/llamaindex-ts-2026.json
+/mastra-2026.json
+/memory-orchestration-frameworks.json
+/openai-agents-js-2026.json
+/pydanticai-adk.json
+/stagehand-2026.json
+/ts-agent-frameworks.json

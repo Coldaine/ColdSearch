@@ -1,0 +1,94 @@
+{
+  "provider": "exa",
+  "path": "crawl",
+  "status": "pass",
+  "native": {
+    "ok": true,
+    "result_count": 3,
+    "sample": [
+      {
+        "title": "Welcome - Tavily Docs",
+        "url": "https://docs.tavily.com",
+        "content_length": 930,
+        "content_preview": "> ## Documentation Index > > Fetch the complete documentation index at: https://docs.tavily.com/llms.txt > Use this file to discover all available pages before exploring further. # Welcome > For AI agents: Start with https://docs.tavily...."
+      },
+      {
+        "title": "Agents - Tavily Docs",
+        "url": "https://docs.tavily.com/agents",
+        "content_length": 6940,
+        "content_preview": "> ## Documentation Index > > Fetch the complete documentation index at: https://docs.tavily.com/llms.txt > Use this file to discover all available pages before exploring further. # Agents > The canonical setup guide for AI agents and the..."
+      },
+      {
+        "title": "SDK Reference - Tavily Docs",
+        "url": "https://docs.tavily.com/sdk/javascript/reference",
+        "content_length": 12000,
+        "content_preview": "> ## Documentation Index > > Fetch the complete documentation index at: https://docs.tavily.com/llms.txt > Use this file to discover all available pages before exploring further. # SDK Reference > Integrate Tavily's powerful APIs nativel..."
+      }
+    ],
+    "native_shape": [
+      "search results discovery",
+      "contents results[].title/url/text"
+    ],
+    "synthesized_crawl": true
+  },
+  "coldsearch": {
+    "ok": true,
+    "result_count": 3,
+    "sample": [
+      {
+        "title": "Welcome - Tavily Docs",
+        "url": "https://docs.tavily.com",
+        "content_length": 930,
+        "content_preview": "> ## Documentation Index > > Fetch the complete documentation index at: https://docs.tavily.com/llms.txt > Use this file to discover all available pages before exploring further. # Welcome > For AI agents: Start with https://docs.tavily...."
+      },
+      {
+        "title": "Agents - Tavily Docs",
+        "url": "https://docs.tavily.com/agents",
+        "content_length": 6940,
+        "content_preview": "> ## Documentation Index > > Fetch the complete documentation index at: https://docs.tavily.com/llms.txt > Use this file to discover all available pages before exploring further. # Agents > The canonical setup guide for AI agents and the..."
+      },
+      {
+        "title": "SDK Reference - Tavily Docs",
+        "url": "https://docs.tavily.com/sdk/javascript/reference",
+        "content_length": 12000,
+        "content_preview": "> ## Documentation Index > > Fetch the complete documentation index at: https://docs.tavily.com/llms.txt > Use this file to discover all available pages before exploring further. # SDK Reference > Integrate Tavily's powerful APIs nativel..."
+      }
+    ],
+    "provider": "exa"
+  },
+  "comparison": {
+    "passed": true,
+    "checks": [
+      {
+        "pass": true,
+        "label": "native returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch returned non-empty results"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch crawl output names selected provider"
+      },
+      {
+        "pass": true,
+        "label": "native crawl includes at least one page with content"
+      },
+      {
+        "pass": true,
+        "label": "ColdSearch crawl includes at least one page with content"
+      },
+      {
+        "pass": true,
+        "label": "native and ColdSearch crawl rows overlap by URL"
+      }
+    ],
+    "notes": [
+      "Exa crawl is synthesized by search discovery plus contents/livecrawl, not a native crawl endpoint."
+    ],
+    "detail_loss": [
+      "ColdSearch crawl output keeps url, title, content and top-level provider; raw provider crawl job metadata is not exposed."
+    ]
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "search_id": "search_d298d2f7905841e3bec03ab6bf69b390",
+  "session_id": "session_d298d2f7905841e3bec03ab6bf69b390",
+  "status": "ok",
+  "results": [
+    {
+      "url": "https://www.npmjs.com/package/ai",
+      "title": "ai - npm",
+      "publish_date": "2026-06-04",
+      "excerpts": [
+        "import { anthropic } from '@ai-sdk/anthropic' ; \n\n const result = await generateText ( { \n  model : anthropic ( 'claude-opus-4-6' ) , // or openai('gpt-5.4'), google('gemini-3-flash'), etc. \n  prompt : 'Hello!' , \n } ) ;\n```\n\n## Usage\n\n### Generating Text\n\n```\nimport { generateText } from 'ai' ; \n\n const { text } = await generateText ( { \n  model : 'openai/gpt-5.4' , // use Vercel AI Gateway \n  prompt : 'What is an agent?' , \n } ) ;\n```\n\n### Generating Structured Data\n\n```\nimport { generateText , Output } from 'ai' ; \n import { z } from 'zod' ; \n\n const { output } = await generateText ( { \n  model : 'openai/gpt-5.4' , \n  output : Output . object ( { \n    schema : z . object ( { \n      recipe : z . object ( { \n        name : z . string ( ) , \n        ingredients : z . array ( \n          z . object ( { name : z . string ( ) , amount : z . string ( ) } ) , \n        ) , \n        steps : z . array ( z . string ( ) ) , \n      } ) , \n    } ) , \n  } ) , \n  prompt : 'Generate a lasagna recipe.\n' , \n } ) ;\n```\n\n### Agents\n\n```\nimport { ToolLoopAgent } from 'ai' ; \n\n const sandboxAgent = new ToolLoopAgent ( { \n  model : 'openai/gpt-5.4' , \n  system : 'You are an agent with access to a shell environment.' , \n  tools : { \n    shell : openai . tools . localShell ( { \n      execute : async ( { action } ) => { \n        const [ cmd , ... args ] = action . command ; \n        const sandbox = await getSandbox ( ) ; // Vercel Sandbox \n        const command = await sandbox . runCommand ( { cmd , args } ) ; \n        return { output : await command . stdout ( ) } ; \n      } , \n    } ) , \n  } , \n } ) ;\n```\n\n### UI Integration\n\nThe [AI SDK UI](https://ai-sdk.dev/docs/ai-sdk-ui/overview) module provides a set of hooks that help you build chatbots and generative user interfaces. These hooks are framework agnostic, so they can be used in Next.js, React, Svelte, and Vue.\n\nYou need to install the package for your framework, e.g.:\n\n```\nnpm install @ai-sdk/react\n```\n#### Agent @/agent/image-generation-agent.ts\n\n```\nimport { openai } from '@ai-sdk/openai' ; \n import { ToolLoopAgent , InferAgentUIMessage } from 'ai' ; \n\n export const imageGenerationAgent = new ToolLoopAgent ( { \n  model : 'openai/gpt-5.4' , \n  tools : { \n    generateImage : openai . tools . imageGeneration ( { \n      partialImages : 3 , \n    } ) , \n  } , \n } ) ; \n\n export type ImageGenerationAgentMessage = InferAgentUIMessage < \n  typeof imageGenerationAgent \n > ;\n```\n\n#### Route (Next.js App Router) @/app/api/chat/route.ts\n\n```\nimport { imageGenerationAgent } from '@/agent/image-generation-agent' ; \n import {"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@openai/agents",
+      "title": "@openai/agents - npm",
+      "publish_date": "2026-04-21",
+      "excerpts": [
+        "# @openai/agents\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n0\\.11.6 \u2022 Public \u2022 Published 17 days ago\n\n* Readme\n* Code Beta\n* 5 Dependencies\n* 162 Dependents\n* 83 Versions\n\n# OpenAI Agents SDK (JavaScript/TypeScript)\n\n[npm version](https://badge.fury.io/js/@openai%2Fagents) [CI](https://github.com/openai/openai-agents-js/actions/workflows/test.yml)\n\nThe OpenAI Agents SDK is a lightweight yet powerful framework for building multi-agent workflows in JavaScript/TypeScript. It is provider-agnostic, supporting OpenAI APIs and more.\n\n[Image of the Agents Tracing UI](https://camo.githubusercontent.com/161e058e913301d37f41ce953af676421deb4ad764cbeabaab37430ceabb59ee/68747470733a2f2f63646e2e6f70656e61692e636f6d2f4150492f646f63732f696d616765732f6f726368657374726174696f6e2e706e67)\n\n> [!NOTE] Looking for the Python version? Check out [OpenAI Agents SDK Python](https://github.com/openai/openai-agents-python) .\n> \n> \n\n## Core concepts\n\n1.\n[**Agents**](https://openai.github.io/openai-agents-js/guides/agents) : LLMs configured with instructions, tools, guardrails, and handoffs\n2. [**Sandbox Agents**](https://openai.github.io/openai-agents-js/guides/sandbox-agents) : Agents paired with a filesystem workspace and sandbox environment for longer-running work\n3. **[Agents as tools](https://openai.github.io/openai-agents-js/guides/tools/) / [Handoffs](https://openai.github.io/openai-agents-js/guides/handoffs/)** : Delegating to other agents for specific tasks\n4. [**Tools**](https://openai.github.io/openai-agents-js/guides/tools/) : Various Tools let agents take actions (functions, MCP, hosted tools)\n5. [**Guardrails**](https://openai.github.io/openai-agents-js/guides/guardrails/) : Configurable safety checks for input and output validation\n6. [**Human in the loop**](https://openai.github.io/openai-agents-js/guides/human-in-the-loop/) : Built-in mechanisms for involving humans across agent runs\n7. [**Sessions**](https://openai.\ngithub.io/openai-agents-js/guides/sessions/) : Automatic conversation history management across agent runs\n8. [**Tracing**](https://openai.github.io/openai-agents-js/guides/tracing/) : Built-in tracking of agent runs, allowing you to view, debug and optimize your workflows\n9. [**Realtime Agents**](https://openai.github.io/openai-agents-js/guides/voice-agents/quickstart/) : Build powerful voice agents with full features\n\nExplore the [`examples/`](https://github.com/openai/openai-agents-js/tree/main/examples) directory to see the SDK in action.\n\n## Get started\n\n### Supported environments\n\n* Node.js 22 or late"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@openai/agents-openai",
+      "title": "@openai/agents-openai - npm",
+      "publish_date": "2026-04-06",
+      "excerpts": [
+        "# @openai/agents-openai\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n0\\.11.1 \u2022 Public \u2022 Published 6 hours ago\n\n* Readme\n* Code Beta\n* 3 Dependencies\n* 4 Dependents\n* 77 Versions\n\n# OpenAI Agents SDK\n\nThe OpenAI Agents SDK is a lightweight yet powerful framework for building multi-agent workflows.\n\n## Installation\n\n```\nnpm install @openai/agents\n```\n\n## License\n\nMIT\n\n## Readme\n\n### Keywords\n\n* openai\n* agents\n* ai\n* agentic\n\n# Provenance\n\nShare feedback\n\n## Package Sidebar\n\n### Install\n\n`npm i @openai/agents-openai`\n\n### Repository\n\n[github.com/openai/openai-agents-js](https://github.com/openai/openai-agents-js)\n\n### Homepage\n\n[openai.github.io/openai-agents-js/](https://openai.github.io/openai-agents-js/)\n\n### Weekly Downloads\n\n703,103\n\n### Version\n\n0\\.11.1\n\n### License\n\nMIT\n\n### Last publish\n\n6 hours ago\n\n### Collaborators\n\n* dylan-hurd-openai\n  \n  dylan-hurd-openai\n* moustafa-openai\n  \n  moustafa-openai\n* tylersmith-openai\n  \n  tylersmith-openai\n* atty-openai\n  \n  atty-openai\n* tibo-openai\n  \n  tibo-openai\n* dkundel-openai\n  \n  dkundel-openai\n* mbolin-openai\n  \n  mbolin-openai\n* fouad-openai\n  \n  fouad-openai\n* easong-openai\n  \n  easong-openai\n* aibrahim-openai\n  \n  aibrahim-openai\n* apcha-oai\n  \n  apcha-oai\n* seratch-openai\n  \n  seratch-openai\n* gabor-openai\n  \n  gabor-openai\n\n[**Analyze security** with Socket](https://socket.dev/npm/package/%40openai%2Fagents-openai) [**Check bundle size**](https://bundlephobia.com/package/%40openai%2Fagents-openai) [**View package health**](https://snyk.io/advisor/npm-package/%40openai%2Fagents-openai) [**Explore dependencies**](https://npmgraph.js.org/?q=%40openai%2Fagents-openai)\n\n**Report** malware\n\n## Footer\n\n[](https://github.com/npm)\n\n[](https://github.com)\n\n### Support\n\n* [Help](https://docs.npmjs.com)\n* [Advisories](https://github.com/advisories)\n* [Status](http://status.npmjs.org/)\n* Contact npm\n\n### Company\n\n* About\n* [Blog](https://github.blog/tag/npm/)\n* Press\n### Terms & Policies\n\n* Policies\n* Terms of Use\n* Code of Conduct\n* Privacy"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/%40mastra/core",
+      "title": "@mastra/core - npm",
+      "publish_date": null,
+      "excerpts": [
+        "# @mastra/core\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n1\\.45.0 \u2022 Public \u2022 Published 3 days ago\n\n* Readme\n* Code Beta\n* 27 Dependencies\n* 293 Dependents\n* 1,293 Versions\n\n# @mastra/core\n\nMastra is a framework for building AI-powered applications and agents with a modern TypeScript stack.\n\nIt includes everything you need to go from early prototypes to production-ready applications. Mastra integrates with frontend and backend frameworks like React, Next.js, and Node, or you can deploy it anywhere as a standalone server. It's the easiest way to build, tune, and scale reliable AI products.\n\nThis is the `@mastra/core` package, which includes the main functionality of Mastra, including agents, workflows, tools, and memory.\n\n## Installation\n\n`@mastra/core` is an essential building block for a Mastra application and you most likely don't want to use it as a standalone package. Therefore we recommend following the [installation guide](https://mastra.\nai/docs/getting-started/installation) to get started with Mastra.\n\nYou can install the package like so:\n\n```\nnpm install @mastra/core\n```\n\n## Core Components\n\n* **Mastra** ( `/mastra` ) - Central orchestration class that initializes and coordinates all Mastra components. Provides dependency injection for agents, workflows, tools, memory, storage, and other services through a unified configuration interface. [Learn more about Mastra](https://mastra.ai/docs/getting-started/installation)\n* **Agents** ( `/agent` ) - Autonomous AI entities that understand instructions, use tools, and complete tasks. Encapsulate LLM interactions with conversation history, tool execution, memory integration, and behavioral guidelines. [Learn more about Agents](https://mastra.ai/docs/agents/overview)\n* **Workflows** ( `/workflows` ) - Graph-based execution engine for chaining, branching, and parallelizing LLM calls. Orchestrates complex AI tasks with state management, error recovery, and conditional logic.\n[Learn more about Workflows](https://mastra.ai/docs/workflows/overview)\n* **Tools** ( `/tools` ) - Functions that agents can invoke to interact with external systems. Each tool has a schema and description enabling AI to understand and use them effectively. Supports custom tools, toolsets, and runtime context. [Learn more about Tools](https://mastra.ai/docs/tools-mcp/overview)\n* **Memory** ( `/memory` ) - Thread-based conversation persistence with semantic recall and working memory capabilities. Stores conversation history, retrieves contextually relevant information, and maintains agent s"
+      ]
+    },
+    {
+      "url": "https://npmx.dev/package/%40mastra/core",
+      "title": "@mastra/core - npmx",
+      "publish_date": null,
+      "excerpts": [
+        "View all versions View community adoption distribution\n\n1\\.42.1\n\nlatest\n\nJun 17, 2026\n\n1\\.42.0-alpha.4\n\nalpha\n\nJun 12, 2026\n\n1\\.1.0-alpha.2\n\nbeta\n\nJan 30, 2026\n\n0\\.0.0-zod-v4-stuff-20250825154219\n\nzod-v4-stuff\n\nAug 25, 2025\n\n0\\.0.0-zod-v4-compat-part-2-20250822105954\n\nzod-v4-compat-part-2\n\nAug 22, 2025\n\n0\\.0.0-yj-ab-demo-20260604080218\n\nyj-ab-demo\n\nJun 4, 2026\n\n0\\.0.0-working-memory-undefined-20260212204651\n\nworking-memory-undefined\n\nFeb 12, 2026\n\n0\\.0.0-working-memory-per-user-20250620163010\n\nworking-memory-per-user\n\nJun 20, 2025\n\n0\\.0.0-workflow-timeout-issue-20260220185702\n\nworkflow-timeout-issue\n\nFeb 20, 2026\n\n0\\.0.0-workflow-graph-crash-20260527191009\n\nworkflow-graph-crash\n\nMay 27, 2026\n\nOther versions (325 more tagged)\n\n## Readme\n\ncopy\n\n### @mastra/core\n\nMastra is a framework for building AI-powered applications and agents with a modern TypeScript stack.\n\nIt includes everything you need to go from early prototypes to production-ready applications.\nMastra integrates with frontend and backend frameworks like React, Next.js, and Node, or you can deploy it anywhere as a standalone server. It's the easiest way to build, tune, and scale reliable AI products.\n\nThis is the `@mastra/core` package, which includes the main functionality of Mastra, including agents, workflows, tools, and memory.\n\n#### Installation\n\n`@mastra/core` is an essential building block for a Mastra application and you most likely don't want to use it as a standalone package. Therefore we recommend following the [installation guide](https://mastra.ai/docs/getting-started/installation) to get started with Mastra.\n\nYou can install the package like so:\n\nCopy code\n\n```\nnpm  install  @mastra/core\n```\n\n#### Core Components\n\n* **Mastra** ( `/mastra` ) - Central orchestration class that initializes and coordinates all Mastra components. Provides dependency injection for agents, workflows, tools,\nmemory, storage, and other services through a unified configuration interface. [Learn more about Mastra](https://mastra.ai/docs/getting-started/installation)\n* **Agents** ( `/agent` ) - Autonomous AI entities that understand instructions, use tools, and complete tasks. Encapsulate LLM interactions with conversation history, tool\n  execution, memory integration, and behavioral guidelines. [Learn more about Agents](https://mastra.ai/docs/agents/overview)\n* **Workflows** ( `/workflows` ) - Graph-based execution engine for chaining, branching, and parallelizing LLM calls. Orchestrates complex AI tasks with state management,\n  error recovery, and conditional logic. [Learn more about Workflows](h"
+      ]
+    },
+    {
+      "url": "https://github.com/mastra-ai/mastra",
+      "title": "GitHub - mastra-ai/mastra: From the team behind Gatsby, Mastra is a framework for building AI-powered applications and agents with a modern TypeScript stack. \u00b7 GitHub",
+      "publish_date": "2026-06-12",
+      "excerpts": [
+        "(default: \"openai\", options: \"openai\", \"anthropic\", \"groq\", \"google\", \"cerebras\", \"mistral\")\nProvider rules:\n\nAllowed provider -> use it.\nAny other value -> use \"openai\".\nRun with answers: npm create mastra@latest < project-name > --default --llm < provider >\n\nAfter project created, go to project dir. Start dev server: npx bgproc start -n < project-name > -w -- npm run dev\n\nStart Mastra Studio at http://localhost:4111 . Studio = UI for build, test, manage agents, workflows, tools.\n\nAlso tell: Mastra model router give 3000+ models from many providers: https://mastra.ai/models\n```\n\n## Documentation\n\nVisit our [official documentation](https://mastra.ai/docs) .\n\n## Build with AI\n\nLearn how to make your agent a Mastra expert by following the [Build with AI guide](https://mastra.ai/docs/getting-started/build-with-ai) .\n\n## Contributing\n\nLooking to contribute? All types of help are appreciated, from coding to testing and feature specification. Read CONTRIBUTING.\nmd for more details on how to get involved.\n\nIf you are a developer and would like to contribute with code, please open an issue to discuss before opening a Pull Request.\n\nInformation about the project setup can be found in the development documentation\n\n## Support\n\nWe have an [open community Discord](https://discord.gg/BTYqqHKUrf) . Come and say hello and let us know if you have any questions or need any help getting things running.\n\nIt's also super helpful if you leave the project a star here, at the [top of the page](https://github.com/mastra-ai/mastra)\n\n## Licensing\n\nThis repository uses a dual-license model:\n\n* **Apache License 2.0** \u2014 The core framework and the vast majority of this codebase is open source under Apache-2.0.\n* **Mastra Enterprise License** \u2014 Code in any directory named `ee/` (e.g., `packages/core/src/auth/ee/` ) is source-available under the Mastra Enterprise License.\nThese features require a valid enterprise license for production use but can be freely used for development and testing.\n\nSee LICENSE.md for the full license mapping and ee/LICENSE for the enterprise license terms.\n\n## Security\n\nWe are committed to maintaining the security of this repo and of Mastra as a whole. If you discover a security finding we ask you to please responsibly disclose this to us at security@mastra.ai and we will get back to you.\n\n## About\n\nMastra is the modern TypeScript framework for AI-powered applications and agents.\n\n[mastra.ai](https://mastra.ai \"https://mastra.ai\")\n\n### Topics\n\n### Resources\n\nReadme\n\n### License\n\nView license\n\n### Code of conduct\n\nCode of conduct\n\n### Contributing"
+      ]
+    },
+    {
+      "url": "https://www.generative.inc/mastra-ai-the-complete-guide-to-the-typescript-agent-framework-2026",
+      "title": "Mastra AI: Complete TypeScript Agent Framework Guide ...",
+      "publish_date": null,
+      "excerpts": [
+        "Mastra AI: Complete TypeScript Agent Framework Guide ...\nMastra is an open-source TypeScript framework for building AI agents, workflows, and retrieval-augmented generation (RAG) pipelines. It launched in October 2024, reached 22,000+ GitHub stars within 15 months, and hit 300,000+ weekly npm downloads by its 1.0 release in January 2026."
+      ]
+    },
+    {
+      "url": "https://pyshine.com/Mastra-TypeScript-AI-Agent-Framework",
+      "title": "Mastra: TypeScript AI Agent Framework from the Gatsby Team | PyShine",
+      "publish_date": "2026-05-01",
+      "excerpts": [
+        "AI Agents TypeScript Developer Tools\n\n# Mastra: TypeScript AI Agent Framework from the Gatsby Team\n\n01 May 2026 \u00b7 23 mins read\n\n### Contents\n\n## What is Mastra?\n\nMastra is a **TypeScript AI agent framework** built by the team behind Gatsby, the popular React-based static site generator. With over 23,000 stars on GitHub and backing from Y Combinator (W25 batch), Mastra provides everything TypeScript developers need to build, tune, and scale production-ready AI applications. It integrates seamlessly with React, Next.js, and Node.js, or can be deployed as a standalone server.\n\nThe framework takes a batteries-included approach: agents, workflows, evals, MCP servers, memory management, and observability are all available out of the box. Instead of stitching together dozens of libraries, you get a cohesive, type-safe TypeScript stack designed around established AI patterns.\n\n## Architecture Overview\nMastra is organized as a monorepo with a core package ( `@mastra/core` ) that serves as the central hub, surrounded by specialized packages for agents, workflows, MCP, evals, memory, RAG, and more. The architecture supports multiple storage backends and deployment targets.\n\nMastra Architecture Overview\n\nThe diagram above illustrates the full architecture. At the top, developers enter through the CLI ( `npm create mastra@latest` ). The core framework ( `@mastra/core` ) connects to six primary packages: Agents for autonomous reasoning, Workflows for step-based orchestration, MCP for protocol servers, Evals for quality scoring, Memory for context management, and Tools for function binding. Supporting packages include RAG for retrieval, Voice for TTS/STT, Observability for traces and metrics, and Auth for RBAC security. Storage backends range from LibSQL and PostgreSQL to DuckDB and Redis. Deployment targets include Vercel, Cloudflare, Netlify, and standalone Node.js servers."
+      ]
+    },
+    {
+      "url": "https://app.unpkg.com/%40mastra/core%401.2.0/files/types.d.ts",
+      "title": "mastra/core",
+      "publish_date": null,
+      "excerpts": [
+        "mastra/core\nMastra is a framework for building AI-powered applications and agents with a modern TypeScript stack. mastra.ai \u00b7 mastra-ai/mastra \u00b7 @mastra/core / types.d.ts."
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@mastra/client-js?activeTab=versions",
+      "title": "@mastra/client-js - npm",
+      "publish_date": "2026-06-04",
+      "excerpts": [
+        "# @mastra/client-js\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n1\\.26.0 \u2022 Public \u2022 Published 3 days ago\n\n* Readme\n* Code Beta\n* 7 Dependencies\n* 28 Dependents\n* 1,164 Versions\n\n# Mastra Client\n\nJavaScript/TypeScript client library for the [Mastra AI](https://mastra.ai) framework. This client provides a simple interface to interact with Mastra AI's APIs for agents, vectors, memory, tools, and workflows.\n\n## Installation\n\n```\nnpm install @mastra/client-js\n```\n\n## Quick Start\n\n```\nimport { MastraClient } from '@mastra/client-js' ; \n\n // Initialize the client \n const client = new MastraClient ( { \n  baseUrl : 'http://localhost:4111' , // Your Mastra API endpoint \n } ) ; \n\n // Example: Working with an Agent \n async function main ( ) { \n  // Get an agent instance \n  const agent = client . getAgent ( 'your-agent-id' ) ; \n\n  // Generate a response \n  const response = await agent . generate ( [ { role : 'user' , content : \"What's the weather like today?\n\" } ] ) ; \n\n  console . log ( response ) ; \n }\n```\n\n## Client Configuration\n\nThe client can be configured with several options:\n\n```\nconst client = new MastraClient ( { \n    baseUrl : string ;           // Base URL for the Mastra API \n    retries ?: number ;          // Number of retry attempts (default: 3) \n    backoffMs ?: number ;        // Initial backoff time in ms (default: 300) \n    maxBackoffMs ?: number ;     // Maximum backoff time in ms (default: 5000) \n    headers ?: Record < string , string > ; // Custom headers \n } ) ;\n```\n\n## Available Methods\n\n### Agents\n\n* `listAgents()` : Get all available agents\n* `getAgent(agentId)` : Get a specific agent instance\n  \n    + `agent.details()` : Get agent details\n* `agent.generate(params)` : Generate a response\n  \n    + `agent.generateLegacy(params)` : Legacy API for generating a response (V1 models)\n    + `agent.stream(params)` : Stream a response\n    + `agent.streamLegacy(params)` : Legacy API for streaming a response (V1 models)"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@ai-sdk/openai",
+      "title": "@ai-sdk/openai - npm",
+      "publish_date": "2026-06-04",
+      "excerpts": [
+        "# @ai-sdk/openai\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n3\\.0.73 \u2022 Public \u2022 Published 4 days ago\n\n* Readme\n* Code Beta\n* 2 Dependencies\n* 2423 Dependents\n* 576 Versions\n\n# AI SDK - OpenAI Provider\n\nThe **[OpenAI provider](https://ai-sdk.dev/providers/ai-sdk-providers/openai)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the OpenAI chat and completion APIs and embedding model support for the OpenAI embeddings API.\n\n> **Deploying to Vercel?** With Vercel's AI Gateway you can access OpenAI (and hundreds of models from other providers) \u2014 no additional packages, API keys, or extra cost. [Get started with AI Gateway](https://vercel.com/ai-gateway) .\n> \n> \n\n## Setup\n\nThe OpenAI provider is available in the `@ai-sdk/openai` module. You can install it with\n\n```\nnpm i @ai-sdk/openai\n```\n\n## Skill for Coding Agents\nIf you use coding agents such as Claude Code or Cursor, we highly recommend adding the AI SDK skill to your repository:\n\n```\nnpx skills add vercel/ai\n```\n\n## Provider Instance\n\nYou can import the default provider instance `openai` from `@ai-sdk/openai` :\n\n```\nimport { openai } from '@ai-sdk/openai' ;\n```\n\n## Example\n\n```\nimport { openai } from '@ai-sdk/openai' ; \n import { generateText } from 'ai' ; \n\n const { text } = await generateText ( { \n  model : openai ( 'gpt-5-mini' ) , \n  prompt : 'Write a vegetarian lasagna recipe for 4 people.' , \n } ) ;\n```\n\n## Documentation\n\nPlease check out the **[OpenAI provider documentation](https://ai-sdk.dev/providers/ai-sdk-providers/openai)** for more information.\n\n## Readme\n\n### Keywords\n\n* ai\n\n# Provenance\n\nShare feedback\n\n## Package Sidebar\n\n### Install\n\n`npm i @ai-sdk/openai`\n\n### Repository\n\n[github.com/vercel/ai](https://github.com/vercel/ai)\n\n### Homepage\n\n[ai-sdk.dev/docs](https://ai-sdk.dev/docs)\n\n### Weekly Downloads\n\n7,340,667"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/mastra",
+      "title": "mastra - npm",
+      "publish_date": "2026-05-20",
+      "excerpts": [
+        "Failed to fetch provenance details for mastra@1.13.0. Please try reloading the page.\n\n\u00d7\n\n# mastra\n\nTypeScript icon, indicating that this package has built-in type declarations\n\n1\\.13.0 \u2022 Public \u2022 Published 5 days ago\n\n* Readme\n* Code Beta\n* 23 Dependencies\n* 20 Dependents\n* 1,325 Versions\n\n# Mastra CLI\n\n[Mastra Cli](https://github.com/mastra-ai/mastra/blob/main/packages/cli/mastra-cli.png)\n\nMastra is a framework for building AI-powered applications and agents with a modern TypeScript stack.\n\nIt includes everything you need to go from early prototypes to production-ready applications. Mastra integrates with frontend and backend frameworks like React, Next.js, and Node, or you can deploy it anywhere as a standalone server. It's the easiest way to build, tune, and scale reliable AI products.\n\n`mastra` is Mastra's CLI package and allows you to:\n\n* Create a new project\n* Spin up the Mastra dev server\n* Build your Mastra project so that you can deploy it anywhere\n\n## Usage\nAfter installing `mastra` globally you can use it anywhere.\n\n```\nnpm i -g mastra\n```\n\nIf you prefer to not install packages globally, you can use `npx` :\n\n```\nnpx mastra\n```\n\n## Commands\n\nFind all available commands in the [CLI commands reference](https://mastra.ai/reference/cli/mastra) .\n\n# Provenance\n\n# Failed to load provenance\n\nTry Again\n\nShare feedback\n\n## Package Sidebar\n\n### Install\n\n`npm i mastra`\n\n### Repository\n\n[github.com/mastra-ai/mastra](https://github.com/mastra-ai/mastra)\n\n### Homepage\n\n[mastra.ai](https://mastra.ai)\n\n### Weekly Downloads\n\n349,364\n\n### Version\n\n1\\.13.0\n\n### License\n\nApache-2.0\n\n### Last publish\n\n15 hours ago\n\n### Collaborators\n\n* ehindero\n  \n  ehindero\n* rase-\n  \n  rase-\n* abhiaiyer\n  \n  abhiaiyer\n* wardpeet\n  \n  wardpeet\n* calcsam\n  \n  calcsam\n* tylerbarnes\n  \n  tylerbarnes\n* smthomas\n  \n  smthomas\n* ifedayo\n  \n  ifedayo\n* adeleke5140\n  \n  adeleke5140\n* taofeeq-deru\n  \n  taofeeq-deru\n* nikaiyer\n  \n  nikaiyer"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@mastra/core/v/0.2.0?activeTab=dependencies",
+      "title": "@mastra/core - npm",
+      "publish_date": null,
+      "excerpts": []
+    },
+    {
+      "url": "https://libraries.io/npm/%40mastra/core",
+      "title": "@mastra/core 0.0.0-standard-schema-20260126130907 on npm ...",
+      "publish_date": null,
+      "excerpts": [
+        "@mastra/core 0.0.0-standard-schema-20260126130907 on npm ...\nMastra is a framework for building AI-powered applications and agents with a modern TypeScript stack. It includes everything you need to go from early prototypes to production-ready applications."
+      ]
+    },
+    {
+      "url": "http://npmjs.com/package",
+      "title": "package - npm",
+      "publish_date": null,
+      "excerpts": [
+        "IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n\n## Readme\n\n### Keywords\n\n* package.json\n\n## Package Sidebar\n\n### Install\n\n`npm i package`\n\n### Repository\n\n[github.com/vesln/package](https://github.com/vesln/package)\n\n### Homepage\n\n[github.com/vesln/package](http://github.com/vesln/package)\n\n### Weekly Downloads\n\n92,129\n\n### Version\n\n1\\.0.1\n\n### License\n\nnone\n\n### Last publish\n\n14 years ago\n\n### Collaborators\n\n* \n  \n  rago4\n\n[**Analyze security** with Socket](https://socket.dev/npm/package/package) [**Check bundle size**](https://bundlephobia.com/package/package) [**View package health**](https://snyk.io/advisor/npm-package/package) [**Explore dependencies**](https://npmgraph.js.org/?q=package)\n\n**Report** malware\n\n## Footer\n\n[](https://github.com/npm)\n\n[](https://github.com)\n### Support\n\n* [Help](https://docs.npmjs.com)\n* [Advisories](https://github.com/advisories)\n* [Status](http://status.npmjs.org/)\n* Contact npm\n\n### Company\n\n* About\n* [Blog](https://github.blog/tag/npm/)\n* Press\n\n### Terms & Policies\n\n* Policies\n* Terms of Use\n* Code of Conduct\n* Privacy\n\nViewing package version 1.0.1"
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/package/@novoaiorg/openai-agents-core",
+      "title": "@novoaiorg/openai-agents-core - npm",
+      "publish_date": "2025-08-05",
+      "excerpts": [
+        "The OpenAI Agents SDK is <strong>a lightweight yet powerful framework for building multi-agent workflows</strong>.. Latest version: 0.0.14-patch.dev.1, last published: 4 months ago. Start using @novoaiorg/openai-agents-core in your project by running `npm i"
+      ]
+    },
+    {
+      "url": "https://npmx.dev/package/%40mastra/core/v/%5E1.26.0",
+      "title": "@mastra/core - npmx",
+      "publish_date": null,
+      "excerpts": [
+        "@mastra/core - npmx\n@mastra/core is an essential building block for a Mastra application and you most likely don't want to use it as a standalone package. Therefore we recommend following the installation guide to get started with Mastra."
+      ]
+    },
+    {
+      "url": "https://www.npmjs.com/org/openai",
+      "title": "npm | Profile",
+      "publish_date": "2019-11-21",
+      "excerpts": [
+        "The OpenAI Agents SDK is <strong>a lightweight yet powerful framework for building multi-agent workflows</strong>. This package contains the logic for building realtime voice agents on the server or in the browser."
+      ]
+    }
+  ],
+  "usage": [
+    {
+      "name": "sku_search",
+      "count": 1
+    },
+    {
+      "name": "sku_extract_excerpts",
+      "count": 7
+    }
+  ],
+  "warnings": []
+}
