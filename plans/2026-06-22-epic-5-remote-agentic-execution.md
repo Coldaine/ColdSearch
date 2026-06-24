@@ -112,7 +112,7 @@ Also on the infra search list: **BullMQ** + Redis (queue-only, roll your own wor
 
 ### Poor fits for ColdSearch specifically
 
-- **Hermes Agent** — strong on persistent personal agent, cron, messaging gateways, browser/shell; weak fit if the product stays a **config-driven search CLI** with normalized `search`/`extract`/`fetch` tools (not a 24/7 operator bot).
+- **Hermes Agent** — strong on persistent personal agent, cron, messaging gateways, browser/shell; weak fit if the product stays a **config-driven search CLI** with normalized `search`/`extract`/`crawl` tools (not a 24/7 operator bot).
 - **Claude Agent SDK** — coding-agent tools (Read/Edit/Bash); conflicts with project policy (no Anthropic API; not a coding agent).
 - **Stagehand** — browser automation for extract; only relevant if agent `fetch` becomes headless-browser-first (today SSRF-guarded HTTP fetch).
 - **Cloudflare Agents** — excellent if all-in on Workers; poor fit if ColdSearch must stay **portable CLI + self-hosted workers**.
@@ -136,4 +136,4 @@ Also on the infra search list: **BullMQ** + Redis (queue-only, roll your own wor
 
 Deferred until you explicitly decide to build remote execution. No gate beyond that — finish PR1–PR5 first if you want, but Epic 5 does not block them.
 
-When you start: pick a stack from the table above, update this plan with the choice, and implement `RemoteExecutionBackend`. No ADR required unless you want one.
+When you start: pick a stack from the table above, record the choice in `docs/ADRs/` before implementing `RemoteExecutionBackend`, then update this plan with the ADR link.

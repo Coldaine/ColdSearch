@@ -19,7 +19,12 @@ async function exists(relativePath) {
 }
 
 async function read(relativePath) {
-  return readFile(path.join(root, relativePath), "utf8");
+  try {
+    return await readFile(path.join(root, relativePath), "utf8");
+  } catch (error) {
+    fail(`Unable to read ${relativePath}: ${error.message}`);
+    return "";
+  }
 }
 
 function fail(message) {
@@ -154,7 +159,7 @@ for (const file of docsAndPlans) {
   if (text.includes("docs/PROGRESS.md") || text.includes("PROGRESS.md")) {
     fail(`${file} still references deleted PROGRESS.md.`);
   }
-  if (/PR1[–-]PR4/.test(text) || /PR1\\u2013PR4/.test(text)) {
+  if (/PR1[–-]PR4/.test(text)) {
     fail(`${file} still references PR1-PR4 as the active sequence.`);
   }
 }

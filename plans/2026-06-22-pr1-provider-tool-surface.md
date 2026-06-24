@@ -114,7 +114,7 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - Modify: `src/adapters/*.ts`
 - Modify or add: `src/tools/*`
 - Modify: `src/logging/usage.ts`
-- Create: `scripts/provider-pass-through.mjs`
+- Modify: `scripts/provider-pass-through.mjs`
 - Modify: `docs/PROVIDERS.md`
 - Modify: `docs/DEVELOPER.md`
 - Modify: `docs/architecture.md`
@@ -164,7 +164,7 @@ npm test
 npm run test:docs
 node dist/cli.js tool list --json
 echo '{"query":"coldsearch"}' | node dist/cli.js tool call tavily.answer --json-input - --json
-node scripts/provider-pass-through.mjs --provider firecrawl --tool map
+node scripts/provider-pass-through.mjs --provider firecrawl --path crawl
 ```
 
 Expected:

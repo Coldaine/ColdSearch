@@ -950,7 +950,7 @@ function ensureEvidenceDir(outDir) {
   const samplesDir = path.join(outDir, "samples");
   fs.rmSync(samplesDir, { recursive: true, force: true });
   fs.mkdirSync(samplesDir, { recursive: true });
-  for (const file of ["summary.md", "results.jsonl"]) {
+  for (const file of ["summary.md", "results.jsonl", "coldsearch-usage.jsonl"]) {
     fs.rmSync(path.join(outDir, file), { force: true });
   }
   return samplesDir;
