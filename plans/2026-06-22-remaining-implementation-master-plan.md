@@ -70,14 +70,24 @@ Missing now:
 - Structured agent run IDs
 - Explicit crawl-cache policy
 
-Baseline offline verification before this plan split:
+Baseline health checks before this plan split:
 
 ```bash
 npm test
 npm run test:docs
 ```
 
-Expected: pass.
+What these prove:
+
+- `npm test` proves the built TypeScript and existing offline unit/integration contracts are not broken.
+- `npm run test:docs` proves the provider capability matrix, registry, and plan/doc references covered by the validator are internally consistent.
+
+What these do not prove:
+
+- They do not prove that ColdSearch hits real provider APIs.
+- They do not prove provider-native parity.
+- They do not prove a new CLI workflow is ergonomic or useful.
+- They do not prove cache, batch, provider-tool, or agent observability behavior unless focused tests for those behaviors were added.
 
 ## Gate 0: Provider Pass-Through Proof
 
@@ -145,7 +155,7 @@ After each implementation PR:
 - [ ] Read required checks and advisory checks before characterizing failures.
 - [ ] Read all review surfaces: inline review threads, flat PR comments, bot comments, and CI summaries.
 - [ ] Address valid findings with follow-up commits.
-- [ ] Re-run `npm test` and `npm run test:docs` after follow-up commits.
+- [ ] Re-run the validation that proves the changed behavior after follow-up commits. Include `npm test` for runtime/code changes and `npm run test:docs` for docs, provider matrix, registry, or plan-validator changes.
 - [ ] Wait again for checks and reviews after every push.
 - [ ] Do not start the next PR until the current PR is merged, or until the user explicitly authorizes parallel work.
 - [ ] Do not post the merge attestation until it is true:
@@ -163,14 +173,16 @@ This pause is part of the plan. Skipping it is a plan failure.
 - [ ] Start from current `origin/main`, not the stale local branch.
 - [ ] Complete Gate 0 provider pass-through proof.
 - [ ] Create a feature branch for PR 1.
-- [ ] Run `npm test`.
-- [ ] Run `npm run test:docs`.
+- [ ] Run Gate 0 provider pass-through proof.
+- [ ] Run `npm test` only as a baseline offline regression check.
+- [ ] Run `npm run test:docs` only as a docs/registry consistency check.
 
 Success looks like:
 
 - The branch starts clean from current `origin/main`.
 - Gate 0 has evidence for each implemented provider path.
-- The existing suite passes before implementation begins.
+- Gate 0 proves real provider pass-through before implementation begins.
+- The existing offline suite and docs/registry checks are green before implementation begins.
 
 ### PR 1: Provider Tool Surface
 
@@ -184,9 +196,9 @@ Success looks like:
 - Niche or high-risk tools are explicitly deferred in docs.
 - Provider-tool calls preserve raw provider payloads.
 - Provider-tool calls produce safe usage/audit logs.
-- Provider-tool docs and registry stay in sync under `npm run test:docs`.
-- `npm test` passes.
-- `npm run test:docs` passes.
+- Provider-tool docs and registry stay in sync under a docs/registry drift check.
+- Offline tests prove the provider-tool registry, CLI parser, raw payload preservation, and safe usage logging.
+- Provider-native comparison evidence proves every in-scope tool actually reaches the real provider path.
 
 Review pause:
 
@@ -200,13 +212,13 @@ Review pause:
 - [ ] Update local `main` from `origin/main`.
 - [ ] Confirm PR 1 changes are present on `main`.
 - [ ] Create a fresh branch for PR 2.
-- [ ] Run `npm test`.
-- [ ] Run `npm run test:docs`.
+- [ ] Run `npm test` because PR 2 starts from runtime behavior changed by PR 1.
+- [ ] Run `npm run test:docs` because PR 2 relies on current provider/tool documentation and config docs.
 
 Success looks like:
 
 - Cache work starts on top of the finalized provider-tool surface.
-- The suite is green before cache A2 implementation begins.
+- The relevant offline and docs/registry checks are green before cache A2 implementation begins.
 
 ### PR 2: Searchable Cache, Cache Operations, and Cache Hygiene
 
@@ -223,8 +235,8 @@ Success looks like:
 - Cache writes are atomic.
 - Cache files/directories use restrictive permissions where supported.
 - Crawl cache is explicitly decided and documented.
-- `npm test` passes.
-- `npm run test:docs` passes.
+- Offline tests prove cache search, recent listing, stats, clear, freshness, atomic writes, and safe cache logging.
+- Docs/config checks prove operator-facing cache documentation matches the implemented flags.
 
 Review pause:
 
@@ -238,13 +250,13 @@ Review pause:
 - [ ] Update local `main` from `origin/main`.
 - [ ] Confirm PR 2 changes are present on `main`.
 - [ ] Create a fresh branch for PR 3.
-- [ ] Run `npm test`.
-- [ ] Run `npm run test:docs`.
+- [ ] Run `npm test` because PR 3 starts from runtime behavior changed by PR 2.
+- [ ] Run `npm run test:docs` if PR 2 changed operator-facing docs or provider/tool registry docs.
 
 Success looks like:
 
 - Batch work starts on top of merged provider-tool and cache behavior.
-- The suite is green before batch implementation begins.
+- The relevant offline and docs/registry checks are green before batch implementation begins.
 
 ### PR 3: Batch Runner for Search, Extract, Crawl, and Provider Tools
 
@@ -261,8 +273,8 @@ Success looks like:
 - Duplicate handling is deterministic.
 - Per-item success/error output is present.
 - Existing exact cache and searchable recent-result memory are used for batch `search`, `extract`, and eligible provider-tool records.
-- `npm test` passes.
-- `npm run test:docs` passes.
+- Offline tests prove JSONL validation, resumability, duplicate handling, concurrency, mixed record execution, and cache reuse.
+- Docs/config checks prove batch documentation matches the implemented flags.
 
 Review pause:
 
@@ -276,13 +288,13 @@ Review pause:
 - [ ] Update local `main` from `origin/main`.
 - [ ] Confirm PR 3 changes are present on `main`.
 - [ ] Create a fresh branch for PR 4.
-- [ ] Run `npm test`.
-- [ ] Run `npm run test:docs`.
+- [ ] Run `npm test` because PR 4 starts from runtime behavior changed by PR 3.
+- [ ] Run `npm run test:docs` if PR 3 changed operator-facing docs or provider/tool registry docs.
 
 Success looks like:
 
 - Config/status UX work starts on top of the final command surface from PR 1, PR 2, and PR 3.
-- The suite is green before operator UX implementation begins.
+- The relevant offline and docs/registry checks are green before operator UX implementation begins.
 
 ### PR 4: Operator Config and Status UX
 
@@ -298,8 +310,8 @@ Success looks like:
 - CLI flags override TOML.
 - Error output is classified enough for users to distinguish config, credential, reachability, provider, unsupported-capability, and unsupported-tool failures.
 - Raw secrets are never printed.
-- `npm test` passes.
-- `npm run test:docs` passes.
+- Offline tests prove config init, config doctor, status output, LLM endpoint precedence, and error classification.
+- Docs/config checks prove setup and diagnostics documentation matches the implemented commands.
 
 Review pause:
 
@@ -313,13 +325,13 @@ Review pause:
 - [ ] Update local `main` from `origin/main`.
 - [ ] Confirm PR 4 changes are present on `main`.
 - [ ] Create a fresh branch for PR 5.
-- [ ] Run `npm test`.
-- [ ] Run `npm run test:docs`.
+- [ ] Run `npm test` because PR 5 starts from runtime behavior changed by PR 4.
+- [ ] Run `npm run test:docs` if PR 4 changed operator-facing docs or provider/tool registry docs.
 
 Success looks like:
 
 - Run ID work starts after config and status output contracts are settled.
-- The suite is green before traceability implementation begins.
+- The relevant offline and docs/registry checks are green before traceability implementation begins.
 
 ### PR 5: Agent Run IDs and Trace Correlation
 
@@ -335,8 +347,8 @@ Success looks like:
 - Usage log entries created by agent-triggered searches include `run_id`.
 - Provider-tool usage logs can carry `run_id` when called from an agent or future orchestrated run.
 - Non-agent usage logs remain valid without `run_id`.
-- `npm test` passes.
-- `npm run test:docs` passes.
+- Offline tests prove generated and explicit run IDs flow through agent output, steps, and usage logs.
+- Docs checks are required only if this PR changes operator-facing docs.
 
 Review pause:
 
@@ -348,8 +360,8 @@ Review pause:
 ### After PR 5
 
 - [ ] Update local `main` from `origin/main`.
-- [ ] Run `npm test`.
-- [ ] Run `npm run test:docs`.
+- [ ] Run `npm test` as the final offline regression check.
+- [ ] Run `npm run test:docs` as the final docs/registry consistency check.
 - [ ] Check open GitHub issues and close or update #6, #14, #31 as appropriate.
 - [ ] Epic 5 stays deferred until you choose to start it; see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md).
 
@@ -360,24 +372,26 @@ Success looks like:
 - The active backlog no longer lists provider-tool expansion, cache A2, batch, config bootstrap/status UX, or run IDs as missing.
 - Deferred epics remain explicitly deferred, not accidentally forgotten.
 
-## Test Adequacy Rule
+## Validation Adequacy Rule
 
-At every PR boundary, the agent must verify both:
+Validation is evidence, not ceremony. A command belongs in a PR plan only when the plan states what contract it proves.
 
-```bash
-npm test
-npm run test:docs
-```
+Use this rule at every PR boundary:
 
-Each PR plan also lists targeted CLI checks. A PR is not ready for review until:
+- Run `npm test` for runtime, CLI, adapter, cache, batch, agent, logging, or config changes. It proves the built project and offline test contracts still hold.
+- Run `npm run test:docs` for provider matrix, registry, config docs, architecture docs, or plan-validator changes. It proves documented surfaces and code registries have not drifted.
+- Run provider-native comparison evidence for any provider path or provider tool touched by the PR. This is the only proof that ColdSearch is a real provider pass-through.
+- Run targeted CLI checks when the PR creates or changes a user-facing command. These checks must use temp configs/files and assert parseable useful output.
+- Do not use `scripts/smoke.mjs` as proof of a provider-tool or Gate 0 contract. It is only a live canary because it can skip missing credentials and does not compare native output to ColdSearch output.
 
-- Provider-native vs ColdSearch pass-through evidence exists for any provider path touched by the PR.
-- Its new behavior has focused tests.
-- Existing behavior remains covered.
+A PR is not ready for review until:
+
+- Its new behavior has focused tests that can fail for a real implementation bug.
+- Existing behavior affected by the change remains covered.
 - Its new request/cache/provider/agent flow writes enough safe logs to reconstruct what happened.
-- The full suite passes locally.
-- Documentation and provider/tool matrix drift tests pass.
-- Manual review evidence is recorded when automation cannot prove it.
+- Any live provider proof required by the change has explicit pass/fail/blocked/waived rows.
+- Documentation and provider/tool matrix drift checks run only when they prove something changed in docs or registry.
+- Manual review evidence is recorded when automation cannot prove the contract.
 
 ## Deferred Epics
 

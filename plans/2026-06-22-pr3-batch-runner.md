@@ -144,14 +144,21 @@ Run before opening the PR:
 
 ```bash
 npm test
-npm run test:docs
 node dist/cli.js batch --input <sample-jsonl> --output <tmp-jsonl> --concurrency 2 --dry-run --json
 node dist/cli.js batch --input <sample-jsonl> --output <tmp-jsonl> --concurrency 2 --json
 ```
 
+Run `npm run test:docs` only if this PR changes provider matrix, registry, config docs, architecture docs, or plan-validator expectations.
+
+What these prove:
+
+- `npm test` proves JSONL validation, resumability, duplicate handling, concurrency, mixed record execution, and cache reuse through focused offline tests.
+- The batch CLI commands prove the new user-facing runner can parse real JSONL, dry-run without provider calls, write output JSONL, and resume a temp output file.
+- `npm run test:docs`, when needed, proves changed docs and registries remain consistent.
+
 Expected:
 
-- All tests pass.
+- Required tests pass.
 - Dry run reports planned records without provider calls.
 - Real run writes one JSONL output line per processed record.
 - Resume run skips already successful records.
@@ -174,6 +181,6 @@ After implementation:
 - [ ] Wait for CI, merge-gate, and advisory reviewers.
 - [ ] Read inline review threads, flat comments, bot comments, and check summaries.
 - [ ] Address valid findings.
-- [ ] Re-run `npm test` and `npm run test:docs` after every follow-up commit.
+- [ ] Re-run the validation that proves the changed behavior after every follow-up commit. Include `npm test` for runtime changes and `npm run test:docs` only for docs/registry/validator changes.
 - [ ] Wait again after every push.
 - [ ] Do not start PR 4 until PR 3 is merged unless the user explicitly authorizes parallel work.

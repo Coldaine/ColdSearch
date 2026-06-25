@@ -113,15 +113,22 @@ Run before opening the PR:
 
 ```bash
 npm test
-npm run test:docs
 node dist/cli.js config init --config <tmp-config>
 node dist/cli.js config doctor --config <tmp-config> --json
 node dist/cli.js status --config <tmp-config> --json
 ```
 
+Run `npm run test:docs` because this PR is expected to change config/key-management documentation. If no docs or registry files changed, record why it was unnecessary.
+
+What these prove:
+
+- `npm test` proves config init, config doctor, status output, LLM endpoint precedence, and error classification through focused offline tests.
+- The config/status CLI commands prove the operator-facing workflow works against a temp config and returns parseable JSON where promised.
+- `npm run test:docs` proves the changed config, key-management, architecture, or provider docs remain internally consistent.
+
 Expected:
 
-- All tests pass.
+- Required tests pass.
 - Config init writes a usable starter file.
 - Config doctor exits 0 for valid config.
 - Status output is JSON-parseable.
@@ -145,6 +152,6 @@ After implementation:
 - [ ] Wait for CI, merge-gate, and advisory reviewers.
 - [ ] Read inline review threads, flat comments, bot comments, and check summaries.
 - [ ] Address valid findings.
-- [ ] Re-run `npm test` and `npm run test:docs` after every follow-up commit.
+- [ ] Re-run the validation that proves the changed behavior after every follow-up commit. Include `npm test` for runtime changes and `npm run test:docs` for docs/registry/validator changes.
 - [ ] Wait again after every push.
 - [ ] Do not start PR 5 until PR 4 is merged unless the user explicitly authorizes parallel work.
