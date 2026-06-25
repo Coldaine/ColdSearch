@@ -26,7 +26,7 @@ function expandHome(p: string): string {
 
 /** Never log raw literal API keys from config. */
 export function safeKeyRef(keyRef: string, provider: string): string {
-  if (keyRef.startsWith("env:") || keyRef.startsWith("bws:")) {
+  if (keyRef.startsWith("env:") || keyRef.startsWith("doppler:")) {
     return keyRef;
   }
   return `${provider}:literal`;
