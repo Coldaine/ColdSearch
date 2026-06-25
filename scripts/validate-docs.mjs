@@ -138,8 +138,12 @@ for (const file of planFiles) {
       fail(`${file} is missing ${section}`);
     }
   }
-  if (!text.includes("npm test") || !text.includes("npm run test:docs")) {
-    fail(`${file} does not require both npm test and npm run test:docs.`);
+  // Scope the contract check to the body of the `## Validation` section
+  // (stop at the next `##`/`#` heading) so an `Expected:`/`What these prove:`
+  // appearing in a later section like `## Success Criteria` can't satisfy it.
+  const validationSection = (text.match(/## Validation\b([\s\S]*?)(?=\n#{1,2} |$)/) || [])[1] || "";
+  if (!/\bWhat these prove:/.test(validationSection) || !/\bExpected:/.test(validationSection)) {
+    fail(`${file} must explain what its validation proves: include a "What these prove:" and an "Expected:" block inside its ## Validation section.`);
   }
   if (!/Do not start PR \d+ until PR \d+ is merged unless the user explicitly authorizes parallel work/.test(text) && !/Merge PR 5 only after/.test(text)) {
     fail(`${file} does not enforce the review pause before the next PR.`);
@@ -170,11 +174,16 @@ if (!architecture.includes("| Remote / hybrid worker implementation | Deferred |
 }
 
 const rootEntries = await readdir(root);
-const rootResearchJson = rootEntries.filter((name) =>
-  name.endsWith(".json") &&
-  name !== "package.json" &&
-  name !== "package-lock.json" &&
-  name !== "tsconfig.json"
+// Config files that legitimately live at the repo root. The rule targets stray
+// research/result JSON dumps, not tooling config.
+const allowedRootJson = new Set([
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "renovate.json",
+]);
+const rootResearchJson = rootEntries.filter(
+  (name) => name.endsWith(".json") && !allowedRootJson.has(name)
 );
 if (rootResearchJson.length > 0) {
   fail(`Research JSON artifacts should not live at repo root: ${rootResearchJson.join(", ")}`);
