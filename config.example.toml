@@ -34,7 +34,7 @@ strategy = "random"
 # Key reference formats (preferred to least preferred):
 #   doppler:SECRET_NAME   → Doppler secret (preferred — use this)
 #   env:VAR_NAME          → Environment variable (fallback)
-#   bws:SECRET_NAME       → Bitwarden Secrets Manager (deprecated — migrate to Doppler)
+#   bws:SECRET_NAME       → REMOVED — Bitwarden refs now raise an error; migrate to doppler:/env:
 #
 # DOPPLER AUTHENTICATION:
 #   Dev machine:     Run `doppler login` once — tokens stored in OS keyring by Doppler CLI.
@@ -101,14 +101,12 @@ keys = ["doppler:FIRECRAWL_API_KEY"]
 #   DOPPLER_TOKEN=dp.st.xxx coldsearch search "query"
 
 # ============================================
-# BITWARDEN SECRETS MANAGER SETUP (DEPRECATED)
+# BITWARDEN SECRETS MANAGER (REMOVED)
 # ============================================
-# Bitwarden Secrets Manager is deprecated and will be removed in a future release.
-# Migrate to Doppler: doppler secrets get SECRET --plain
-#
-# Required environment variables for BWS (only if still using bws: refs):
-#   BWS_ACCESS_TOKEN      → Machine account access token
-#   BWS_ORGANIZATION_ID   → Your Bitwarden organization ID (for name lookups)
+# Bitwarden Secrets Manager support has been removed. A `bws:` key reference now
+# raises an error at resolution time instead of being honored.
+# Migrate each `bws:` ref to a `doppler:` or `env:` ref:
+#   doppler:SECRET_NAME   (preferred)   or   env:VAR_NAME
 
 # ============================================
 # USAGE EXAMPLES

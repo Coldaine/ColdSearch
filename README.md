@@ -19,7 +19,7 @@ usearch --help
 
 Configuration lives at `~/.config/coldsearch/config.toml`. The runtime also falls back to `~/.config/usearch/config.toml` if the new path does not exist yet.
 
-**First run:** copy `config.example.toml` to that path, set provider env vars (or use Bitwarden `bws:` refs), and fix `providers.searxng.options.baseUrl` if you use SearXNG. Optional: `doppler run -- coldsearch search "query"` to inject secrets without putting keys in the file.
+**First run:** copy `config.example.toml` to that path, set provider keys via `doppler:`/`env:` refs (or plain env vars), and fix `providers.searxng.options.baseUrl` if you use SearXNG. Optional: `doppler run -- coldsearch search "query"` to inject secrets without putting keys in the file.
 
 ## What ColdSearch Is
 
