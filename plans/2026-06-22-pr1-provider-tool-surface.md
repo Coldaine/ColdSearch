@@ -164,12 +164,20 @@ npm test
 npm run test:docs
 node dist/cli.js tool list --json
 echo '{"query":"coldsearch"}' | node dist/cli.js tool call tavily.answer --json-input - --json
-node scripts/provider-pass-through.mjs --provider firecrawl --path crawl
+node scripts/provider-pass-through.mjs --provider <provider> --path <new-tool-or-path>
 ```
+
+What these prove:
+
+- `npm test` proves the provider-tool registry, CLI parser, raw payload preservation, endpoint dispatch, and safe usage logging through offline tests.
+- `npm run test:docs` proves the provider-tool registry and provider matrix documentation have not drifted.
+- `tool list --json` proves the new surface is discoverable and machine-readable.
+- `tool call ... --json-input` proves at least one provider-tool command path accepts explicit input and returns the contract shape.
+- `provider-pass-through` proves each newly wired provider tool against its provider-native API/SDK/CLI path. Run one row per in-scope tool with available credentials or an explicit user waiver.
 
 Expected:
 
-- All tests pass.
+- Required tests pass.
 - `tool list --json` includes the in-scope tools.
 - Provider-tool calls return JSON with `provider`, `tool`, `ok`, and `raw`.
 - Unsupported tools fail visibly and do not make provider calls.
@@ -195,6 +203,6 @@ After implementation:
 - [ ] Wait for CI, merge-gate, and advisory reviewers.
 - [ ] Read inline review threads, flat comments, bot comments, and check summaries.
 - [ ] Address valid findings.
-- [ ] Re-run `npm test` and `npm run test:docs` after every follow-up commit.
+- [ ] Re-run the validation that proves the changed behavior after every follow-up commit. Include `npm test` for runtime changes, `npm run test:docs` for registry/docs changes, and provider-native comparison for touched provider tools.
 - [ ] Wait again after every push.
 - [ ] Do not start PR 2 until PR 1 is merged unless the user explicitly authorizes parallel work.

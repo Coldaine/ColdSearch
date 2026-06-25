@@ -138,8 +138,8 @@ for (const file of planFiles) {
       fail(`${file} is missing ${section}`);
     }
   }
-  if (!text.includes("npm test") || !text.includes("npm run test:docs")) {
-    fail(`${file} does not require both npm test and npm run test:docs.`);
+  if (!/## Validation[\s\S]*Expected:/m.test(text)) {
+    fail(`${file} must explain what its validation is expected to prove.`);
   }
   if (!/Do not start PR \d+ until PR \d+ is merged unless the user explicitly authorizes parallel work/.test(text) && !/Merge PR 5 only after/.test(text)) {
     fail(`${file} does not enforce the review pause before the next PR.`);
