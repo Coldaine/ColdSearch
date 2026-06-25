@@ -16,7 +16,11 @@ interface ExaProviderOptions {
   highlights?: boolean;
   /** Max characters for text content. Default: 15000 */
   maxCharacters?: number;
-  /** Category filter: company, people, research-paper, github, tweet, news, personal-site, financial-report */
+  /**
+   * Category filter. Exa's first-class categories are space-separated:
+   * "company", "people", "research paper", "news", "personal site",
+   * "financial report". Other strings are accepted as category hints.
+   */
   category?: string;
   /** Search type: auto (default), keyword, neural, fast, instant, deep-lite, deep */
   searchType?: "auto" | "keyword" | "neural" | "fast" | "instant" | "deep-lite" | "deep";
@@ -70,6 +74,8 @@ interface ExaFindSimilarResponse {
     title?: string;
     url?: string;
     score?: number;
+    text?: string;
+    highlights?: string[];
   }>;
 }
 
@@ -118,18 +124,17 @@ export class ExaAdapter implements SearchAdapter {
     }
 
     // Content mode: highlights (token-efficient) vs full text
-    if (opts.highlights) {
-      body.contents = { highlights: true };
-    } else {
-      body.contents = {
-        text: { maxCharacters: opts.maxCharacters ?? 15000 },
-      };
-    }
+    const contents: Record<string, unknown> = opts.highlights
+      ? { highlights: true }
+      : { text: { maxCharacters: opts.maxCharacters ?? 15000 } };
 
-    // Freshness control
+    // Freshness control. Exa expects maxAgeHours nested under `contents`, not at
+    // the top level (0 = always livecrawl, -1 = never livecrawl).
+    // See https://exa.ai/docs/reference/search.
     if (opts.maxAgeHours !== undefined) {
-      body.maxAgeHours = opts.maxAgeHours;
+      contents.maxAgeHours = opts.maxAgeHours;
     }
+    body.contents = contents;
 
     // Domain filters
     if (opts.includeDomains?.length) {
@@ -174,8 +179,8 @@ export class ExaAdapter implements SearchAdapter {
         title: result.title || "",
         url: result.url || "",
         snippet,
-        // Exa scores are 0-1, higher is better
-        score: result.score ?? (1 - index * 0.1),
+        // Exa scores are 0-1, higher is better; clamp fallback to [0, 1]
+        score: result.score ?? Math.max(0, 1 - index * 0.1),
         source: this.name,
       };
     });
@@ -193,6 +198,17 @@ export class ExaAdapter implements SearchAdapter {
     const normalizedUrl = url.trim();
     const opts = this.getExaOptions(options);
 
+    const extractBody: Record<string, unknown> = {
+      urls: [normalizedUrl],
+      text: { maxCharacters: opts.maxCharacters ?? 15000 },
+      livecrawl: "preferred",
+    };
+    // Freshness control. On /contents, maxAgeHours is a top-level field
+    // (0 = always livecrawl, -1 = never livecrawl). See https://exa.ai/docs/reference/get-contents.
+    if (opts.maxAgeHours !== undefined) {
+      extractBody.maxAgeHours = opts.maxAgeHours;
+    }
+
     const data = await fetchJson<ExaContentsResponse>(
       "https://api.exa.ai/contents",
       {
@@ -201,11 +217,7 @@ export class ExaAdapter implements SearchAdapter {
           "Content-Type": "application/json",
           "x-api-key": apiKey,
         },
-        body: JSON.stringify({
-          urls: [normalizedUrl],
-          text: { maxCharacters: opts.maxCharacters ?? 15000 },
-          livecrawl: "preferred",
-        }),
+        body: JSON.stringify(extractBody),
       },
       { label: "Exa extract" }
     );
@@ -247,12 +259,15 @@ export class ExaAdapter implements SearchAdapter {
       throw new Error(`Invalid crawl URL: ${normalizedUrl}`);
     }
 
-    // Discover candidate pages via Exa search with configured options
+    // Discover candidate pages via Exa search with configured options.
+    // excludeDomains is cleared: combining it with includeDomains: [domain] would
+    // be self-contradictory if the target domain appears in excludeDomains.
     const searchOpts: ExaProviderOptions = {
       ...opts,
       numResults: limit,
-      useAutoprompt: false, // Domain search doesn't need autoprompt
+      useAutoprompt: false,
       includeDomains: [domain],
+      excludeDomains: undefined,
     };
     const body = this.buildSearchBody(`site:${domain}`, searchOpts);
 
@@ -291,6 +306,9 @@ export class ExaAdapter implements SearchAdapter {
           text: { maxCharacters: opts.maxCharacters ?? 12000 },
           livecrawl: "preferred",
           livecrawl_timeout: 10000,
+          ...(opts.maxAgeHours !== undefined
+            ? { maxAgeHours: opts.maxAgeHours }
+            : {}),
         }),
       },
       { label: "Exa crawl contents" }
@@ -339,12 +357,17 @@ export class ExaAdapter implements SearchAdapter {
       { label: "Exa findSimilar" }
     );
 
-    return (data.results || []).map((result, index) => ({
-      title: result.title || "",
-      url: result.url || "",
-      snippet: "",
-      score: result.score ?? (1 - index * 0.1),
-      source: this.name,
-    }));
+    return (data.results || []).map((result, index) => {
+      const snippet = opts.highlights && result.highlights?.length
+        ? result.highlights.join(" ... ")
+        : (result.text || "");
+      return {
+        title: result.title || "",
+        url: result.url || "",
+        snippet,
+        score: result.score ?? Math.max(0, 1 - index * 0.1),
+        source: this.name,
+      };
+    });
   }
 }
