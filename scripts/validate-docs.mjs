@@ -174,11 +174,16 @@ if (!architecture.includes("| Remote / hybrid worker implementation | Deferred |
 }
 
 const rootEntries = await readdir(root);
-const rootResearchJson = rootEntries.filter((name) =>
-  name.endsWith(".json") &&
-  name !== "package.json" &&
-  name !== "package-lock.json" &&
-  name !== "tsconfig.json"
+// Config files that legitimately live at the repo root. The rule targets stray
+// research/result JSON dumps, not tooling config.
+const allowedRootJson = new Set([
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "renovate.json",
+]);
+const rootResearchJson = rootEntries.filter(
+  (name) => name.endsWith(".json") && !allowedRootJson.has(name)
 );
 if (rootResearchJson.length > 0) {
   fail(`Research JSON artifacts should not live at repo root: ${rootResearchJson.join(", ")}`);
