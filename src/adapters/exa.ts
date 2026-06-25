@@ -70,6 +70,8 @@ interface ExaFindSimilarResponse {
     title?: string;
     url?: string;
     score?: number;
+    text?: string;
+    highlights?: string[];
   }>;
 }
 
@@ -174,8 +176,8 @@ export class ExaAdapter implements SearchAdapter {
         title: result.title || "",
         url: result.url || "",
         snippet,
-        // Exa scores are 0-1, higher is better
-        score: result.score ?? (1 - index * 0.1),
+        // Exa scores are 0-1, higher is better; clamp fallback to [0, 1]
+        score: result.score ?? Math.max(0, 1 - index * 0.1),
         source: this.name,
       };
     });
@@ -247,12 +249,15 @@ export class ExaAdapter implements SearchAdapter {
       throw new Error(`Invalid crawl URL: ${normalizedUrl}`);
     }
 
-    // Discover candidate pages via Exa search with configured options
+    // Discover candidate pages via Exa search with configured options.
+    // excludeDomains is cleared: combining it with includeDomains: [domain] would
+    // be self-contradictory if the target domain appears in excludeDomains.
     const searchOpts: ExaProviderOptions = {
       ...opts,
       numResults: limit,
-      useAutoprompt: false, // Domain search doesn't need autoprompt
+      useAutoprompt: false,
       includeDomains: [domain],
+      excludeDomains: undefined,
     };
     const body = this.buildSearchBody(`site:${domain}`, searchOpts);
 
@@ -339,12 +344,17 @@ export class ExaAdapter implements SearchAdapter {
       { label: "Exa findSimilar" }
     );
 
-    return (data.results || []).map((result, index) => ({
-      title: result.title || "",
-      url: result.url || "",
-      snippet: "",
-      score: result.score ?? (1 - index * 0.1),
-      source: this.name,
-    }));
+    return (data.results || []).map((result, index) => {
+      const snippet = opts.highlights && result.highlights?.length
+        ? result.highlights.join(" ... ")
+        : (result.text || "");
+      return {
+        title: result.title || "",
+        url: result.url || "",
+        snippet,
+        score: result.score ?? Math.max(0, 1 - index * 0.1),
+        source: this.name,
+      };
+    });
   }
 }
