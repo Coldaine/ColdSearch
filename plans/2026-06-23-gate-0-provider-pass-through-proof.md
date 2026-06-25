@@ -156,16 +156,25 @@ Example:
 
 ## Required Commands
 
-Run:
+Run only commands that prove the Gate 0 contract:
 
 ```bash
-npm test
-npm run test:docs
 npm run build
-node scripts/smoke.mjs
+node scripts/provider-pass-through.mjs --all
 ```
 
-Then run the provider-native vs ColdSearch comparison harness or manual equivalent. If no harness exists yet, create it as part of this gate before treating the gate as complete.
+What these prove:
+
+- `npm run build` proves the checked source compiles into the CLI that the harness will execute.
+- `node scripts/provider-pass-through.mjs --all` proves provider-native responses and equivalent ColdSearch responses were both collected, compared, and recorded for every required provider path.
+
+What is not Gate 0 evidence:
+
+- `npm test` is useful as an offline regression suite, but it does not prove live provider pass-through.
+- `npm run test:docs` is useful for documentation and registry drift, but it does not prove live provider pass-through.
+- `node scripts/smoke.mjs` is a canary. It skips missing credentials and may include agent checks, so it is not a substitute for provider-native comparison.
+
+If the provider comparison harness does not exist or does not cover every required row, create or repair it before treating this gate as complete.
 
 ## Success Criteria
 
