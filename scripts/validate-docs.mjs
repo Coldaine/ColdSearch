@@ -138,8 +138,12 @@ for (const file of planFiles) {
       fail(`${file} is missing ${section}`);
     }
   }
-  if (!/## Validation[\s\S]*Expected:/m.test(text)) {
-    fail(`${file} must explain what its validation is expected to prove.`);
+  // Scope the contract check to the body of the `## Validation` section
+  // (stop at the next `##`/`#` heading) so an `Expected:`/`What these prove:`
+  // appearing in a later section like `## Success Criteria` can't satisfy it.
+  const validationSection = (text.match(/## Validation\b([\s\S]*?)(?=\n#{1,2} |$)/) || [])[1] || "";
+  if (!/\bWhat these prove:/.test(validationSection) || !/\bExpected:/.test(validationSection)) {
+    fail(`${file} must explain what its validation proves: include a "What these prove:" and an "Expected:" block inside its ## Validation section.`);
   }
   if (!/Do not start PR \d+ until PR \d+ is merged unless the user explicitly authorizes parallel work/.test(text) && !/Merge PR 5 only after/.test(text)) {
     fail(`${file} does not enforce the review pause before the next PR.`);
