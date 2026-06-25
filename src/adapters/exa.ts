@@ -16,7 +16,11 @@ interface ExaProviderOptions {
   highlights?: boolean;
   /** Max characters for text content. Default: 15000 */
   maxCharacters?: number;
-  /** Category filter: company, people, research-paper, github, tweet, news, personal-site, financial-report */
+  /**
+   * Category filter. Exa's first-class categories are space-separated:
+   * "company", "people", "research paper", "news", "personal site",
+   * "financial report". Other strings are accepted as category hints.
+   */
   category?: string;
   /** Search type: auto (default), keyword, neural, fast, instant, deep-lite, deep */
   searchType?: "auto" | "keyword" | "neural" | "fast" | "instant" | "deep-lite" | "deep";
@@ -120,18 +124,17 @@ export class ExaAdapter implements SearchAdapter {
     }
 
     // Content mode: highlights (token-efficient) vs full text
-    if (opts.highlights) {
-      body.contents = { highlights: true };
-    } else {
-      body.contents = {
-        text: { maxCharacters: opts.maxCharacters ?? 15000 },
-      };
-    }
+    const contents: Record<string, unknown> = opts.highlights
+      ? { highlights: true }
+      : { text: { maxCharacters: opts.maxCharacters ?? 15000 } };
 
-    // Freshness control
+    // Freshness control. Exa expects maxAgeHours nested under `contents`, not at
+    // the top level (0 = always livecrawl, -1 = never livecrawl).
+    // See https://exa.ai/docs/reference/search.
     if (opts.maxAgeHours !== undefined) {
-      body.maxAgeHours = opts.maxAgeHours;
+      contents.maxAgeHours = opts.maxAgeHours;
     }
+    body.contents = contents;
 
     // Domain filters
     if (opts.includeDomains?.length) {

@@ -84,7 +84,7 @@ vendor's own docs (linked) — they go stale fast and are intentionally not mirr
 - `POST /search` → **search** ✅
   - **Config-driven options** (set in `config.toml` under `[providers.exa.options]`):
     - `highlights` — token-efficient excerpts (~10x reduction) for agent workflows
-    - `category` — specialized indexes: `company`, `people`, `research-paper`, `github`, `tweet`, `news`, `personal-site`, `financial-report`
+    - `category` — specialized indexes (space-separated values): `company`, `people`, `research paper`, `news`, `personal site`, `financial report`. Other strings are accepted as category hints.
     - `searchType` — latency control: `auto`, `keyword`, `neural`, `fast`, `instant`, `deep-lite`, `deep`
     - `maxAgeHours` — cache freshness: `0` = always livecrawl, `-1` = never livecrawl
     - `includeDomains` / `excludeDomains` — domain filters
@@ -124,7 +124,7 @@ skip vendor specialties. Highest-leverage gaps:
 - **Serper** — 10 Google verticals (news, scholar, images, shopping, maps, patents…); only plain web is wired.
 - **Jina** — `embeddings` + `rerank` could back ColdSearch's own reranking step; plus a free `search`.
 - **Tavily `answer`/`research`** and **Exa `answer`/`research`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
-- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`docs/PROGRESS.md`).
+- **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`plans/2026-06-22-pr3-batch-runner.md`).
 
 ## Adding a provider
 
