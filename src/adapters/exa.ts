@@ -198,6 +198,17 @@ export class ExaAdapter implements SearchAdapter {
     const normalizedUrl = url.trim();
     const opts = this.getExaOptions(options);
 
+    const extractBody: Record<string, unknown> = {
+      urls: [normalizedUrl],
+      text: { maxCharacters: opts.maxCharacters ?? 15000 },
+      livecrawl: "preferred",
+    };
+    // Freshness control. On /contents, maxAgeHours is a top-level field
+    // (0 = always livecrawl, -1 = never livecrawl). See https://exa.ai/docs/reference/get-contents.
+    if (opts.maxAgeHours !== undefined) {
+      extractBody.maxAgeHours = opts.maxAgeHours;
+    }
+
     const data = await fetchJson<ExaContentsResponse>(
       "https://api.exa.ai/contents",
       {
@@ -206,11 +217,7 @@ export class ExaAdapter implements SearchAdapter {
           "Content-Type": "application/json",
           "x-api-key": apiKey,
         },
-        body: JSON.stringify({
-          urls: [normalizedUrl],
-          text: { maxCharacters: opts.maxCharacters ?? 15000 },
-          livecrawl: "preferred",
-        }),
+        body: JSON.stringify(extractBody),
       },
       { label: "Exa extract" }
     );
@@ -299,6 +306,9 @@ export class ExaAdapter implements SearchAdapter {
           text: { maxCharacters: opts.maxCharacters ?? 12000 },
           livecrawl: "preferred",
           livecrawl_timeout: 10000,
+          ...(opts.maxAgeHours !== undefined
+            ? { maxAgeHours: opts.maxAgeHours }
+            : {}),
         }),
       },
       { label: "Exa crawl contents" }
