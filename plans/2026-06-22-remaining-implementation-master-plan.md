@@ -131,8 +131,8 @@ For each provider path:
 - [ ] Confirm both paths return non-empty real results when the provider succeeds.
 - [ ] Compare stable fields that should survive wrapping: URLs, titles, snippets/content, source/provider, and provider-specific raw fields where available.
 - [ ] Record any intentional transformation or loss. Unexplained loss is a blocker.
-- [ ] Record skipped paths only when a required key or SearXNG endpoint is unavailable.
-- [ ] Do not treat missing credentials as success. Either provision the credential or get an explicit user waiver for that provider path.
+- [ ] If a required key or SearXNG endpoint is unavailable in the agent environment, stop and ask the user to expose the credential; the user has credentials for these providers.
+- [ ] Do not treat missing credentials as success, waiver, or scope reduction.
 
 Example requirement:
 
@@ -143,7 +143,7 @@ Example requirement:
 Gate 0 success looks like:
 
 - A provider-path evidence table exists in the PR notes or a committed evidence file.
-- Every implemented provider path is `pass`, `fail`, or `waived-by-user`; none are silently skipped.
+- Every implemented provider path is `pass`, `fail`, or `waived-by-user`; none are silently skipped and none remain blocked for missing credentials.
 - Failures are fixed or explicitly moved into PR 1 scope before PR 1 starts.
 - The evidence proves current wrappers are not useless normalization shells.
 
@@ -392,7 +392,7 @@ A PR is not ready for review until:
 - Its new behavior has focused tests that can fail for a real implementation bug.
 - Existing behavior affected by the change remains covered.
 - Its new request/cache/provider/agent flow writes enough safe logs to reconstruct what happened.
-- Any live provider proof required by the change has explicit pass/fail/blocked/waived rows.
+- Any live provider proof required by the change has explicit pass/fail/waived rows. Missing local credentials stop the run and require user credential injection before proceeding.
 - Documentation and provider/tool matrix drift checks run only when they prove something changed in docs or registry.
 - Manual review evidence is recorded when automation cannot prove the contract.
 

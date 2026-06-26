@@ -68,11 +68,17 @@ Every provider path gets exactly one status:
 
 - `pass` - native and ColdSearch paths both return useful real results and comparison passes.
 - `fail` - one path errors, returns empty output unexpectedly, or ColdSearch drops important provider information.
-- `blocked_missing_secret` - required key or SearXNG endpoint is unavailable.
+- `blocked_missing_secret` - transient local setup failure: the agent could not resolve a required key or SearXNG endpoint in its current environment.
 - `blocked_provider` - provider platform is down or rejects the request for reasons outside ColdSearch.
 - `waived_by_user` - user explicitly accepts not testing this path right now.
 
-Missing credentials are not success. A path with no key remains blocked until the key is provided or the user explicitly waives it.
+## Credential Availability Rule
+
+Assume credentials/endpoints exist for every provider path in this gate.
+
+If the agent cannot resolve a required key or SearXNG endpoint, stop the gate and ask the user to inject or expose the credential. Do not continue as if the provider is unavailable, do not silently skip the row, and do not treat `blocked_missing_secret` as an acceptable completion state.
+
+`blocked_missing_secret` is allowed only as a diagnostic row for an interrupted/incomplete evidence run. It means the run must be resumed after credentials are available. It is not a pass, not a waiver, and not a reason to narrow scope.
 
 ## Comparison Rules
 
@@ -149,7 +155,8 @@ Example:
 - [ ] Save ColdSearch response samples with secrets redacted.
 - [ ] Compare native and ColdSearch outputs using the rules above.
 - [ ] Produce one evidence row per provider path.
-- [ ] Mark every row `pass`, `fail`, `blocked_missing_secret`, `blocked_provider`, or `waived_by_user`.
+- [ ] If a credential or endpoint cannot be resolved, stop and request credential injection before continuing the gate.
+- [ ] Mark completed rows `pass`, `fail`, `blocked_provider`, or `waived_by_user`; use `blocked_missing_secret` only for an interrupted/incomplete run that must be resumed.
 - [ ] Fix any ColdSearch wrapper that fails due to normalization loss, wrong endpoint, empty output, or broken routing.
 - [ ] Re-run failed rows after fixes.
 - [ ] Do not begin PR 1 until all rows are `pass` or `waived_by_user`.
@@ -179,10 +186,11 @@ If the provider comparison harness does not exist or does not cover every requir
 ## Success Criteria
 
 - Every current provider path has explicit evidence.
-- ColdSearch is proven to hit real provider APIs, not mocks, for each path with available credentials.
+- ColdSearch is proven to hit real provider APIs, not mocks, for each path.
 - ColdSearch output is useful and traceable back to provider-native output.
 - Important provider-specific information is preserved or explicitly documented as lost.
 - No provider path is skipped silently.
+- No provider path remains `blocked_missing_secret`.
 - Agentic testing is not used as a substitute for provider pass-through proof.
 
 ## PR 1 Carry-Forward Rule

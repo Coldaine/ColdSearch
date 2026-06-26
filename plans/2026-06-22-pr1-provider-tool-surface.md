@@ -59,7 +59,7 @@ The point of PR 1 is to make the useful provider tool surface reachable through 
 - Native batch tools are exposed as provider tools; generic `coldsearch batch` remains PR 3.
 - Provider-specific options stay in typed input schemas and raw output, not lossy common fields.
 
-If a listed tool turns out to require credentials, account features, provider-side setup, or a paid plan that is not available locally, keep the implementation target in the matrix and mark only the live evidence row as blocked or waived. Do not silently remove the tool from the plan.
+Assume credentials/endpoints exist for every listed provider. If the agent cannot resolve a required key, endpoint, account feature, provider-side setup, or paid-plan access in its current environment, stop and ask the user to expose it. Do not silently remove the tool from the plan, do not narrow scope, and do not treat missing local credentials as a completed evidence state.
 
 Explicitly defer unless the user re-prioritizes them:
 
@@ -162,7 +162,7 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - [ ] For each provider tool, write or run a provider-native comparison probe using the same request payload.
 - [ ] Record provider-native vs ColdSearch evidence for every in-scope tool.
 - [ ] Fix any tool with unexplained provider data loss before marking PR 1 complete.
-- [ ] Keep blocked credential/account evidence rows visible; do not remove the corresponding tool implementation target unless the user explicitly waives it.
+- [ ] If credential/account access is missing locally, stop and request user credential injection; do not remove the corresponding tool implementation target unless the user explicitly waives it.
 - [ ] Update `docs/PROVIDERS.md` so the tool matrix distinguishes wired, deferred, and niche-deferred tools.
 - [ ] Update `docs/DEVELOPER.md` with the provider-tool adapter contract.
 - [ ] Update `docs/architecture.md` status labels if the provider-tool surface becomes Current.
@@ -199,7 +199,7 @@ What these prove:
 - `tool list --json` proves the new surface is discoverable and machine-readable.
 - `tool info ... --json` proves callers can discover the exact provider-tool input schema without leaving ColdSearch.
 - `tool call ... --json-input` proves at least one provider-tool command path accepts explicit input and returns the contract shape.
-- `provider-pass-through` proves each newly wired provider tool against its provider-native API/SDK/CLI path. Run one row per in-scope tool with available credentials or an explicit user waiver.
+- `provider-pass-through` proves each newly wired provider tool against its provider-native API/SDK/CLI path. Run one row per in-scope tool; if credentials are not visible to the agent, stop and request credential injection.
 
 Expected:
 
@@ -208,7 +208,7 @@ Expected:
 - `tool info --json` returns schemas for every in-scope provider tool.
 - Provider-tool calls return JSON with `provider`, `tool`, `status`, and `raw`.
 - Unsupported tools fail visibly and do not make provider calls.
-- Provider-native vs ColdSearch evidence exists for every in-scope tool that has credentials/endpoints available.
+- Provider-native vs ColdSearch evidence exists for every in-scope tool, or the user explicitly waived that row.
 - No command prints raw API keys.
 
 ## Success Criteria
