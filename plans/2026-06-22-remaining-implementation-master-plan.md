@@ -10,6 +10,15 @@
 
 ---
 
+## Active Plan Set
+
+This file is the index for future implementation work. The only active implementation plans are PR 1 through PR 5 below. PR 1 begins with Phase 0 provider pass-through proof; the former standalone Gate 0 plan has been folded into PR 1 and deleted. Epic 5 remains as an explicitly deferred future plan.
+
+Historical/scratch planning cleanup:
+
+- Deleted `2026-06-23-gate-0-provider-pass-through-proof.md` after moving its provider-native vs ColdSearch proof method, evidence statuses, credential-stop rule, and current-provider path table into PR 1 Phase 0.
+- Deleted untracked `2026-06-25-cli-design-and-provider-mcps.md` after moving its durable idea into PR 1: use current official provider docs and official MCP/CLI source when available to discover tool schemas, native shapes, polling/batch behavior, error taxonomy, and raw response fields. The stale vendor repo list, copied Firecrawl MCP code block, `--save`, random default routing, and routines/pipelines notes were not carried forward because they are either stale, already covered elsewhere, or belong to future explicit design.
+
 ## Answer: Five PRs Fit
 
 Four PRs was too narrow because it left broad provider-tool expansion outside the active sequence. The corrected scope fits into five PRs:
@@ -24,7 +33,7 @@ This split is natural because each PR has a different owner surface:
 
 - PR 1 owns the missing provider-tool command/registry surface.
 - PR 2 owns searchable recent-result memory, cache operations, cache logging, and persistence hygiene.
-- PR 3 owns high-volume execution workflows across normalized capabilities and provider tools.
+- PR 3 owns high-volume execution workflows across audited common capability views and provider tools.
 - PR 4 owns operator setup, diagnostics, and status.
 - PR 5 owns agent traceability.
 
@@ -91,11 +100,11 @@ What these do not prove:
 - They do not prove a new CLI workflow is ergonomic or useful.
 - They do not prove cache, batch, provider-tool, or agent observability behavior unless focused tests for those behaviors were added.
 
-## Gate 0: Provider Pass-Through Proof
+## PR 1 Phase 0: Provider Pass-Through Proof
 
-Plan: [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provider-pass-through-proof.md)
+Plan location: [PR 1: Provider Tool Surface](./2026-06-22-pr1-provider-tool-surface.md)
 
-Do this before PR 1. This gate exists because mocked tests and generic smoke checks do not prove that ColdSearch is a useful provider pass-through.
+Do this as the first phase of PR 1 before adding new provider tools. This phase exists because mocked tests and generic smoke checks do not prove that ColdSearch is a useful provider pass-through.
 
 Goal:
 
@@ -103,7 +112,7 @@ Goal:
 - Compare provider-native output against ColdSearch output for the same request.
 - Identify wrappers that hide, drop, or distort provider data before building more tool surface on top.
 
-Out of scope for Gate 0:
+Out of scope for Phase 0:
 
 - Agentic testing.
 - LLM answer quality.
@@ -140,12 +149,12 @@ Example requirement:
 2. Run the same Firecrawl search through ColdSearch with Firecrawl selected.
 3. Compare whether the response represents the same provider result set and whether ColdSearch preserves enough raw provider detail for later evaluation.
 
-Gate 0 success looks like:
+Phase 0 success looks like:
 
 - A provider-path evidence table exists in the PR notes or a committed evidence file.
 - Every implemented provider path is `pass`, `fail`, or `waived-by-user`; none are silently skipped and none remain blocked for missing credentials.
 - Failures are fixed or explicitly moved into PR 1 scope before PR 1 starts.
-- The evidence proves current wrappers are not useless normalization shells.
+- The evidence proves current wrappers are not useless lossy abstraction shells.
 
 ## Non-Negotiable PR Review Pause
 
@@ -173,17 +182,17 @@ This pause is part of the plan. Skipping it is a plan failure.
 ### Before PR 1
 
 - [ ] Start from current `origin/main`, not the stale local branch.
-- [ ] Complete Gate 0 provider pass-through proof.
+- [ ] Complete PR 1 Phase 0 provider pass-through proof.
 - [ ] Create a feature branch for PR 1.
-- [ ] Run Gate 0 provider pass-through proof.
+- [ ] Run PR 1 Phase 0 provider pass-through proof.
 - [ ] Run `npm test` only as a baseline offline regression check.
 - [ ] Run `npm run test:docs` only as a docs/registry consistency check.
 
 Success looks like:
 
 - The branch starts clean from current `origin/main`.
-- Gate 0 has evidence for each implemented provider path.
-- Gate 0 proves real provider pass-through before implementation begins.
+- PR 1 Phase 0 has evidence for each implemented provider path.
+- PR 1 Phase 0 proves real provider pass-through before provider-tool implementation begins.
 - The existing offline suite and docs/registry checks are green before implementation begins.
 
 ### PR 1: Provider Tool Surface
@@ -275,7 +284,7 @@ Success looks like:
 - Controlled concurrency works.
 - Duplicate handling is deterministic.
 - Per-item success/error output is present.
-- Existing exact cache and searchable recent-result memory are used for batch `search`, `extract`, and eligible provider-tool records.
+- Existing exact cache and searchable recent-result memory are used for batch common-view `search`/`extract` calls and eligible provider-tool records.
 - Offline tests prove JSONL validation, resumability, duplicate handling, concurrency, mixed record execution, and cache reuse.
 - Docs/config checks prove batch documentation matches the implemented flags.
 
@@ -385,7 +394,7 @@ Use this rule at every PR boundary:
 - Run `npm run test:docs` for provider matrix, registry, config docs, architecture docs, or plan-validator changes. It proves documented surfaces and code registries have not drifted.
 - Run provider-native comparison evidence for any provider path or provider tool touched by the PR. This is the only proof that ColdSearch is a real provider pass-through.
 - Run targeted CLI checks when the PR creates or changes a user-facing command. These checks must use temp configs/files and assert parseable useful output.
-- Do not use `scripts/smoke.mjs` as proof of a provider-tool or Gate 0 contract. It is only a live canary because it can skip missing credentials and does not compare native output to ColdSearch output.
+- Do not use `scripts/smoke.mjs` as proof of a provider-tool or Phase 0 contract. It is only a live canary because it can skip missing credentials and does not compare native output to ColdSearch output.
 
 A PR is not ready for review until:
 

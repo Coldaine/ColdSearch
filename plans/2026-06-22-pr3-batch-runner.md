@@ -41,7 +41,7 @@ Do not implement:
 - Modify: `src/cli.ts`
 - Modify: `src/types.ts`
 - Modify: `README.md`
-- Modify: `docs/CONFIGURATION.md`
+- Modify: `README.md`
 - Test: `test/batch.test.mjs`
 - Test: `test/cli-batch.test.mjs`
 
@@ -117,7 +117,7 @@ coldsearch batch --input queries.jsonl --output results.jsonl --dry-run --json
 - [ ] Add `--input`, `--output`, `--concurrency`, `--retry-errors`, and batch `--dry-run`.
 - [ ] Add CLI help text.
 - [ ] Update README with a batch section.
-- [ ] Update `docs/CONFIGURATION.md` with batch flags.
+- [ ] Update README with batch flags.
 
 ## Required Tests
 
@@ -167,7 +167,7 @@ Expected:
 
 - Batch runs are resumable by stable `id`.
 - Controlled concurrency works without bypassing existing routing, cache, or logging behavior.
-- Mixed normalized capability and provider-tool records are supported.
+- Mixed common capability view and provider-tool records are supported.
 - Duplicate handling is deterministic and visible in output.
 - A failed item does not abort unrelated items unless the user explicitly chooses fail-fast behavior later.
 

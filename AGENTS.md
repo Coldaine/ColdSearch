@@ -10,7 +10,7 @@ Route by task:
 - Provider matrix → `docs/PROVIDERS.md`
 - Durable decisions → `docs/ADRs/`
 - Add or change a provider → `docs/DEVELOPER.md`
-- Config, keys, CI → `docs/CONFIGURATION.md`, `docs/KEY_MANAGEMENT.md`, `docs/contributing/ci.md`
+- Config, keys, CI → `README.md`, `config.example.toml`, `docs/KEY_MANAGEMENT.md`, `docs/contributing/ci.md`
 - Active implementation plans → `plans/` (informational; issues and code win)
 
 Crosses a goal, anti-goal, pillar, or invariant → stop and surface the conflict.

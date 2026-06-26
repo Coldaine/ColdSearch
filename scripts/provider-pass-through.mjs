@@ -81,7 +81,7 @@ export function selectTargets({ provider, path: capabilityPath } = {}) {
   if (selected.length === 0) {
     const providerPart = provider ? `provider=${provider}` : "provider=*";
     const pathPart = capabilityPath ? `path=${capabilityPath}` : "path=*";
-    throw new Error(`No Gate 0 target matches ${providerPart} ${pathPart}`);
+    throw new Error(`No Phase 0 target matches ${providerPart} ${pathPart}`);
   }
 
   return selected.map((target) => ({ ...target }));
@@ -148,7 +148,7 @@ function requiredValue(argv, index, flag) {
 }
 
 function printHelp() {
-  console.log(`Gate 0 provider pass-through proof harness
+  console.log(`Phase 0 provider pass-through proof harness
 
 Usage:
   node scripts/provider-pass-through.mjs --all
@@ -998,7 +998,7 @@ function renderSummary(rows) {
     return `| ${row.provider} | ${row.path} | ${row.status} | ${row.native?.result_count ?? "-"} | ${row.coldsearch?.result_count ?? "-"} | ${notes || "-"} |`;
   }).join("\n");
 
-  return `# Gate 0 Provider Pass-Through Evidence
+  return `# Phase 0 Provider Pass-Through Evidence
 
 Generated: ${generatedAt}
 

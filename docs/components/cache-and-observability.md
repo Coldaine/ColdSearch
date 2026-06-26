@@ -26,7 +26,7 @@ Observability should be rich enough to reconstruct how work flowed through the a
 - cache lookup, search, hit, miss, and selected prior items
 - request timings
 - retry attempts
-- normalized and provider-specific errors
+- common-view and provider-specific errors
 - agent tool calls and intermediate decisions
 - output artifact paths
 

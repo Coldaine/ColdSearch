@@ -39,7 +39,7 @@ Do not implement:
 - Modify: `src/agent/llm.ts`
 - Modify: `src/logging/usage.ts`
 - Modify: `config.example.toml`
-- Modify: `docs/CONFIGURATION.md`
+- Modify: `README.md`
 - Modify: `docs/KEY_MANAGEMENT.md`
 - Test: `test/cli-integration.test.mjs`
 - Test: `test/agent-llm-url.test.mjs`
@@ -90,7 +90,7 @@ Do not hide the original message. Add category next to it.
 - [ ] Add TOML agent LLM base URL support.
 - [ ] Preserve CLI flag precedence over TOML.
 - [ ] Add error classification helpers.
-- [ ] Update `docs/CONFIGURATION.md`.
+- [ ] Update README with config/status usage and precedence.
 - [ ] Update `docs/KEY_MANAGEMENT.md` so usage logging/status are no longer described as missing.
 - [ ] Update `config.example.toml`.
 

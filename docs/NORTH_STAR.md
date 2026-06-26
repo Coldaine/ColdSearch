@@ -21,17 +21,17 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 
 **Shape:** A stable command/service surface named `coldsearch`, with `usearch` kept as a compatibility alias during migration. Configuration lives at `~/.config/coldsearch/config.toml`, with legacy fallback to `~/.config/usearch/config.toml`. The CLI is the first interface, and the same core should remain usable through service, API, and MCP-style entrypoints without duplicating provider logic.
 
-**LLM endpoint rule:** When ColdSearch needs LLM synthesis, it uses OpenAI-compatible endpoints. It does not call Anthropic APIs.
+**LLM endpoint rule:** It uses OpenAI-compatible (shaped) endpoints.
 
 ## What This Is Not
 
 - **Not a pile of disconnected provider wrappers.** Provider tools should be reachable, but through one audited ColdSearch surface with shared config, logging, key handling, and cache behavior.
 - **Not blind model-directed routing.** The model or caller may request a provider tool when that is intentional, but default routing should be controlled, observable, and comparable.
 - **Not obligated to expose every niche vertical.** Broadly useful provider tools should be available. Narrow surfaces such as specialized academic/legal verticals can stay deferred until there is a real workflow.
-- **Not lossy normalization.** Common views are convenience layers. ColdSearch must preserve raw provider details needed for evaluation, debugging, advanced use, or provider-specific workflows.
+- **Not lossy normalization.** Common views are convenience layers. ColdSearch must preserve raw provider details needed for evaluation, debugging, advanced use, or provider-specific workflows. What this doesn't mean is that we pedantically have to preserve everything raw. What it does mean is that we shouldn't do an abstraction. Cold search is an abstraction, but what it isn't is that it doesn't completely bury it away. Really, the optimal approach would be a balance of both.
 
 ## Goals
-
+These goals are aspirations, not necessarily a reflection of the current code base.
 **G1: Unified Access To Provider Tools.** One ColdSearch surface should reach the useful tools from Tavily, Brave, Exa, Serper, Jina, Firecrawl, SearXNG, and future providers.
 
 **G2: Compare Provider Effectiveness.** ColdSearch should make it practical to run comparable work across providers, inspect the results, and learn which tools work best for which jobs.
@@ -45,10 +45,10 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 **G6: Preserve Useful Provider Detail.** Common outputs should be easy to consume, but raw provider details should remain accessible when they matter.
 
 **G7: Stable Surface, Flexible Execution.** The same core should support the CLI and, where useful, service/API/MCP entrypoints, daemonization, remote execution, or asynchronous jobs without duplicating provider logic.
-
 ## Pillars
 
-**Config Over Code.** If routing, provider pools, keys, endpoint choices, cache policy, or execution policy can be changed in config, it should not require code edits.
+
+**Config Over Code.** Make an effort to think about and determine which things should be configurable and which things should be the proper level. Many things should have defaults, but defaults that are over-writable and configurable.  routing, provider pools, keys, endpoint choices,
 
 **Comparable Execution.** The runtime should make it easy to compare provider/tool performance instead of hiding every execution choice behind an opaque answer.
 
@@ -57,5 +57,3 @@ ColdSearch exists so a user or agent can ask for web/search/extract/crawl-style 
 **Audit First.** Important calls should leave inspectable traces. Logging is not an afterthought or a debug-only aid; it is part of how ColdSearch earns trust, compares providers, tracks free-quota/key usage, and explains agent behavior after the fact.
 
 **Fail Visible.** When something breaks, the error should make it obvious whether the issue is config, credentials, provider reachability, quota/rate limits, unsupported capability, or provider-specific behavior.
-
-**Stable Interface.** The user-facing CLI should stay consistent even if the execution model evolves from local-only to hybrid local/remote operation.

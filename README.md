@@ -24,7 +24,7 @@ Configuration lives at `~/.config/coldsearch/config.toml`. The runtime also fall
 ## What ColdSearch Is
 
 - A CLI-first interface over multiple search providers
-- A normalized runtime that hides provider-specific quirks behind shared schemas
+- A two-lane runtime: audited common capability views plus raw provider-tool access
 - A config-driven routing layer that lets humans decide provider pools and rotation
 - A local-first tool today, with explicit architectural seams for a future hybrid remote execution backend
 
@@ -36,7 +36,7 @@ ColdSearch is not aiming at MCP as the long-term interface. The long-term direct
 2. Some work, especially agentic or long-running jobs, can later be submitted to a remote backend.
 3. That backend can centralize secrets, job state, retries, and async orchestration.
 
-The current implementation remains local-first, but the runtime is now being organized so the CLI and a future remote executor can share the same provider registry, routing logic, and normalization layer.
+The current implementation remains local-first, but the runtime is now being organized so the CLI and a future remote executor can share the same provider registry, routing logic, common-view layer, and raw provider-tool handlers.
 
 ## Current Capabilities
 
@@ -92,11 +92,12 @@ npm test
 - `docs/NORTH_STAR.md` - Product direction and goals (authority)
 - `docs/architecture.md` - Technical shape, status labels, invariants
 - `plans/` - Active implementation plans (informational)
-- `docs/CONFIGURATION.md` - Configuration reference and precedence
+- `docs/KEY_MANAGEMENT.md` - Secrets, key pools, and Doppler/env resolution
+- `config.example.toml` - Starter configuration template
 - `docs/PROVIDERS.md` - Capability + tool matrix and per-provider coverage (single source of truth)
 
 ## Roadmap
 
 - Operator bootstrap and OpenAI-compatible agent LLM base URL (see GitHub issues)
-- Harden request lifecycle: timeouts, retries, normalized errors
+- Harden request lifecycle: timeouts, retries, and classified errors
 - Prepare a future hybrid execution model for agent-mode async jobs

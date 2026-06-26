@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -35,6 +36,20 @@ async function requireFile(relativePath) {
   if (!(await exists(relativePath))) {
     fail(`Missing required file: ${relativePath}`);
   }
+}
+
+async function requireAbsentFile(relativePath) {
+  if (await exists(relativePath)) {
+    fail(`Removed file should not exist: ${relativePath}`);
+  }
+}
+
+function canonicalText(text) {
+  return `${text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/[ \t]+$/gm, "").replace(/\n*$/, "")}\n`;
+}
+
+function sha256(text) {
+  return createHash("sha256").update(canonicalText(text), "utf8").digest("hex");
 }
 
 async function readJsonl(relativePath) {
@@ -75,18 +90,32 @@ const planFiles = [
 
 for (const file of [
   "plans/2026-06-22-remaining-implementation-master-plan.md",
-  "plans/2026-06-23-gate-0-provider-pass-through-proof.md",
   ...planFiles,
   "plans/2026-06-22-epic-5-remote-agentic-execution.md",
   "docs/NORTH_STAR.md",
+  "docs/NORTH_STAR.lock.sha256",
   "docs/architecture.md",
   "docs/PROVIDERS.md",
 ]) {
   await requireFile(file);
 }
 
+for (const removedDoc of ["docs/CONFIGURATION.md", "docs/BWS_INTEGRATION.md"]) {
+  await requireAbsentFile(removedDoc);
+}
+
+if (await exists("docs/NORTH_STAR.lock.sha256")) {
+  const northStar = await read("docs/NORTH_STAR.md");
+  const lock = (await read("docs/NORTH_STAR.lock.sha256")).trim().split(/\s+/)[0];
+  const actual = sha256(northStar);
+  if (!/^[a-f0-9]{64}$/.test(lock)) {
+    fail("docs/NORTH_STAR.lock.sha256 must contain a SHA-256 hex digest.");
+  } else if (actual !== lock) {
+    fail(`docs/NORTH_STAR.md does not match docs/NORTH_STAR.lock.sha256. Expected ${lock}, got ${actual}.`);
+  }
+}
+
 const master = await read("plans/2026-06-22-remaining-implementation-master-plan.md");
-const gate0 = await read("plans/2026-06-23-gate-0-provider-pass-through-proof.md");
 const pr1 = await read("plans/2026-06-22-pr1-provider-tool-surface.md");
 for (const file of planFiles) {
   const basename = path.basename(file);
@@ -95,20 +124,32 @@ for (const file of planFiles) {
   }
 }
 
-if (!master.includes("2026-06-23-gate-0-provider-pass-through-proof.md")) {
-  fail("Master plan does not link the Gate 0 provider pass-through proof plan.");
+if (!master.includes("PR 1 Phase 0: Provider Pass-Through Proof")) {
+  fail("Master plan is missing PR 1 Phase 0 provider pass-through proof.");
 }
 
-if (!master.includes("Provider Pass-Through Proof")) {
-  fail("Master plan is missing Gate 0 provider pass-through proof.");
+if (/\]\(\.\/2026-06-23-gate-0-provider-pass-through-proof\.md\)/.test(master)) {
+  fail("Master plan still links the deleted standalone Gate 0 plan.");
 }
 
-if (!gate0.includes("provider-native") || !gate0.includes("ColdSearch")) {
-  fail("Gate 0 plan must require provider-native vs ColdSearch comparison.");
+if (!master.includes("Historical/scratch planning cleanup")) {
+  fail("Master plan must summarize deleted or superseded planning artifacts.");
 }
 
-if (!gate0.includes("Agent mode") || !gate0.includes("does not cover")) {
-  fail("Gate 0 plan must explicitly exclude agentic testing.");
+if (!pr1.includes("## Phase 0: Provider Pass-Through Proof And Tool Discovery")) {
+  fail("PR 1 plan must include Phase 0 provider pass-through proof and tool discovery.");
+}
+
+if (!pr1.includes("provider-native") || !pr1.includes("ColdSearch")) {
+  fail("PR 1 Phase 0 must require provider-native vs ColdSearch comparison.");
+}
+
+if (!pr1.includes("Agentic testing") && !pr1.includes("Agent mode")) {
+  fail("PR 1 Phase 0 must explicitly exclude agentic testing or agent mode as proof.");
+}
+
+if (!pr1.includes("official MCP/CLI source")) {
+  fail("PR 1 Phase 0 must carry forward provider MCP/CLI source review as discovery input.");
 }
 
 if (!pr1.includes("Pass-Through Parity Requirement")) {
@@ -157,6 +198,35 @@ const docsAndPlans = [
   "CLAUDE.md",
   "README.md",
 ].filter((file) => file.endsWith(".md"));
+
+const referenceFiles = new Set([
+  "AGENTS.md",
+  "CLAUDE.md",
+  "README.md",
+  "package.json",
+  "config.example.toml",
+]);
+for (const dir of ["docs", "plans", "src", "scripts", "test"]) {
+  if (await exists(dir)) {
+    for (const file of await walk(dir)) {
+      if (/\.(md|ts|js|mjs|json|toml)$/.test(file)) {
+        referenceFiles.add(file);
+      }
+    }
+  }
+}
+
+for (const file of referenceFiles) {
+  if (file === "scripts/validate-docs.mjs") {
+    continue;
+  }
+  const text = await read(file);
+  for (const removedDoc of ["docs/CONFIGURATION.md", "docs/BWS_INTEGRATION.md"]) {
+    if (text.includes(removedDoc)) {
+      fail(`${file} still references removed file ${removedDoc}.`);
+    }
+  }
+}
 
 for (const file of docsAndPlans) {
   const text = await read(file);

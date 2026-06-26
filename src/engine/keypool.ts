@@ -136,7 +136,7 @@ export class KeyPoolManager {
     if (keyRef.startsWith("bws:")) {
       throw new Error(
         "Bitwarden Secrets Manager (bws:) support has been removed. " +
-        "Replace bws: references in config with doppler: or env: — see docs/BWS_INTEGRATION.md."
+        "Replace bws: references in config with doppler: or env: — see docs/KEY_MANAGEMENT.md."
       );
     }
 

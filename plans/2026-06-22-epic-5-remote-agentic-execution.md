@@ -2,7 +2,7 @@
 
 **Status:** Deferred — not in the active five-PR sequence (PR1–PR5).
 
-**Goal (when promoted):** CLI submits long-running research and batch work to a remote execution plane; workers run agentic flows (search → read → refine → synthesize) and normalized capability calls without blocking the terminal. The `coldsearch` CLI remains the operator surface; execution may run elsewhere.
+**Goal (when promoted):** CLI submits long-running research and batch work to a remote execution plane; workers run agentic flows (search → read → refine → synthesize) and common capability view calls without blocking the terminal. The `coldsearch` CLI remains the operator surface; execution may run elsewhere.
 
 This epic is **not** PR1–PR5. Those PRs extend the in-process CLI on `main`. Epic 5 is a separate track, opened only when explicitly prioritized.
 
@@ -17,7 +17,7 @@ This epic is **not** PR1–PR5. Those PRs extend the in-process CLI on `main`. E
 
 ## What stays in ColdSearch (even with remote execution)
 
-- Normalized capabilities: `search`, `extract`, `crawl`.
+- Audited common capability views: `search`, `extract`, `crawl`.
 - Config-driven provider pools and routing policy (human control, not model-picked providers).
 - Provider adapters and shared result schemas.
 - SSRF policy on agent `fetch`.
@@ -112,7 +112,7 @@ Also on the infra search list: **BullMQ** + Redis (queue-only, roll your own wor
 
 ### Poor fits for ColdSearch specifically
 
-- **Hermes Agent** — strong on persistent personal agent, cron, messaging gateways, browser/shell; weak fit if the product stays a **config-driven search CLI** with normalized `search`/`extract`/`crawl` tools (not a 24/7 operator bot).
+- **Hermes Agent** — strong on persistent personal agent, cron, messaging gateways, browser/shell; weak fit if the product stays a **config-driven search CLI** with common `search`/`extract`/`crawl` views (not a 24/7 operator bot).
 - **Claude Agent SDK** — coding-agent tools (Read/Edit/Bash); conflicts with project policy (no Anthropic API; not a coding agent).
 - **Stagehand** — browser automation for extract; only relevant if agent `fetch` becomes headless-browser-first (today SSRF-guarded HTTP fetch).
 - **Cloudflare Agents** — excellent if all-in on Workers; poor fit if ColdSearch must stay **portable CLI + self-hosted workers**.

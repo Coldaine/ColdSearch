@@ -4,7 +4,7 @@
 
 **Goal:** Make broadly useful provider-specific tools usable through ColdSearch without falling back to separate vendor CLIs, MCPs, or hand-written scripts.
 
-**Architecture:** Add a controlled provider-tool surface alongside the normalized `search`, `extract`, and `crawl` capabilities. Preserve raw provider detail. Do not force every vendor tool into a lossy common schema.
+**Architecture:** Add a controlled raw provider-tool lane alongside the audited common capability views (`search`, `extract`, and `crawl`). Preserve raw provider detail. Do not force every vendor tool into a lossy common schema.
 
 **Tech Stack:** TypeScript, existing adapter modules, existing provider registry, built-in `node:test`, CLI integration tests.
 
@@ -18,7 +18,7 @@ Implement:
 - `coldsearch tool list`.
 - `coldsearch tool info <provider>.<tool>` so callers can inspect the exact input schema before using a tool.
 - `coldsearch tool call <provider>.<tool> --json-input <file-or-stdin>`.
-- JSON output that includes provider, tool, normalized summary when useful, and raw provider payload.
+- JSON output that includes provider, tool, an optional common summary when useful, and raw provider payload.
 - Usage/audit log entries for provider-tool calls.
 - Provider matrix docs that show tool-level wired/unwired status.
 - Tests that prove every in-scope broad tool is reachable through ColdSearch.
@@ -32,6 +32,49 @@ Do not implement:
 - Autonomous browser-agent tools that can click/type/act on websites.
 - Paid-only data-for-AI products unless the provider API can be represented with the existing provider key/config model.
 - Niche academic/legal verticals unless they fall out mechanically from a generic vertical-search adapter.
+
+## Phase 0: Provider Pass-Through Proof And Tool Discovery
+
+Start PR 1 with this phase before implementing new provider tools. This phase supersedes the former standalone `2026-06-23-gate-0-provider-pass-through-proof.md` plan, whose useful content is folded here.
+
+Phase 0 proves the currently implemented common capability views are real provider pass-throughs:
+
+| Provider | Current ColdSearch path | Provider-native path to compare |
+| --- | --- | --- |
+| Tavily | `search`, `extract`, `crawl` | Tavily HTTP API or official SDK for `/search`, `/extract`, `/crawl` |
+| Firecrawl | `search`, `extract`, `crawl` | Firecrawl HTTP API or official SDK/CLI for `/search`, `/scrape`, `/crawl` |
+| Exa | `search`, `extract`, synthesized `crawl` | Exa HTTP API or official SDK for `/search` and `/contents`; record that crawl is synthesized |
+| Brave | `search` | Brave Search HTTP API for web search |
+| Serper | `search` | Serper HTTP API for Google web search |
+| Jina | `extract` | Jina Reader HTTP endpoint |
+| SearXNG | `search` | Configured SearXNG HTTP endpoint |
+
+Use stable inputs unless a provider rejects them:
+
+- Search query: `openai`
+- Extract URL: `https://example.com`
+- Crawl URL: `https://docs.tavily.com`
+- Crawl limit: `3`
+
+Phase 0 is not agentic testing. Agent mode, LLM output quality, cache behavior, batch behavior, and remote execution are not substitutes for provider-native comparison evidence.
+
+For every row:
+
+1. Run the provider-native API, SDK, or official CLI request first.
+2. Run the matching ColdSearch request with a single provider selected second.
+3. Confirm both paths hit real provider APIs, not mocks.
+4. Compare stable URL/title/content overlap where stable.
+5. Record any field loss, transformation, or synthesized behavior.
+6. Treat unexplained provider data loss as a PR 1 blocker.
+
+Every row gets exactly one status: `pass`, `fail`, `blocked_provider`, `blocked_missing_secret`, or `waived_by_user`. Credentials/endpoints are assumed to exist; if the agent cannot resolve one, stop and ask the user to expose it. `blocked_missing_secret` is only an interrupted-run diagnostic, not an acceptable completion state.
+
+Phase 0 also discovers the new provider-tool surface before coding it:
+
+- Review current official provider docs and official MCP/CLI source when available.
+- Record each in-scope tool's endpoint, request schema, validation constraints, native shape (`sync`, `async-job`, `vertical-search`, `native-batch`, `structured-extract`, `answer-research`, `rerank-embedding`, `interactive/deferred`), polling/batch behavior, error taxonomy, and raw response fields.
+- Preserve nested or cross-capability provider options such as Firecrawl-style `scrapeOptions`; do not flatten them into lowest-common fields.
+- Use discovery to shape ColdSearch input schemas and parity probes, not to copy vendor command trees, transports, or framework choices.
 
 ## In-Scope Provider Tools
 
@@ -100,7 +143,7 @@ Rules:
 - `summary` is optional and must not hide raw details.
 - Async/job tools may return `status:"accepted"`, `job_id`, provider polling metadata, and `raw` provider state instead of final results.
 - Errors must identify config, credentials, network, provider, or unsupported-tool failures where practical.
-- Provider-tool calls must honor the same key resolution and timeout rules as normalized capabilities.
+- Provider-tool calls must honor the same key resolution and timeout rules as common capability views.
 
 ## Pass-Through Parity Requirement
 
@@ -113,7 +156,7 @@ For each in-scope tool:
 3. Confirm both calls hit the real provider path, not a mock.
 4. Compare stable fields and result counts where the provider returns comparable output.
 5. Confirm ColdSearch preserves the provider-native payload in `raw` or documents the exact faithful subset.
-6. Record any normalization or loss. Unexplained loss is a blocker.
+6. Record any transformation or loss. Unexplained loss is a blocker.
 
 Example for Firecrawl `map`:
 
@@ -122,7 +165,7 @@ Example for Firecrawl `map`:
 3. Confirm returned URLs overlap and `raw` preserves the Firecrawl response shape.
 4. Confirm usage logs show a Firecrawl provider-tool call with a safe key reference.
 
-Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provider-pass-through-proof.md) as the method. PR 1 extends that Gate 0 method from current normalized paths to newly exposed provider tools.
+Use the Phase 0 method above. PR 1 extends that method from current common capability views to newly exposed provider tools.
 
 ## Files
 
@@ -142,6 +185,8 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 
 ## Tasks
 
+- [ ] Complete Phase 0 current-provider pass-through proof before implementing new provider tools.
+- [ ] During provider-tool discovery, review current official provider docs and official MCP/CLI source when available. Record each tool's endpoint, request schema, validation constraints, native shape, polling/batch behavior, error taxonomy, and raw response fields.
 - [ ] Add provider-tool metadata to the provider registry.
 - [ ] Define a provider-tool request/response type that preserves raw payloads.
 - [ ] Add adapter methods or provider-tool handlers for in-scope tools.
@@ -186,6 +231,7 @@ Run before opening the PR:
 ```bash
 npm test
 npm run test:docs
+node scripts/provider-pass-through.mjs --all
 node dist/cli.js tool list --json
 node dist/cli.js tool info tavily.map --json
 echo '{"query":"coldsearch"}' | node dist/cli.js tool call tavily.answer --json-input - --json
@@ -196,6 +242,7 @@ What these prove:
 
 - `npm test` proves the provider-tool registry, CLI parser, raw payload preservation, endpoint dispatch, and safe usage logging through offline tests.
 - `npm run test:docs` proves the provider-tool registry and provider matrix documentation have not drifted.
+- `provider-pass-through --all` proves current common capability views still hit real provider-native paths before new provider-tool work builds on them.
 - `tool list --json` proves the new surface is discoverable and machine-readable.
 - `tool info ... --json` proves callers can discover the exact provider-tool input schema without leaving ColdSearch.
 - `tool call ... --json-input` proves at least one provider-tool command path accepts explicit input and returns the contract shape.
@@ -209,6 +256,7 @@ Expected:
 - Provider-tool calls return JSON with `provider`, `tool`, `status`, and `raw`.
 - Unsupported tools fail visibly and do not make provider calls.
 - Provider-native vs ColdSearch evidence exists for every in-scope tool, or the user explicitly waived that row.
+- Phase 0 evidence exists for every currently implemented provider path, with no row silently skipped and no row left `blocked_missing_secret`.
 - No command prints raw API keys.
 
 ## Success Criteria
@@ -217,6 +265,7 @@ Expected:
 - Niche or high-risk tools are explicitly marked deferred, not forgotten.
 - Async, vertical, and native-batch provider tools keep their native semantics instead of being flattened or dropped.
 - Raw provider details survive end to end.
+- Current common capability views are proven against provider-native paths before provider-tool implementation starts.
 - Provider-tool pass-through is proven against native provider paths, not inferred from mocks.
 - Provider-tool calls are auditable in logs.
 - The provider matrix can fail CI when docs and registry drift.
