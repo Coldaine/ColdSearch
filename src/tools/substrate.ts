@@ -311,9 +311,10 @@ export async function executeToolCall(
         headers["Accept"] = "text/plain";
         method = "GET";
         const targetUrl = params.url || params.q || "";
-        // encodeURI (not encodeURIComponent) so the target's own scheme/query
-        // structure survives while spaces and other unsafe chars are escaped.
-        url = `https://r.jina.ai/${encodeURI(targetUrl)}`;
+        // r.jina.ai takes the target URL appended raw (matches JinaAdapter).
+        // Do NOT encode here: encodeURI corrupts already-encoded targets
+        // (%20 -> %2520) and the reader expects the literal URL.
+        url = `https://r.jina.ai/${targetUrl}`;
       } else {
         // e.g. jina embeddings, rerank
         url = `https://api.jina.ai/v1/${tool}`;
