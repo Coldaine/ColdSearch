@@ -16,11 +16,13 @@ Implement:
 
 - Provider-tool registry metadata in code.
 - `coldsearch tool list`.
+- `coldsearch tool info <provider>.<tool>` so callers can inspect the exact input schema before using a tool.
 - `coldsearch tool call <provider>.<tool> --json-input <file-or-stdin>`.
 - JSON output that includes provider, tool, normalized summary when useful, and raw provider payload.
 - Usage/audit log entries for provider-tool calls.
 - Provider matrix docs that show tool-level wired/unwired status.
 - Tests that prove every in-scope broad tool is reachable through ColdSearch.
+- All broad provider tools listed below, unless the tool is explicitly in the deferred list or the user explicitly waives it.
 
 Do not implement:
 
@@ -28,12 +30,12 @@ Do not implement:
 - A new MCP server in this PR.
 - Remote execution.
 - Autonomous browser-agent tools that can click/type/act on websites.
-- Paid-only data-for-AI products unless the provider API can be represented safely without a live paid account.
+- Paid-only data-for-AI products unless the provider API can be represented with the existing provider key/config model.
 - Niche academic/legal verticals unless they fall out mechanically from a generic vertical-search adapter.
 
 ## In-Scope Provider Tools
 
-Wire these where the upstream API and existing config model make it practical:
+Wire these. Discovery and parity evidence determine the correct command shape, request schema, polling behavior, and logging contract; they are not permission to drop tools from scope.
 
 | Provider | Tool surface to wire |
 | --- | --- |
@@ -45,18 +47,33 @@ Wire these where the upstream API and existing config model make it practical:
 | Jina | `s.jina.ai` search, rerank, embeddings where the request shape can stay explicit |
 | SearXNG | category variants such as news, images, and videos |
 
+## Non-Negotiable Scope Rule
+
+Do not narrow PR 1 to "only tools whose shape is proven and safe."
+
+The point of PR 1 is to make the useful provider tool surface reachable through ColdSearch. If a provider tool is broad and useful, implement it with its native shape:
+
+- Synchronous tools return completed results.
+- Async/job tools return job state, polling metadata, and final results when the provider supports waiting.
+- Vertical-search tools expose the provider's vertical parameters explicitly.
+- Native batch tools are exposed as provider tools; generic `coldsearch batch` remains PR 3.
+- Provider-specific options stay in typed input schemas and raw output, not lossy common fields.
+
+If a listed tool turns out to require credentials, account features, provider-side setup, or a paid plan that is not available locally, keep the implementation target in the matrix and mark only the live evidence row as blocked or waived. Do not silently remove the tool from the plan.
+
 Explicitly defer unless the user re-prioritizes them:
 
 - Serper scholar and patents.
 - Firecrawl `/agent` and scrape actions that click, type, scroll, or mutate remote state.
 - Brave Data-for-AI paid context products.
-- Any tool that requires a separate account, project, or stateful setup beyond the existing provider config.
+- Any tool that requires stateful browser automation or mutates remote sites.
 
 ## Command Contract
 
 ```bash
 coldsearch tool list --json
 coldsearch tool list --provider tavily --json
+coldsearch tool info tavily.map --json
 coldsearch tool call tavily.map --json-input request.json --json
 echo '{"query":"coldsearch"}' | coldsearch tool call exa.answer --json-input - --json
 ```
@@ -67,7 +84,7 @@ Output shape:
 {
   "provider": "tavily",
   "tool": "map",
-  "ok": true,
+  "status": "completed",
   "summary": {},
   "raw": {},
   "meta": {
@@ -81,6 +98,7 @@ Rules:
 
 - `raw` must preserve provider detail.
 - `summary` is optional and must not hide raw details.
+- Async/job tools may return `status:"accepted"`, `job_id`, provider polling metadata, and `raw` provider state instead of final results.
 - Errors must identify config, credentials, network, provider, or unsupported-tool failures where practical.
 - Provider-tool calls must honor the same key resolution and timeout rules as normalized capabilities.
 
@@ -128,10 +146,14 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - [ ] Define a provider-tool request/response type that preserves raw payloads.
 - [ ] Add adapter methods or provider-tool handlers for in-scope tools.
 - [ ] Add `tool list` command parsing.
+- [ ] Add `tool info` command parsing.
 - [ ] Add `tool call` command parsing.
 - [ ] Support `--json-input -` for stdin.
 - [ ] Support `--json-input <path>` for files.
+- [ ] Define input schemas for every in-scope provider tool.
 - [ ] Validate provider and tool names before making a provider request.
+- [ ] Validate provider-tool JSON input before making a provider request.
+- [ ] Model async/job tools explicitly instead of forcing them into a synchronous result contract.
 - [ ] Route provider-tool calls through existing key resolution.
 - [ ] Route provider-tool calls through existing timeout/retry/error handling where applicable.
 - [ ] Log provider-tool calls with provider, tool, safe key reference, timing, success/error, and run ID when present.
@@ -139,7 +161,8 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - [ ] Add concise summaries only where useful and non-lossy.
 - [ ] For each provider tool, write or run a provider-native comparison probe using the same request payload.
 - [ ] Record provider-native vs ColdSearch evidence for every in-scope tool.
-- [ ] Mark any tool with unexplained provider data loss as not done.
+- [ ] Fix any tool with unexplained provider data loss before marking PR 1 complete.
+- [ ] Keep blocked credential/account evidence rows visible; do not remove the corresponding tool implementation target unless the user explicitly waives it.
 - [ ] Update `docs/PROVIDERS.md` so the tool matrix distinguishes wired, deferred, and niche-deferred tools.
 - [ ] Update `docs/DEVELOPER.md` with the provider-tool adapter contract.
 - [ ] Update `docs/architecture.md` status labels if the provider-tool surface becomes Current.
@@ -152,6 +175,7 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - [ ] `test/provider-tools.test.mjs`: usage log records provider-tool calls without raw secret values.
 - [ ] `test/provider-tools.test.mjs`: provider-tool handlers call the expected provider endpoint or SDK method.
 - [ ] `test/cli-integration.test.mjs`: `tool list --json` is parseable.
+- [ ] `test/cli-integration.test.mjs`: `tool info <provider>.<tool> --json` returns the input schema and cache/evidence policy.
 - [ ] `test/cli-integration.test.mjs`: `tool call <provider>.<tool> --json-input - --json` works with a mocked adapter.
 - [ ] `test/capability-matrix-drift.test.mjs`: provider-tool docs and registry do not drift.
 
@@ -163,6 +187,7 @@ Run before opening the PR:
 npm test
 npm run test:docs
 node dist/cli.js tool list --json
+node dist/cli.js tool info tavily.map --json
 echo '{"query":"coldsearch"}' | node dist/cli.js tool call tavily.answer --json-input - --json
 node scripts/provider-pass-through.mjs --provider <provider> --path <new-tool-or-path>
 ```
@@ -172,6 +197,7 @@ What these prove:
 - `npm test` proves the provider-tool registry, CLI parser, raw payload preservation, endpoint dispatch, and safe usage logging through offline tests.
 - `npm run test:docs` proves the provider-tool registry and provider matrix documentation have not drifted.
 - `tool list --json` proves the new surface is discoverable and machine-readable.
+- `tool info ... --json` proves callers can discover the exact provider-tool input schema without leaving ColdSearch.
 - `tool call ... --json-input` proves at least one provider-tool command path accepts explicit input and returns the contract shape.
 - `provider-pass-through` proves each newly wired provider tool against its provider-native API/SDK/CLI path. Run one row per in-scope tool with available credentials or an explicit user waiver.
 
@@ -179,7 +205,8 @@ Expected:
 
 - Required tests pass.
 - `tool list --json` includes the in-scope tools.
-- Provider-tool calls return JSON with `provider`, `tool`, `ok`, and `raw`.
+- `tool info --json` returns schemas for every in-scope provider tool.
+- Provider-tool calls return JSON with `provider`, `tool`, `status`, and `raw`.
 - Unsupported tools fail visibly and do not make provider calls.
 - Provider-native vs ColdSearch evidence exists for every in-scope tool that has credentials/endpoints available.
 - No command prints raw API keys.
@@ -188,6 +215,7 @@ Expected:
 
 - Broadly useful tools from every configured provider are reachable through ColdSearch.
 - Niche or high-risk tools are explicitly marked deferred, not forgotten.
+- Async, vertical, and native-batch provider tools keep their native semantics instead of being flattened or dropped.
 - Raw provider details survive end to end.
 - Provider-tool pass-through is proven against native provider paths, not inferred from mocks.
 - Provider-tool calls are auditable in logs.

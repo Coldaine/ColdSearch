@@ -28,7 +28,9 @@ This split is natural because each PR has a different owner surface:
 - PR 4 owns operator setup, diagnostics, and status.
 - PR 5 owns agent traceability.
 
-Do not add remote execution or cross-process key coordination to these five PRs. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Do add broadly useful provider tools; defer only niche verticals or high-risk tools that are explicitly named in the PR 1 plan.
+Do not add remote execution or cross-process key coordination to these five PRs. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md).
+
+Do add broadly useful provider tools. PR 1 is not a narrow "safe tools only" PR. Provider discovery, native parity checks, and schema work exist to choose the right ColdSearch shape for each provider tool, not to shrink the implementation target. Defer only niche verticals, browser-mutating tools, or high-risk tools that are explicitly named in the PR 1 plan or explicitly waived by the user.
 
 ## Current Baseline
 
@@ -191,8 +193,9 @@ Plan: [2026-06-22-pr1-provider-tool-surface.md](./2026-06-22-pr1-provider-tool-s
 Success looks like:
 
 - `coldsearch tool list` exists.
+- `coldsearch tool info <provider>.<tool>` exists.
 - `coldsearch tool call <provider>.<tool>` exists.
-- Broadly useful tools from each configured provider are reachable through ColdSearch.
+- Broadly useful tools from each configured provider are reachable through ColdSearch, including tools with async/job, vertical-search, or native-batch shapes.
 - Niche or high-risk tools are explicitly deferred in docs.
 - Provider-tool calls preserve raw provider payloads.
 - Provider-tool calls produce safe usage/audit logs.
