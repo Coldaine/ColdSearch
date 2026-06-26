@@ -14,7 +14,8 @@ export interface KeyResult {
  * In-process cache for a resolved Doppler secret.
  * Only the resolved value lives here, in memory, for the life of the process —
  * it is never logged or persisted. `expiresAt` bounds staleness so a rotated
- * secret eventually takes effect (see SECRET_CACHE_TTL_MS).
+ * secret eventually takes effect (see `resolveSecretCacheTtlMs()` /
+ * COLDSEARCH_SECRET_CACHE_TTL env var).
  */
 interface CachedSecret {
   value: string;
@@ -57,6 +58,13 @@ export class KeyPoolManager {
   private indices: Map<string, number> = new Map();
   /** In-memory only; holds resolved secret values keyed by Doppler secret name. */
   private secretCache: Map<string, CachedSecret> = new Map();
+  /**
+   * Pending Doppler CLI promises keyed by secret name.
+   * When caching is enabled and a lookup is already in flight, concurrent
+   * callers share the same promise rather than spawning N doppler processes.
+   * Cleared in `finally` so errors don't permanently block future lookups.
+   */
+  private secretLookups: Map<string, Promise<string>> = new Map();
 
   register(provider: string, pool: KeyPool): void {
     this.pools.set(provider, pool);
@@ -143,15 +151,41 @@ export class KeyPoolManager {
     return keyRef;
   }
 
-  private async resolveDopplerSecret(secretName: string): Promise<string> {
+  private resolveDopplerSecret(secretName: string): Promise<string> {
     const ttlMs = resolveSecretCacheTtlMs();
+
     if (ttlMs > 0) {
+      // Return a warm cache hit immediately.
       const cached = this.secretCache.get(secretName);
-      if (cached && cached.expiresAt > Date.now()) {
-        return cached.value;
+      if (cached) {
+        if (cached.expiresAt > Date.now()) {
+          return Promise.resolve(cached.value);
+        }
+        // Expired — evict so the stale value doesn't linger past its TTL.
+        this.secretCache.delete(secretName);
+      }
+
+      // Coalesce concurrent lookups: if a CLI call for this secret is already
+      // in flight, share it so N fanout callers spawn only one doppler process.
+      const inflight = this.secretLookups.get(secretName);
+      if (inflight) {
+        return inflight;
       }
     }
 
+    // No warm cache hit and no in-flight lookup (or caching is disabled).
+    const promise = this._dopplerFetch(secretName, ttlMs);
+
+    if (ttlMs > 0) {
+      this.secretLookups.set(secretName, promise);
+      // Clear in finally so errors don't permanently block subsequent lookups.
+      promise.finally(() => this.secretLookups.delete(secretName));
+    }
+
+    return promise;
+  }
+
+  private async _dopplerFetch(secretName: string, ttlMs: number): Promise<string> {
     let value: string;
     try {
       // No-shell guarantee: execFile (shell:false by default) passes the secret
