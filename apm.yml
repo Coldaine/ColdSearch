@@ -1,0 +1,11 @@
+name: ColdSearch
+version: 1.0.0
+description: APM project for ColdSearch
+author: AI Assistant
+dependencies:
+  apm:
+  - mubaidr/gem-team#f74a56f2a2463817c98db6986567edfb1389c263
+  mcp: []
+target: copilot
+includes: auto
+scripts: {}

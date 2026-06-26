@@ -5,6 +5,7 @@ import { JinaAdapter } from "./adapters/jina.js";
 import { SearXNGAdapter } from "./adapters/searxng.js";
 import { SerperAdapter } from "./adapters/serper.js";
 import { TavilyAdapter } from "./adapters/tavily.js";
+import { resolveEligibleTools } from "./registry/tool-profiles.js";
 import type { CapabilityName, Config } from "./types.js";
 import type { SearchAdapter } from "./types.js";
 
@@ -84,11 +85,18 @@ export function createRegisteredAdapter(provider: string): SearchAdapter {
 /**
  * Shared provider resolution logic used by both CLI dry-run and FanoutEngine.
  * Validates config/capability and applies strategy (all vs random).
+ *
+ * When `requireFeatures` is supplied, routing becomes requirement-aware: the
+ * selected providers are narrowed to those whose wired tool for the capability
+ * actually sets every requested feature predicate (see
+ * `src/registry/tool-profiles.ts`). This prevents picking a provider that
+ * "claims the category" but cannot honor the requested feature. With no
+ * `requireFeatures`, behavior is unchanged.
  */
 export function resolveCapabilityProviders(
   config: Config,
   capability: CapabilityName,
-  options: { providers?: string[]; singleProvider?: boolean }
+  options: { providers?: string[]; singleProvider?: boolean; requireFeatures?: string[] }
 ): { providers: string[] } {
   const capConfig = config.capabilities[capability];
   if (!capConfig) {
@@ -112,9 +120,25 @@ export function resolveCapabilityProviders(
     }
   }
 
-  const useSingleProvider = options.singleProvider || capConfig.strategy === "random";
-  if (!useSingleProvider) return { providers: selected };
+  let eligible = selected;
+  if (options.requireFeatures && options.requireFeatures.length > 0) {
+    const eligibleProviders = new Set(
+      resolveEligibleTools(capability, { requireFeatures: options.requireFeatures }).map(
+        (tool) => tool.provider
+      )
+    );
+    eligible = selected.filter((provider) => eligibleProviders.has(provider));
+    if (!eligible.length) {
+      throw new Error(
+        `No '${capability}' provider tool satisfies required features: ` +
+          `[${options.requireFeatures.join(", ")}] (from [${selected.join(", ")}])`
+      );
+    }
+  }
 
-  const randomIndex = Math.floor(Math.random() * selected.length);
-  return { providers: [selected[randomIndex]] };
+  const useSingleProvider = options.singleProvider || capConfig.strategy === "random";
+  if (!useSingleProvider) return { providers: eligible };
+
+  const randomIndex = Math.floor(Math.random() * eligible.length);
+  return { providers: [eligible[randomIndex]] };
 }

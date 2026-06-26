@@ -6,7 +6,10 @@ import type { CapabilityName, KeyPool } from "../types.js";
 export interface UsageLogEntry {
   timestamp: string;
   provider: string;
-  capability: CapabilityName;
+  capability?: CapabilityName;
+  tool?: string;
+  catalogued?: boolean;
+  runId?: string;
   key: string;
   success: boolean;
   response_time_ms: number;

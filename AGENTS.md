@@ -9,7 +9,7 @@ Route by task:
 - Technical shape, invariants → `docs/architecture.md`
 - Provider matrix → `docs/PROVIDERS.md`
 - Durable decisions → `docs/ADRs/`
-- Add or change a provider → `docs/DEVELOPER.md`
+- Add or change a provider → `docs/contributing/adding-a-provider.md`
 - Config, keys, CI → `docs/CONFIGURATION.md`, `docs/KEY_MANAGEMENT.md`, `docs/contributing/ci.md`
 - Active implementation plans → `plans/` (informational; issues and code win)
 
