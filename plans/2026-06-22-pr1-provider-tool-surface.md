@@ -20,7 +20,7 @@ So the layering is, bottom to top:
 2. **Curated tools (special case: known shape).** For broadly-useful tools, the registry additionally carries metadata — a request/response shape, an optional non-lossy `summary`, and a pass-through parity probe. Curation buys validation and a tidy summary; it does **not** gate reachability.
 3. **Normalized capabilities (special case: cross-provider orchestration).** `search`/`extract`/`crawl` remain their own commands, but conceptually they are orchestrated fan-outs of the substrate across a provider pool, with normalization, RRF merge, key spreading, and comparison layered on. This is where ColdSearch earns its multi-provider value (NORTH_STAR G2/G3); the substrate alone is single-provider, single-key.
 
-**Reachability rule (warn-but-forward):** an unknown *provider* fails locally before any network call. An unknown or uncatalogued *tool* on a known provider is **forwarded** to the provider with a warning (raw-only, no summary, no schema validation) rather than rejected — so an uncatalogued or newly-released tool still works. Invalid *parameters* surface the provider's own error verbatim. This is the Fail-Visible pillar applied to the tool surface.
+**Reachability rule (warn-but-forward):** an unknown *provider* fails locally before any network call. An unknown or uncatalogued *tool* on a known provider is **forwarded** to the provider with a warning (raw-only, no summary, no schema validation) rather than rejected — so an uncatalogued or newly-released tool still works. Invalid *parameters* surface the provider's own error verbatim. This is the Fail Visible pillar applied to the tool surface.
 
 ## Scope
 
@@ -102,7 +102,7 @@ Rules:
 
 - `raw` must preserve provider detail for **every** call, catalogued or not.
 - `summary` is optional, only emitted for catalogued tools, and must not hide raw details.
-- `catalogued: false` calls forward raw and add a `warnings` entry noting the tool is uncatalogued; they do not fail just because ColdSearch lacks metadata.
+- `catalogued: false` calls forward raw and add an entry to `meta.warnings` noting the tool is uncatalogued; they do not fail just because ColdSearch lacks metadata.
 - An unknown provider fails locally before any network call. Invalid parameters surface the provider's own error.
 - Errors must identify config, credentials, network, provider, or unsupported-tool failures where practical.
 - Provider-tool calls must honor the same key resolution and timeout rules as normalized capabilities.
@@ -211,7 +211,7 @@ Expected:
 
 ## Success Criteria
 
-- Any tool a configured provider exposes is reachable through ColdSearch via the generic `tool call` substrate, catalogued or not.
+- Safe and policy-allowed tools from a configured provider are reachable through ColdSearch via the generic `tool call` substrate, catalogued or not.
 - Broadly useful tools are catalogued with summaries and proven against native provider paths, not inferred from mocks.
 - Niche or new tools remain reachable raw without first being enumerated; only state-mutating/stateful tools are actively excluded, and that exclusion is explicit.
 - Raw provider details survive end to end for every call.
