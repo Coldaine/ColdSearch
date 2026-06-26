@@ -1,85 +1,81 @@
+import { execFileSync } from "node:child_process";
 import type { KeyPool } from "../types.js";
-import { resolveBWSSecret } from "../resolvers/bws.js";
 import { safeKeyRef } from "../logging/usage.js";
 
-/**
- * Result of resolving a key from the pool.
- */
 export interface KeyResult {
-  /** The resolved secret value */
   value: string;
-  /** The key reference (e.g. "env:TAVILY_API_KEY", "bws:my-secret", or literal) */
   ref: string;
 }
 
-/**
- * Process-local key pool manager with round-robin and random rotation.
- * Rotation state is safe within a single Node.js process and should not be
- * described as cross-process or distributed coordination.
- */
+const PROVIDER_DEFAULT_DOPPLER_SECRETS: Record<string, string> = {
+  tavily: "TAVILY_API_KEY",
+  exa: "EXA_API_KEY",
+  firecrawl: "FIRECRAWL_API_KEY",
+  brave: "BRAVE_API_KEY",
+  serper: "SERPER_API_KEY",
+};
+
 export class KeyPoolManager {
   private pools: Map<string, KeyPool> = new Map();
   private indices: Map<string, number> = new Map();
 
-  /**
-   * Register a key pool for a provider.
-   */
   register(provider: string, pool: KeyPool): void {
     this.pools.set(provider, pool);
     this.indices.set(provider, 0);
   }
 
-  /**
-   * Get the next key from a provider's pool.
-   * Uses round-robin or random selection based on pool strategy.
-   * @throws Error if pool is empty
-   */
   async getNextKey(provider: string): Promise<string> {
     const result = await this.getNextKeyWithRef(provider);
     return result.value;
   }
 
-  /**
-   * Get the next key from a provider's pool, returning both the
-   * resolved value and the key reference for safe logging.
-   * Uses round-robin or random selection based on pool strategy.
-   * @throws Error if pool is empty
-   */
   async getNextKeyWithRef(provider: string): Promise<KeyResult> {
     const pool = this.pools.get(provider);
     if (!pool) {
       throw new Error(`No key pool registered for provider: ${provider}`);
     }
 
-    if (!pool.keys.length) {
-      throw new Error(`Key pool for ${provider} is empty`);
+    const refs = this.getEffectiveKeyRefs(provider, pool);
+    if (!refs.length) {
+      throw new Error(`Key pool for ${provider} is empty and no default secret name is available`);
     }
 
     const strategy = pool.strategy || "round-robin";
     let keyIndex: number;
 
     if (strategy === "random") {
-      // Random selection
-      keyIndex = Math.floor(Math.random() * pool.keys.length);
+      keyIndex = Math.floor(Math.random() * refs.length);
     } else {
-      // Round-robin (default)
       const currentIndex = this.indices.get(provider) || 0;
-      keyIndex = currentIndex;
-      const nextIndex = (currentIndex + 1) % pool.keys.length;
+      keyIndex = currentIndex % refs.length;
+      const nextIndex = (currentIndex + 1) % refs.length;
       this.indices.set(provider, nextIndex);
     }
 
-    const keyRef = pool.keys[keyIndex];
+    const keyRef = refs[keyIndex];
     const value = await this.resolveKeyRef(keyRef);
     return { value, ref: safeKeyRef(keyRef, provider) };
   }
 
-  /**
-   * Resolve a key reference to its actual value.
-   * Supports:
-   *   - env:VAR_NAME for environment variables
-   *   - bws:SECRET_NAME or bws:SECRET_ID for Bitwarden Secrets Manager
-   */
+  private getEffectiveKeyRefs(provider: string, pool: KeyPool): string[] {
+    if (Array.isArray(pool.keys) && pool.keys.length > 0) {
+      return pool.keys;
+    }
+
+    if (typeof pool.defaultSecretName === "string") {
+      const trimmed = pool.defaultSecretName.trim();
+      if (trimmed.length === 0) return [];
+      return [`doppler:${trimmed}`];
+    }
+
+    const providerDefault = PROVIDER_DEFAULT_DOPPLER_SECRETS[provider];
+    if (providerDefault) {
+      return [`doppler:${providerDefault}`];
+    }
+
+    return [];
+  }
+
   private async resolveKeyRef(keyRef: string): Promise<string> {
     if (keyRef.startsWith("env:")) {
       const varName = keyRef.slice(4);
@@ -91,32 +87,56 @@ export class KeyPoolManager {
     }
 
     if (keyRef.startsWith("bws:")) {
-      const secretRef = keyRef.slice(4);
-      return resolveBWSSecret(secretRef);
+      throw new Error(
+        "Bitwarden Secrets Manager (bws:) support has been removed. " +
+        "Replace bws: references in config with doppler: or env: — see docs/BWS_INTEGRATION.md."
+      );
+    }
+
+    if (keyRef.startsWith("doppler:")) {
+      const secretName = keyRef.slice(8).trim();
+      if (!secretName) {
+        throw new Error("Invalid Doppler secret reference: missing secret name");
+      }
+      return this.resolveDopplerSecret(secretName);
     }
 
     return keyRef;
   }
 
-  /**
-   * Get all registered providers.
-   */
+  private async resolveDopplerSecret(secretName: string): Promise<string> {
+    try {
+      const value = execFileSync("doppler", ["secrets", "get", secretName, "--plain"], {
+        encoding: "utf8",
+        timeout: 10000,
+        stdio: ["ignore", "pipe", "pipe"],
+      }).trim();
+
+      if (!value) {
+        throw new Error(`Doppler secret "${secretName}" resolved to empty value`);
+      }
+
+      return value;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === "ENOENT") {
+        throw new Error("Doppler CLI not found on PATH. Install it from https://docs.doppler.com/docs/cli");
+      }
+      throw new Error(
+        `Failed to resolve Doppler secret "${secretName}". Ensure Doppler is authenticated for this process.`
+      );
+    }
+  }
+
   getProviders(): string[] {
     return Array.from(this.pools.keys());
   }
 
-  /**
-   * Check if a provider has any keys configured.
-   */
   hasKeys(provider: string): boolean {
     const pool = this.pools.get(provider);
-    return !!pool && pool.keys.length > 0;
+    return !!pool && this.getEffectiveKeyRefs(provider, pool).length > 0;
   }
 
-  /**
-   * Get the next key from a provider's pool, or empty string if no keys.
-   * Safe for keyless providers like Jina.
-   */
   async getNextKeyOrEmpty(provider: string): Promise<string> {
     if (!this.hasKeys(provider)) {
       return "";
@@ -124,10 +144,6 @@ export class KeyPoolManager {
     return this.getNextKey(provider);
   }
 
-  /**
-   * Get the next key with reference from a provider's pool, or keyless result if no keys.
-   * Safe for keyless providers like Jina and SearXNG.
-   */
   async getNextKeyWithRefOrEmpty(provider: string): Promise<KeyResult> {
     if (!this.hasKeys(provider)) {
       return { value: "", ref: `${provider}:keyless` };
@@ -136,18 +152,8 @@ export class KeyPoolManager {
   }
 }
 
-/**
- * Create a fresh KeyPoolManager instance.
- * Use this instead of a global singleton so that each FanoutEngine
- * owns its own pool state without cross-instance leakage.
- */
 export function createKeyPoolManager(): KeyPoolManager {
   return new KeyPoolManager();
 }
 
-/**
- * Global key pool manager instance.
- * Prefer createKeyPoolManager() for new code; this export exists
- * for backward compatibility during migration.
- */
 export const keyPoolManager = new KeyPoolManager();

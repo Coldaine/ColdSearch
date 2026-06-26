@@ -56,7 +56,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 ## Architectural Invariants
 
 - **Config over code.** Routing, pools, keys, cache policy, and endpoints live in TOML, not hardcoded switches.
-- **Doppler for secret injection.** Operator secrets should enter the process through Doppler-managed environment injection where possible; ColdSearch code reads normal environment variables, explicit `env:` refs, optional `bws:` refs, or keyless provider config and must not log secret values.
+- **Doppler for secret injection.** Operator secrets should enter the process through Doppler-managed environment injection where possible; ColdSearch code reads normal environment variables, explicit `env:` refs, `doppler:` refs, or keyless provider config and must not log secret values.
 - **Interface-agnostic core.** Routing, keys, retries, and normalization must not depend on whether the caller is CLI, API, or MCP (Planned entrypoints).
 - **Comparable execution.** Fanout and per-provider error isolation enable cross-provider comparison (`docs/ADRs/001-fanout-architecture.md`).
 - **Logging is a product surface.** Networked work, routing, cache lookup/retrieval, key selection by safe reference, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs (`docs/NORTH_STAR.md` G5).

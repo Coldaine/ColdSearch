@@ -102,7 +102,7 @@ Keys are resolved from a **key pool**, never hard-coded. In config:
 
 ```toml
 [providers.acme.keyPool]
-keys = ["env:ACME_API_KEY"]      # also supports "bws:<id>" (Bitwarden) refs
+keys = ["env:ACME_API_KEY"]      # also supports "doppler:SECRET_NAME" refs
 strategy = "round-robin"          # or "random"
 ```
 
