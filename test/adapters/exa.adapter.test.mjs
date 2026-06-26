@@ -41,3 +41,35 @@ test("exa crawl discovers then fetches contents", async () => {
   }
 });
 
+test("exa search highlights mode sets contents.highlights and joins highlights into snippet", async () => {
+  let capturedBody;
+
+  const restore = installFetchMock({
+    "POST https://api.exa.ai/search": async ({ init }) => {
+      capturedBody = JSON.parse(init.body);
+      return jsonResponse({
+        results: [
+          { title: "T", url: "https://x.example/h", highlights: ["a", "b"], score: 0.9 },
+        ],
+      });
+    },
+  });
+
+  try {
+    const adapter = new ExaAdapter();
+    const results = await adapter.search("q", "k", {
+      providerOptions: { highlights: true },
+    });
+
+    // Request body: highlights content block, NOT a text block.
+    assert.deepEqual(capturedBody.contents, { highlights: true });
+    assert.ok(!("text" in capturedBody.contents), "contents must not include a text block");
+
+    // Normalization: highlights joined with " ... " into snippet.
+    assert.equal(results.length, 1);
+    assert.equal(results[0].snippet, "a ... b");
+  } finally {
+    restore();
+  }
+});
+

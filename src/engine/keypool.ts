@@ -1,10 +1,47 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { KeyPool } from "../types.js";
 import { safeKeyRef } from "../logging/usage.js";
+
+const execFileAsync = promisify(execFile);
 
 export interface KeyResult {
   value: string;
   ref: string;
+}
+
+/**
+ * In-process cache for a resolved Doppler secret.
+ * Only the resolved value lives here, in memory, for the life of the process —
+ * it is never logged or persisted. `expiresAt` bounds staleness so a rotated
+ * secret eventually takes effect (see SECRET_CACHE_TTL_MS).
+ */
+interface CachedSecret {
+  value: string;
+  expiresAt: number;
+}
+
+/**
+ * TTL (ms) for the in-process Doppler secret cache.
+ *
+ * Caching avoids re-invoking the Doppler CLI for every request during provider
+ * fanout. The tradeoff is freshness: a rotated secret is not picked up until the
+ * cached entry expires.
+ *
+ * Override with COLDSEARCH_SECRET_CACHE_TTL (seconds):
+ *   - unset / invalid -> default 300s (5 minutes)
+ *   - 0               -> caching disabled (every resolution hits the CLI)
+ */
+function resolveSecretCacheTtlMs(): number {
+  const raw = process.env.COLDSEARCH_SECRET_CACHE_TTL;
+  if (raw === undefined || raw.trim() === "") {
+    return 5 * 60 * 1000;
+  }
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return 5 * 60 * 1000;
+  }
+  return Math.floor(seconds * 1000);
 }
 
 const PROVIDER_DEFAULT_DOPPLER_SECRETS: Record<string, string> = {
@@ -18,6 +55,8 @@ const PROVIDER_DEFAULT_DOPPLER_SECRETS: Record<string, string> = {
 export class KeyPoolManager {
   private pools: Map<string, KeyPool> = new Map();
   private indices: Map<string, number> = new Map();
+  /** In-memory only; holds resolved secret values keyed by Doppler secret name. */
+  private secretCache: Map<string, CachedSecret> = new Map();
 
   register(provider: string, pool: KeyPool): void {
     this.pools.set(provider, pool);
@@ -105,18 +144,28 @@ export class KeyPoolManager {
   }
 
   private async resolveDopplerSecret(secretName: string): Promise<string> {
-    try {
-      const value = execFileSync("doppler", ["secrets", "get", secretName, "--plain"], {
-        encoding: "utf8",
-        timeout: 10000,
-        stdio: ["ignore", "pipe", "pipe"],
-      }).trim();
-
-      if (!value) {
-        throw new Error(`Doppler secret "${secretName}" resolved to empty value`);
+    const ttlMs = resolveSecretCacheTtlMs();
+    if (ttlMs > 0) {
+      const cached = this.secretCache.get(secretName);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.value;
       }
+    }
 
-      return value;
+    let value: string;
+    try {
+      // No-shell guarantee: execFile (shell:false by default) passes the secret
+      // name as a literal argv entry — it is never interpolated into a shell
+      // command, so it cannot be used for command injection.
+      const { stdout } = await execFileAsync(
+        "doppler",
+        ["secrets", "get", secretName, "--plain"],
+        {
+          encoding: "utf8",
+          timeout: 10000,
+        }
+      );
+      value = stdout.trim();
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
       if (err.code === "ENOENT") {
@@ -126,6 +175,16 @@ export class KeyPoolManager {
         `Failed to resolve Doppler secret "${secretName}". Ensure Doppler is authenticated for this process.`
       );
     }
+
+    if (!value) {
+      throw new Error(`Doppler secret "${secretName}" resolved to empty value`);
+    }
+
+    if (ttlMs > 0) {
+      this.secretCache.set(secretName, { value, expiresAt: Date.now() + ttlMs });
+    }
+
+    return value;
   }
 
   getProviders(): string[] {
