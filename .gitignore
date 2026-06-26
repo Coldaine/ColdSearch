@@ -33,3 +33,7 @@ parallel-cli-output/
 /pydanticai-adk.json
 /stagehand-2026.json
 /ts-agent-frameworks.json
+
+
+# APM dependencies
+apm_modules/
