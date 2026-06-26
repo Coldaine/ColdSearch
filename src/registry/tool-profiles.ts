@@ -884,6 +884,29 @@ export function getToolProfile(id: string): ProviderToolProfile | undefined {
   return providerToolProfiles[id];
 }
 
+/**
+ * Tools ColdSearch refuses to dispatch through the generic substrate even when
+ * the provider exposes them, because they run autonomous multi-step agents,
+ * mutate remote state, or require stateful setup the substrate can't audit.
+ *
+ * This is the single source of truth for hard-exclusion. The substrate must
+ * consult it instead of inferring exclusion from the tool name (a substring
+ * match on "agent" wrongly blocks legitimate tools) or from request params
+ * (the presence of a `scrape` actions array does not by itself mean mutation).
+ */
+export const HARD_EXCLUDED_TOOLS: ReadonlySet<string> = new Set<string>([
+  "firecrawl.agent",
+]);
+
+/**
+ * Whether a `<provider>.<tool>` id is hard-excluded from substrate dispatch.
+ * True if it is on the explicit exclusion list or its profile is `deferred`.
+ */
+export function isHardExcluded(id: string): boolean {
+  if (HARD_EXCLUDED_TOOLS.has(id)) return true;
+  return getToolProfile(id)?.status === "deferred";
+}
+
 export interface ToolProfileFilter {
   provider?: string;
   category?: CapabilityCategory;

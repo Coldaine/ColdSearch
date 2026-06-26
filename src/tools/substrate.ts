@@ -1,6 +1,6 @@
 import { fetchJson, fetchText, HTTPRequestError } from "../http.js";
 import { KeyPoolManager } from "../engine/keypool.js";
-import { getToolProfile } from "../registry/tool-profiles.js";
+import { getToolProfile, isHardExcluded } from "../registry/tool-profiles.js";
 import { UsageLogger } from "../logging/usage.js";
 import type { Config } from "../types.js";
 import { performance } from "node:perf_hooks";
@@ -21,13 +21,6 @@ export interface ToolCallResult {
     safe_key_ref: string | null;
     warnings: string[];
   };
-}
-
-/**
- * Clean up strings from a tool ID or query/params to avoid leakage of keys in error messages.
- */
-function cleanErrorMessage(msg: string): string {
-  return msg;
 }
 
 /**
@@ -193,15 +186,11 @@ export async function executeToolCall(
     };
   }
 
-  // 2. Validate hard exclusions
-  const registryProfile = getToolProfile(`${provider}.${tool}`);
-  const isDeferred = registryProfile?.status === "deferred";
-  const nameLooksLikeAgent = tool.toLowerCase().includes("agent");
-  const isMutatingScrapeAction =
-    provider === "firecrawl" &&
-    (tool === "agent" || (params.actions && Array.isArray(params.actions)));
+  // 2. Validate hard exclusions (registry-driven; see HARD_EXCLUDED_TOOLS)
+  const toolId = `${provider}.${tool}`;
+  const registryProfile = getToolProfile(toolId);
 
-  if (isDeferred || nameLooksLikeAgent || isMutatingScrapeAction) {
+  if (isHardExcluded(toolId)) {
     return {
       provider,
       tool,
@@ -211,7 +200,7 @@ export async function executeToolCall(
       raw: null,
       error: {
         code: "HARD_EXCLUDED",
-        message: `Tool '${provider}.${tool}' is hard-excluded: it mutates remote state or requires complex stateful setup.`,
+        message: `Tool '${provider}.${tool}' is hard-excluded: it runs an autonomous agent, mutates remote state, or requires complex stateful setup.`,
       },
       meta: { duration_ms: 0, safe_key_ref: null, warnings },
     };
@@ -230,9 +219,11 @@ export async function executeToolCall(
   }
 
   let keyResult = { value: "", ref: "keyless" };
+  // Keyless is per-tool, not per-provider: jina.reader is keyless but
+  // jina.embeddings/rerank require auth, so don't blanket-exempt jina. SearXNG
+  // is self-hosted and always keyless even for uncatalogued tools.
   const expectsKey = !(
     registryProfile?.features?.keyless === true ||
-    provider === "jina" ||
     provider === "searxng"
   );
 
@@ -389,8 +380,19 @@ export async function executeToolCall(
     };
   } catch (err: any) {
     const duration = Math.round(performance.now() - startTime);
-    
-    // Log failures
+
+    // The provider's response body is untrusted and may echo secrets back
+    // (e.g. Tavily reflects api_key in the request body). Keep it OUT of the
+    // logged and returned error *string* — preserve it only in `raw`, which
+    // already sits at the caller's trust boundary. This removes any need to
+    // scrub keys from error text after the fact.
+    let errBody: string | undefined;
+    let errorMsg = err.message;
+    if (err instanceof HTTPRequestError) {
+      errBody = err.body;
+      errorMsg = `API request to ${provider}.${tool} failed with HTTP ${err.status}`;
+    }
+
     const logger = new UsageLogger({ path: config.logging?.usage?.path });
     logger.write({
       timestamp: new Date().toISOString(),
@@ -400,16 +402,8 @@ export async function executeToolCall(
       key: safeKeyRefStr || "keyless",
       success: false,
       response_time_ms: duration,
-      error: cleanErrorMessage(err.message),
+      error: errorMsg,
     });
-
-    // Distinguish HTTP errors
-    let errorMsg = err.message;
-    let errBody = undefined;
-    if (err instanceof HTTPRequestError) {
-      errBody = err.body;
-      errorMsg = `API request to ${provider}.${tool} failed with HTTP ${err.status}: ${err.body || err.message}`;
-    }
 
     let parsedRawError: any = null;
     if (errBody) {
@@ -429,7 +423,7 @@ export async function executeToolCall(
       raw: parsedRawError,
       error: {
         code: "PROVIDER_ERROR",
-        message: cleanErrorMessage(errorMsg),
+        message: errorMsg,
       },
       meta: {
         duration_ms: duration,
