@@ -680,7 +680,9 @@ async function runToolCall(options: ExtendedCLIOptions): Promise<void> {
   const tc = options.toolCommand!;
   const target = tc.target!;
   const parts = target.split(".");
-  if (parts.length < 2) {
+  // Exactly <provider>.<tool>; reject 0 or >1 dots so `exa.search.extra`
+  // doesn't silently drop its trailing segment.
+  if (parts.length !== 2) {
     const failureResult = {
       provider: parts[0] || "unknown",
       tool: "unknown",

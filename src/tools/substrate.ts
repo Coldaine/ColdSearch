@@ -311,7 +311,9 @@ export async function executeToolCall(
         headers["Accept"] = "text/plain";
         method = "GET";
         const targetUrl = params.url || params.q || "";
-        url = `https://r.jina.ai/${targetUrl}`;
+        // encodeURI (not encodeURIComponent) so the target's own scheme/query
+        // structure survives while spaces and other unsafe chars are escaped.
+        url = `https://r.jina.ai/${encodeURI(targetUrl)}`;
       } else {
         // e.g. jina embeddings, rerank
         url = `https://api.jina.ai/v1/${tool}`;
