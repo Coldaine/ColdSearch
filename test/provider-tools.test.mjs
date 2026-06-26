@@ -172,7 +172,7 @@ test("raw provider payload and usage logging is preserved in tool calls", async 
           }
         };
 
-        process.env.EXA_API_KEY = "secret-exa-key-123";
+        process.env.EXA_API_KEY = "test-exa-key";
 
         // Monkey patch default url to hit local mock server
         const originalFetch = global.fetch;

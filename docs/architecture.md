@@ -28,7 +28,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 | CLI entrypoint | Current | `coldsearch` (+ `usearch` alias); search, extract, crawl, agent, status |
 | Normalized capabilities | Current | `search`, `extract`, `crawl` as category views over provider tools; adapters + fanout/RRF |
 | Provider-tool profile registry | Current | `ProviderToolProfile` per native tool; `tool list`/`tool info`; feature-predicate routing |
-| Provider-tool call execution | Planned | Networked `tool call <provider>.<tool>` over the profile registry |
+| Provider-tool call execution | Current | Networked `tool call <provider>.<tool>` over the profile registry |
 | Config-driven routing | Current | `~/.config/coldsearch/config.toml`; provider pools per capability |
 | Key and secret resolution | Current | Doppler-injected environment variables preferred; env refs, optional BWS refs, and keyless providers supported; per-process pools |
 | Basic cache store | Current | Read-through file cache for search/extract |

@@ -282,6 +282,9 @@ test("CLI `tool call` exits 1 with the right error code on preflight/parse failu
     { args: ["unknownxyz.search", "--json-input", "{}"], code: "UNKNOWN_PROVIDER" },
     { args: ["firecrawl.agent", "--json-input", "{}"], code: "HARD_EXCLUDED" },
     { args: ["notavalidid", "--json-input", "{}"], code: "INVALID_TOOL_ID" },
+    { args: ["exa.search.extra", "--json-input", "{}"], code: "INVALID_TOOL_ID" },
+    { args: ["exa.", "--json-input", "{}"], code: "INVALID_TOOL_ID" },
+    { args: [".search", "--json-input", "{}"], code: "INVALID_TOOL_ID" },
     { args: ["exa.search", "--json-input", "{bad json"], code: "INVALID_JSON" },
   ];
 
