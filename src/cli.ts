@@ -11,6 +11,7 @@ import {
   listToolProfiles,
   providerToolProfiles,
 } from "./registry/tool-profiles.js";
+import { executeToolCall } from "./tools/substrate.js";
 import { getKeyReference } from "./logging/usage.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -43,9 +44,11 @@ interface ExtendedCLIOptions extends CLIOptions {
   dryRun?: boolean;
   /** Bypass the read-through result cache */
   noCache?: boolean;
-  /** `coldsearch tool <sub>` discovery surface (offline, read-only) */
+  /** JSON input string/file for tool calling */
+  jsonInput?: string;
+  /** `coldsearch tool <sub>` discovery/execution surface */
   toolCommand?: {
-    sub: "list" | "info";
+    sub: "list" | "info" | "call";
     target?: string;
     provider?: string;
     category?: string;
@@ -70,18 +73,18 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
   let i = 0;
 
   if (args.length > 0 && args[0] === "tool") {
-    // `tool list` / `tool info <provider.tool>` — offline discovery surface.
+    // `tool list` / `tool info <provider.tool>` / `tool call <provider.tool>`
     const sub = args[1];
-    if (sub !== "list" && sub !== "info") {
+    if (sub !== "list" && sub !== "info" && sub !== "call") {
       throw new Error(
-        `Unknown 'tool' subcommand: ${sub ?? "(none)"}. Use 'tool list' or 'tool info <provider.tool>'.`
+        `Unknown 'tool' subcommand: ${sub ?? "(none)"}. Use 'tool list', 'tool info <provider.tool>', or 'tool call <provider.tool>'.`
       );
     }
     options.toolCommand = { sub };
     i = 2;
-    if (sub === "info") {
+    if (sub === "info" || sub === "call") {
       if (!args[2] || args[2].startsWith("-")) {
-        throw new Error("'tool info' requires a <provider.tool> argument, e.g. exa.search");
+        throw new Error(`'tool ${sub}' requires a <provider.tool> argument, e.g. exa.search`);
       }
       options.toolCommand.target = args[2];
       i = 3;
@@ -116,6 +119,11 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--json":
       case "-j":
         options.json = true;
+        break;
+
+      case "--json-input":
+        i++;
+        options.jsonInput = args[i];
         break;
 
       case "--config":
@@ -650,6 +658,117 @@ function runToolInfo(options: ExtendedCLIOptions): void {
 }
 
 /**
+ * Standard utility to read all input from stdin.
+ */
+function readStdin(): Promise<string> {
+  return new Promise((resolve) => {
+    let data = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on("end", () => {
+      resolve(data);
+    });
+  });
+}
+
+/**
+ * `coldsearch tool call <provider.tool> --json-input <file-or-stdin>` — execute a tool call.
+ */
+async function runToolCall(options: ExtendedCLIOptions): Promise<void> {
+  const tc = options.toolCommand!;
+  const target = tc.target!;
+  const parts = target.split(".");
+  if (parts.length < 2) {
+    const failureResult = {
+      provider: parts[0] || "unknown",
+      tool: "unknown",
+      ok: false,
+      catalogued: false,
+      summary: null,
+      raw: null,
+      error: {
+        code: "INVALID_TOOL_ID",
+        message: `Invalid tool ID: '${target}'. Tool ID must follow the '<provider>.<tool>' format, e.g. exa.search`,
+      },
+      meta: { duration_ms: 0, safe_key_ref: null, warnings: [] },
+    };
+    console.log(formatOutput(failureResult, options));
+    process.exit(1);
+    return;
+  }
+
+  const [provider, tool] = parts;
+
+  // Read params
+  let jsonInputStr = "{}";
+  if (options.jsonInput) {
+    const trimmedInput = options.jsonInput.trim();
+    if (options.jsonInput === "-") {
+      jsonInputStr = await readStdin();
+    } else if (trimmedInput.startsWith("{") || trimmedInput.startsWith("[")) {
+      jsonInputStr = options.jsonInput;
+    } else {
+      const resolvedPath = path.resolve(options.jsonInput);
+      if (fs.existsSync(resolvedPath)) {
+        jsonInputStr = fs.readFileSync(resolvedPath, "utf8");
+      } else {
+        const failureResult = {
+          provider,
+          tool,
+          ok: false,
+          catalogued: getToolProfile(target) !== undefined,
+          summary: null,
+          raw: null,
+          error: {
+            code: "FILE_NOT_FOUND",
+            message: `JSON input file not found: ${options.jsonInput}`,
+          },
+          meta: { duration_ms: 0, safe_key_ref: null, warnings: [] },
+        };
+        console.log(formatOutput(failureResult, options));
+        process.exit(1);
+        return;
+      }
+    }
+  }
+
+  let params: Record<string, any> = {};
+  if (jsonInputStr.trim()) {
+    try {
+      params = JSON.parse(jsonInputStr);
+    } catch (err: any) {
+      const failureResult = {
+        provider,
+        tool,
+        ok: false,
+        catalogued: getToolProfile(target) !== undefined,
+        summary: null,
+        raw: null,
+        error: {
+          code: "INVALID_JSON",
+          message: `Failed to parse JSON input: ${err.message}`,
+        },
+        meta: { duration_ms: 0, safe_key_ref: null, warnings: [] },
+      };
+      console.log(formatOutput(failureResult, options));
+      process.exit(1);
+      return;
+    }
+  }
+
+  const config = loadConfig(options.config);
+  const result = await executeToolCall(provider, tool, params, config);
+
+  console.log(formatOutput(result, options));
+
+  if (!result.ok) {
+    process.exit(1);
+  }
+}
+
+/**
  * Main CLI entry point.
  */
 async function main(): Promise<void> {
@@ -666,8 +785,10 @@ async function main(): Promise<void> {
     if (options.toolCommand) {
       if (options.toolCommand.sub === "list") {
         runToolList(options);
-      } else {
+      } else if (options.toolCommand.sub === "info") {
         runToolInfo(options);
+      } else {
+        await runToolCall(options);
       }
       return;
     }

@@ -67,11 +67,6 @@ keys = ["doppler:EXA_API_KEY"]
 # highlights = true          # Token-efficient excerpts (10x token reduction for agents)
 # category = "company"       # Specialized index: company, people
 
-# Exa-specific options (config-driven, never CLI flags)
-[providers.exa.options]
-# highlights = true          # Token-efficient excerpts (10x token reduction for agents)
-# category = "company"       # Specialized index: company, people
-
 [providers.brave]
 [providers.brave.keyPool]
 keys = ["doppler:BRAVE_API_KEY"]
