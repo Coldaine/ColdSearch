@@ -16,11 +16,11 @@ The mistake to avoid is building a curated registry where a tool is reachable *o
 
 So the layering is, bottom to top:
 
-1. **Generic call substrate (the spine).** `coldsearch tool call <provider>.<tool>` resolves the provider's key, applies the same timeout/error handling as normalized capabilities, sends the caller's parameters to that provider's API, logs the call, and returns the **raw** provider response. This works for *any* `<tool>` the provider exposes, catalogued or not.
+1. **Generic call substrate (the spine).** `coldsearch tool call <provider>.<tool>` resolves the provider's key, applies the same timeout/error handling as normalized capabilities, sends the caller's parameters to that provider's API, logs the call, and returns the **raw** provider response. This works for any `<tool>` the provider exposes, catalogued or not, except tools in the hard-excluded category (state-mutating or stateful-setup tools).
 2. **Curated tools (special case: known shape).** For broadly-useful tools, the registry additionally carries metadata — a request/response shape, an optional non-lossy `summary`, and a pass-through parity probe. Curation buys validation and a tidy summary; it does **not** gate reachability.
 3. **Normalized capabilities (special case: cross-provider orchestration).** `search`/`extract`/`crawl` remain their own commands, but conceptually they are orchestrated fan-outs of the substrate across a provider pool, with normalization, RRF merge, key spreading, and comparison layered on. This is where ColdSearch earns its multi-provider value (NORTH_STAR G2/G3); the substrate alone is single-provider, single-key.
 
-**Reachability rule (warn-but-forward):** an unknown *provider* fails locally before any network call. An unknown or uncatalogued *tool* on a known provider is **forwarded** to the provider with a warning (raw-only, no summary, no schema validation) rather than rejected — so an uncatalogued or newly-released tool still works. Invalid *parameters* surface the provider's own error verbatim. This is the Fail Visible pillar applied to the tool surface.
+**Reachability rule (warn-but-forward):** an unknown *provider* fails locally before any network call. An unknown or uncatalogued *tool* on a known provider is **forwarded** to the provider with a warning (raw-only, no summary, no schema validation) rather than rejected — so an uncatalogued or newly-released tool still works. Invalid *parameters* surface the provider's own error verbatim. Hard-excluded tools (those requiring stateful setup or remote mutation) are actively refused before a network call is attempted. This is the Fail Visible pillar applied to the tool surface.
 
 ## Scope
 
@@ -76,6 +76,10 @@ coldsearch tool list --provider tavily --json
 # Curated tool — returns summary + raw:
 coldsearch tool call tavily.map --json-input request.json --json
 echo '{"query":"coldsearch"}' | coldsearch tool call exa.answer --json-input - --json
+# Hard-excluded tool — fails locally without a network call:
+coldsearch tool call firecrawl.agent --json-input request.json --json
+# Expected: local error, no provider request attempted
+
 # Uncatalogued tool on a known provider — forwarded raw with a warning, still works:
 echo '{"url":"https://example.com"}' | coldsearch tool call firecrawl.somenewtool --json-input - --json
 ```
@@ -98,14 +102,37 @@ Output shape:
 }
 ```
 
+Failure shape (e.g., unknown provider or hard-excluded tool):
+
+```json
+{
+  "provider": "unknown",
+  "tool": "any",
+  "ok": false,
+  "catalogued": false,
+  "summary": null,
+  "raw": null,
+  "error": {
+    "code": "UNKNOWN_PROVIDER",
+    "message": "Provider 'unknown' is not configured or recognized."
+  },
+  "meta": {
+    "duration_ms": 0,
+    "warnings": []
+  }
+}
+```
+
 Rules:
 
-- `raw` must preserve provider detail for **every** call, catalogued or not.
-- `summary` is optional, only emitted for catalogued tools, and must not hide raw details.
+- `raw` must preserve provider detail for **every** successful network call, catalogued or not. For local preflight failures (unknown provider, hard-excluded tool), `raw` is `null`.
+- `ok: false` is returned for both local preflight failures and provider-returned errors.
+- Provider-native errors (e.g., 400 Bad Request) must be preserved in `raw` when available, with a high-level summary in the top-level `error` field.
+- `summary` is optional, only emitted for successful catalogued tools, and must not hide raw details.
 - `catalogued: false` calls forward raw and add an entry to `meta.warnings` noting the tool is uncatalogued; they do not fail just because ColdSearch lacks metadata.
-- An unknown provider fails locally before any network call. Invalid parameters surface the provider's own error.
-- Errors must identify config, credentials, network, provider, or unsupported-tool failures where practical.
+- An unknown provider must be rejected locally before any network call.
 - Provider-tool calls must honor the same key resolution and timeout rules as normalized capabilities.
+- Errors must distinguish local preflight failures (resolution path) from remote provider-returned failures.
 
 ## Pass-Through Parity Requirement
 
@@ -135,7 +162,9 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - Modify: `src/providers.ts`
 - Modify: `src/types.ts`
 - Modify: `src/adapters/*.ts`
-- Modify or add: `src/tools/*` (generic substrate + curated metadata)
+- Modify or add: `src/tools/substrate.ts` (generic dispatcher/spine)
+- Modify or add: `src/tools/registry.ts` (curated tool metadata/registry)
+- Modify or add: `src/tools/index.ts` (public tool surface exports)
 - Modify: `src/logging/usage.ts`
 - Modify: `scripts/provider-pass-through.mjs`
 - Modify: `docs/PROVIDERS.md`
@@ -155,7 +184,7 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - [ ] Add `tool call` command parsing.
 - [ ] Support `--json-input -` for stdin.
 - [ ] Support `--json-input <path>` for files.
-- [ ] Validate the provider name before making a provider request; do not hard-fail on an uncatalogued tool name.
+- [ ] Validate that the provider is known before making a request; reject unknown providers locally. Forward uncatalogued tools on known providers with a warning.
 - [ ] Route provider-tool calls through existing key resolution.
 - [ ] Route provider-tool calls through existing timeout/retry/error handling where applicable.
 - [ ] Log provider-tool calls with provider, tool, catalogued flag, safe key reference, timing, success/error, and run ID when present.
