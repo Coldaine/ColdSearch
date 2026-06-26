@@ -3,6 +3,7 @@ export * from "./app.js";
 export * from "./types.js";
 export * from "./config.js";
 export * from "./providers.js";
+export * from "./registry/tool-profiles.js";
 export * from "./http.js";
 export * from "./adapters/index.js";
 export * from "./execution/backend.js";

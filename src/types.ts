@@ -96,3 +96,136 @@ export interface CLIOptions {
   config?: string;
   singleProvider?: boolean;
 }
+
+/**
+ * ColdSearch category views over heterogeneous provider tools.
+ *
+ * A category is a portable user/agent intent ("search this", "extract this
+ * URL"). It is NOT a 1:1 provider feature. Several provider-native tools with
+ * different parameter surfaces and semantics may back the same category, and a
+ * single provider tool may back more than one category. `CapabilityName` (the
+ * subset that is actually routed through adapters today) stays a strict subset
+ * of `CapabilityCategory` for backward compatibility.
+ */
+export type CapabilityCategory =
+  | "search"
+  | "extract"
+  | "crawl"
+  | "map"
+  | "research"
+  | "answer";
+
+/** Where a provider tool's parameter schema came from, and how trustworthy it is. */
+export type SchemaSource = "official-docs" | "official-mcp" | "sdk" | "handwritten";
+
+/** How a provider tool executes against the upstream API. */
+export type ToolExecutionMode = "sync" | "async-job" | "streaming";
+
+/** How faithfully a provider tool can back a given ColdSearch category view. */
+export type SemanticFit = "direct" | "partial" | "derived" | "not-recommended";
+
+/**
+ * Whether a provider tool is reachable through ColdSearch today.
+ * - `wired`     — implemented and reachable through an adapter method.
+ * - `available` — upstream API exists and the profile is documented, but it is
+ *                 not wired yet. Recorded so the registry cannot lie by omission.
+ * - `deferred`  — intentionally not built (niche vertical or high-risk action).
+ */
+export type ToolWiringStatus = "wired" | "available" | "deferred";
+
+/** Shape of the envelope a tool's result is normalized/preserved into. */
+export type ToolResultEnvelope =
+  | "search"
+  | "extract"
+  | "crawl"
+  | "map"
+  | "research"
+  | "answer"
+  | "job"
+  | "raw";
+
+/**
+ * How a specific provider tool maps onto one ColdSearch category view. This is
+ * the durable record of safe, lossy, and unsupported option mappings. A mapping
+ * is allowed to be partial — partial support is acceptable, but it must be
+ * explicit. Do not add a tool to a category merely because the provider uses a
+ * familiar name.
+ */
+export interface CommonViewMapping {
+  category: CapabilityCategory;
+  semanticFit: SemanticFit;
+  /** ColdSearch common option -> provider-native parameter (or expression). */
+  mapsCommonOptions: Record<string, string>;
+  /** Common options this tool cannot honor at all. */
+  unsupportedCommonOptions: string[];
+  /** Mappings accepted but lossy/approximate, with the reason recorded. */
+  lossyMappings?: { commonOption: string; reason: string }[];
+  /** Provider-native options that have no common-view equivalent. */
+  nativeOptionsWithoutCommonEquivalent?: string[];
+  notes?: string;
+}
+
+/**
+ * Durable metadata for a single provider-native tool exposed (or documented as
+ * exposable) through ColdSearch. This is the missing design layer: it records
+ * what `capabilities: [...]` cannot — the native parameter surface, the
+ * common-view mappings, feature predicates for requirement-aware routing, and
+ * execution/output semantics.
+ */
+export interface ProviderToolProfile {
+  /** Registry provider key (e.g. "exa", "firecrawl"). */
+  provider: string;
+  /** ColdSearch-facing tool id, unique per provider (e.g. "search", "scrape"). */
+  tool: string;
+  /** Provider docs/API name (e.g. "POST /search", "POST /contents"). */
+  nativeName: string;
+  /** ColdSearch category views this tool can back. */
+  categories: CapabilityCategory[];
+  description: string;
+  docsUrl: string;
+
+  requiredParams: string[];
+  optionalParams: string[];
+
+  /** One entry per category this tool can back. */
+  commonViews: CommonViewMapping[];
+
+  /**
+   * Feature predicates for requirement-aware routing. Routing must be able to
+   * filter on these instead of relying only on broad category membership.
+   */
+  features: Record<string, boolean>;
+
+  execution: {
+    mode: ToolExecutionMode;
+    supportsWait?: boolean;
+    supportsPolling?: boolean;
+    jobIdField?: string;
+  };
+
+  output: {
+    /** ColdSearch must always preserve the raw provider payload. */
+    rawPreserved: true;
+    summarySupported: boolean;
+    resultEnvelope: ToolResultEnvelope;
+  };
+
+  schemaSource: SchemaSource;
+  /** YYYY-MM-DD the native schema was last verified against provider docs. */
+  schemaLastVerified: string;
+
+  status: ToolWiringStatus;
+  /** For wired tools: the adapter method that backs this tool. */
+  adapterMethod?: "search" | "extract" | "crawl" | "findSimilar";
+  /** Optional free-form cost/latency guidance surfaced by `tool info`. */
+  costNotes?: string;
+}
+
+/**
+ * Requirements a caller can impose on a category so routing stays
+ * requirement-aware instead of "any provider that claims the category".
+ */
+export interface CategoryRequirements {
+  /** Feature predicate flags that an eligible tool must set to `true`. */
+  requireFeatures?: string[];
+}
