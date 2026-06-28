@@ -10,7 +10,7 @@ doc_type: architecture
 
 ## Architecture Thesis
 
-ColdSearch is one runtime that reaches multiple provider tools through a config-driven surface. A stable command/service surface named `coldsearch` (with `usearch` kept as a compatibility alias during migration) is Current. Configuration lives at `~/.config/coldsearch/config.toml`, with legacy fallback to `~/.config/usearch/config.toml`. Service, API, and MCP-style interfaces are Planned against the same core without duplicating provider logic.
+ColdSearch is one runtime that reaches multiple provider tools through a config-driven surface. The CLI (`coldsearch`) is Current; service, API, and MCP-style interfaces are Planned against the same core without duplicating provider logic.
 
 Normalized capabilities (`search`, `extract`, `crawl`) are **category views** over heterogeneous provider-native tools, not apples-to-apples provider features. Each provider-native tool carries a profile (native params, common-view mappings, feature predicates) in the provider-tool profile registry, so routing can be requirement-aware and name collisions stay explicit (`docs/ADRs/005-provider-tool-profiles.md`). Useful vendor tools beyond the three capabilities are exposed through this controlled surface, not separate per-vendor CLIs or MCPs.
 

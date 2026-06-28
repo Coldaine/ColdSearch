@@ -6,7 +6,7 @@
 
 ## Hybrid and remote (Planned)
 
-Per `docs/NORTH_STAR.md` G7:
+Per the Architecture Thesis:
 
 1. CLI, API, or MCP client submits a job.
 2. Remote executor runs provider calls and small-agent orchestration.
