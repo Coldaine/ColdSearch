@@ -10,7 +10,7 @@ doc_type: architecture
 
 ## Architecture Thesis
 
-ColdSearch is one runtime that reaches multiple provider tools through a config-driven surface. The CLI (`coldsearch`) is Current; service, API, and MCP-style interfaces are Planned against the same core without duplicating provider logic.
+ColdSearch is one runtime that reaches multiple provider tools through a config-driven surface.
 
 Normalized capabilities (`search`, `extract`, `crawl`) are **category views** over heterogeneous provider-native tools, not apples-to-apples provider features. Each provider-native tool carries a profile (native params, common-view mappings, feature predicates) in the provider-tool profile registry, so routing can be requirement-aware and name collisions stay explicit (`docs/ADRs/005-provider-tool-profiles.md`). Useful vendor tools beyond the three capabilities are exposed through this controlled surface, not separate per-vendor CLIs or MCPs.
 
@@ -61,7 +61,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 - **Doppler for secret injection.** Operator secrets should enter the process through Doppler-managed environment injection where possible; ColdSearch code reads normal environment variables, explicit `env:` refs, `doppler:` refs, or keyless provider config and must not log secret values.
 - **Interface-agnostic core.** Routing, keys, retries, and normalization must not depend on whether the caller is CLI, API, or MCP (Planned entrypoints).
 - **Comparable execution.** Fanout and per-provider error isolation enable cross-provider comparison (`docs/ADRs/001-fanout-architecture.md`).
-- **Logging is a product surface.** Networked work, routing, cache lookup/retrieval, key selection by safe reference, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs (Audit First pillar).
+- **Logging is a product surface.** Networked work, routing, cache lookup/retrieval, key selection by safe reference, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs (`docs/NORTH_STAR.md` Audit First pillar).
 - **Searchable cache over blind replay.** Cache work should support retrieval over recent prior results. Exact response replay is secondary and should only be used where it is simple, explicit, and freshness-safe (`docs/NORTH_STAR.md` G3).
 - **No lossy normalization.** Shared schemas are convenience; provider detail stays available when needed (`docs/NORTH_STAR.md` G4).
 - **Provider coverage is documented.** Registry and `docs/PROVIDERS.md` Dual Matrix stay in sync (`npm run test:docs`).
