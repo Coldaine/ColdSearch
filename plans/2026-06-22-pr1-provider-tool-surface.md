@@ -169,7 +169,7 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - Modify: `src/logging/usage.ts`
 - Modify: `scripts/provider-pass-through.mjs`
 - Modify: `docs/PROVIDERS.md`
-- Modify: `docs/DEVELOPER.md`
+- Modify: `docs/contributing/adding-a-provider.md`
 - Modify: `docs/architecture.md`
 - Test: `test/provider-tools.test.mjs`
 - Test: `test/cli-integration.test.mjs`
@@ -195,7 +195,7 @@ Use [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provi
 - [ ] Record provider-native vs ColdSearch evidence for every catalogued tool.
 - [ ] Mark any catalogued tool with unexplained provider data loss as not done.
 - [ ] Update `docs/PROVIDERS.md` so the tool matrix distinguishes catalogued/wired, uncatalogued-but-reachable, and hard-excluded tools, and documents the generic passthrough.
-- [ ] Update `docs/DEVELOPER.md` with the provider-tool substrate + catalogue contract.
+- [ ] Update `docs/contributing/adding-a-provider.md` with the provider-tool adapter contract.
 - [ ] Update `docs/architecture.md` status labels if the provider-tool surface becomes Current.
 
 ## Required Tests

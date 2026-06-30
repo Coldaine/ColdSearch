@@ -21,6 +21,46 @@ appear in the agent-facing interface — callers ask for a capability, not a ven
 | `extract` | retrieve page content from a single URL |
 | `crawl` | gather multi-page site content |
 
+## Category views over provider tools
+
+These capabilities are **category views**, not apples-to-apples provider
+features. A category is a portable caller intent that several heterogeneous
+provider-native tools can back — with different parameter surfaces, semantics,
+and cost models (see `docs/ADRs/005-provider-tool-profiles.md`).
+
+```
+ColdSearch category
+  → eligible provider tools
+    → provider-native parameter schema
+      → feature predicates + safe common-view mappings
+```
+
+Native tool **names are not authoritative**. Watch these collisions:
+
+| Looks like | Actually is | ColdSearch backer |
+|------------|-------------|-------------------|
+| Firecrawl `extract` | structured-LLM extraction (a `research`-style tool) | `extract` is backed by Firecrawl **`scrape`** |
+| Firecrawl `scrape` | known-URL page retrieval | ColdSearch `extract` |
+| Brave Web Search | SERP-style search | ColdSearch `search` |
+| Brave LLM Context | search **plus** extracted context chunks for LLM grounding | not the plain `search` backer |
+| Exa `/search` | one endpoint spanning `instant` … `deep-reasoning` | `search` (and `research` at deep modes) |
+| Tavily `crawl` vs `map` | crawl returns content; map returns URLs | distinct categories |
+
+The durable record for every provider-native tool — native params, common-view
+mappings (`direct`/`partial`/`derived`), feature predicates, sync/async
+behavior, and wired/available status — lives in the **provider-tool profile
+registry** (`src/registry/tool-profiles.ts`). Inspect it live, no network:
+
+```bash
+coldsearch tool list --json
+coldsearch tool list --provider firecrawl --json
+coldsearch tool info firecrawl.scrape --json
+```
+
+Parameter-level detail is intentionally kept in the registry (and surfaced by
+`tool info`) rather than mirrored in prose here, because vendor parameters go
+stale fast.
+
 ## Dual Matrix
 
 Vendor columns = what the provider's API offers at the capability level.
@@ -128,7 +168,8 @@ skip vendor specialties. Highest-leverage gaps:
 
 ## Adding a provider
 
-See `docs/DEVELOPER.md`. In short: implement the `SearchAdapter`, register it in
-`src/providers.ts`, add a row to the **Dual Matrix** above, and add tests.
-`npm run test:docs` enforces that the Dual Matrix stays in sync with the registry
-and the adapter method surfaces.
+See `docs/contributing/adding-a-provider.md`. In short: implement the
+`SearchAdapter`, register it in `src/providers.ts`, add a `ProviderToolProfile`
+per tool in `src/registry/tool-profiles.ts`, add a row to the **Dual Matrix**
+above, and add tests. `npm run test:docs` enforces that the Dual Matrix stays in
+sync with the registry and the adapter method surfaces.

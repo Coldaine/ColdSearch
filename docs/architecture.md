@@ -10,9 +10,9 @@ doc_type: architecture
 
 ## Architecture Thesis
 
-ColdSearch is one runtime that reaches multiple provider tools through a config-driven surface. The CLI (`coldsearch`) is Current; service, API, and MCP-style interfaces are Planned against the same core without duplicating provider logic (`docs/NORTH_STAR.md` G7).
+ColdSearch is one runtime that reaches multiple provider tools through a config-driven surface.
 
-Normalized capabilities (`search`, `extract`, `crawl`) are the common denominator. Useful vendor tools beyond those are exposed through a controlled provider-tool surface, not separate per-vendor CLIs or MCPs.
+Normalized capabilities (`search`, `extract`, `crawl`) are **category views** over heterogeneous provider-native tools, not apples-to-apples provider features. Each provider-native tool carries a profile (native params, common-view mappings, feature predicates) in the provider-tool profile registry, so routing can be requirement-aware and name collisions stay explicit (`docs/ADRs/005-provider-tool-profiles.md`). Useful vendor tools beyond the three capabilities are exposed through this controlled surface, not separate per-vendor CLIs or MCPs.
 
 ## Status Legend
 
@@ -26,8 +26,9 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 | Area | Status | Approach |
 |------|--------|----------|
 | CLI entrypoint | Current | `coldsearch` (+ `usearch` alias); search, extract, crawl, agent, status |
-| Normalized capabilities | Current | `search`, `extract`, `crawl`; adapters + fanout/RRF |
-| Provider-tool surface | Planned | Vendor tools beyond the three capabilities via ColdSearch |
+| Normalized capabilities | Current | `search`, `extract`, `crawl` as category views over provider tools; adapters + fanout/RRF |
+| Provider-tool profile registry | Current | `ProviderToolProfile` per native tool; `tool list`/`tool info`; feature-predicate routing |
+| Provider-tool call execution | Current | Networked `tool call <provider>.<tool>` over the profile registry |
 | Config-driven routing | Current | `~/.config/coldsearch/config.toml`; provider pools per capability |
 | Key and secret resolution | Current | Doppler-injected environment variables preferred; env refs, optional BWS refs, and keyless providers supported; per-process pools |
 | Basic cache store | Current | Read-through file cache for search/extract |
@@ -49,6 +50,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 | Routing and request core | Current | Validation, keys, retries, timeouts, errors | `docs/components/routing-and-requests.md` |
 | Provider adapters | Current | One module per vendor; shared schema | `docs/PROVIDERS.md` |
 | Provider registry | Current | Capability matrix in code | `src/providers.ts` |
+| Provider-tool profile registry | Current | Native tool params, common-view mappings, feature predicates | `docs/ADRs/005-provider-tool-profiles.md`, `src/registry/tool-profiles.ts` |
 | Cache store | Current | Read-through JSON cache | `src/cache/` |
 | Observability and result memory | Planned | Rich logs plus searchable recent prior work | `docs/components/cache-and-observability.md` |
 | Agent | Current | ReAct + SSRF-safe fetch | `docs/ADRs/003-react-agent.md`, `docs/ADRs/004-ssrf-protection.md` |
@@ -59,9 +61,9 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 - **Doppler for secret injection.** Operator secrets should enter the process through Doppler-managed environment injection where possible; ColdSearch code reads normal environment variables, explicit `env:` refs, `doppler:` refs, or keyless provider config and must not log secret values.
 - **Interface-agnostic core.** Routing, keys, retries, and normalization must not depend on whether the caller is CLI, API, or MCP (Planned entrypoints).
 - **Comparable execution.** Fanout and per-provider error isolation enable cross-provider comparison (`docs/ADRs/001-fanout-architecture.md`).
-- **Logging is a product surface.** Networked work, routing, cache lookup/retrieval, key selection by safe reference, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs (`docs/NORTH_STAR.md` G5).
-- **Searchable cache over blind replay.** Cache work should support retrieval over recent prior results. Exact response replay is secondary and should only be used where it is simple, explicit, and freshness-safe (`docs/NORTH_STAR.md` G4).
-- **No lossy normalization.** Shared schemas are convenience; provider detail stays available when needed (`docs/NORTH_STAR.md` G6).
+- **Logging is a product surface.** Networked work, routing, cache lookup/retrieval, key selection by safe reference, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs (`docs/NORTH_STAR.md` Audit First pillar).
+- **Searchable cache over blind replay.** Cache work should support retrieval over recent prior results. Exact response replay is secondary and should only be used where it is simple, explicit, and freshness-safe (`docs/NORTH_STAR.md` G3).
+- **No lossy normalization.** Shared schemas are convenience; provider detail stays available when needed (`docs/NORTH_STAR.md` G4).
 - **Provider coverage is documented.** Registry and `docs/PROVIDERS.md` Dual Matrix stay in sync (`npm run test:docs`).
 
 ## ADR Index
@@ -72,10 +74,11 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 | `docs/ADRs/002-rrf-reranking.md` | accepted | RRF for cross-provider merge |
 | `docs/ADRs/003-react-agent.md` | accepted | ReAct loop for agent mode |
 | `docs/ADRs/004-ssrf-protection.md` | accepted | SSRF checks on agent fetch |
+| `docs/ADRs/005-provider-tool-profiles.md` | accepted | Provider-tool profiles + feature-predicate routing |
 
 ## Open Architecture Questions
 
-- How should provider-tool calls be named and routed — capability extension vs explicit subcommand?
+- Resolved: provider tools are modeled as profiles backing ColdSearch category views, discoverable via `coldsearch tool <list|info>`, with networked `tool call` execution as the next step (`docs/ADRs/005-provider-tool-profiles.md`).
 - Which entrypoint ships first after CLI: HTTP API, MCP server, or both?
 - What cache freshness defaults balance hits vs stale results in agent loops?
 - Should Doppler become documented as the default bootstrap path in `docs/CONFIGURATION.md` and `docs/KEY_MANAGEMENT.md`, with BWS retained as an optional explicit resolver?
@@ -85,6 +88,6 @@ Normalized capabilities (`search`, `extract`, `crawl`) are the common denominato
 - `docs/NORTH_STAR.md` — intent, goals, pillars
 - `docs/PROVIDERS.md` — provider and tool matrix
 - `docs/CONFIGURATION.md` — config reference
-- `docs/DEVELOPER.md` — adapter contract
+- `docs/contributing/adding-a-provider.md` — adapter + provider-tool profile contract
 - `docs/components/` — subsystem detail
 - `plans/` — active implementation plans (informational; not authority)

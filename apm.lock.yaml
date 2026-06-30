@@ -1,0 +1,45 @@
+lockfile_version: '1'
+generated_at: '2026-06-26T06:57:37.130638+00:00'
+apm_version: 0.21.0
+dependencies:
+- repo_url: mubaidr/gem-team
+  host: github.com
+  resolved_commit: f74a56f2a2463817c98db6986567edfb1389c263
+  resolved_ref: f74a56f2a2463817c98db6986567edfb1389c263
+  package_type: marketplace_plugin
+  deployed_files:
+  - .github/agents/gem-browser-tester.agent.md
+  - .github/agents/gem-code-simplifier.agent.md
+  - .github/agents/gem-critic.agent.md
+  - .github/agents/gem-debugger.agent.md
+  - .github/agents/gem-designer-mobile.agent.md
+  - .github/agents/gem-designer.agent.md
+  - .github/agents/gem-devops.agent.md
+  - .github/agents/gem-documentation-writer.agent.md
+  - .github/agents/gem-implementer-mobile.agent.md
+  - .github/agents/gem-implementer.agent.md
+  - .github/agents/gem-mobile-tester.agent.md
+  - .github/agents/gem-orchestrator.agent.md
+  - .github/agents/gem-planner.agent.md
+  - .github/agents/gem-researcher.agent.md
+  - .github/agents/gem-reviewer.agent.md
+  - .github/agents/gem-skill-creator.agent.md
+  deployed_file_hashes:
+    .github/agents/gem-browser-tester.agent.md: sha256:0dbd691d05c61e8535aaf3b398f1de595fbdf2c13fe2fa9afe5e6677f7254118
+    .github/agents/gem-code-simplifier.agent.md: sha256:59222167f9f658b5c3c8da46f72881ec4f818695b1ad599d759a911c310c3c4b
+    .github/agents/gem-critic.agent.md: sha256:ed32c67bed9ebfddc84adf263209ee27bd0b7c8e5cff60bf051a4e221d6063b1
+    .github/agents/gem-debugger.agent.md: sha256:bc035ad6ef151a1e0d3e5523b86ed2fe41f75d29f510b4c2ff24cf3d68a7ed73
+    .github/agents/gem-designer-mobile.agent.md: sha256:190508548079d854ee68f2e29ce16cb21acda719952d03f9b48ff8e528eb3782
+    .github/agents/gem-designer.agent.md: sha256:a525f009a4ea72bc11f78154e812c3ef91f8d70eaa5911966c586df23b86b898
+    .github/agents/gem-devops.agent.md: sha256:9eb3aeb62c58ce49c566f554eace20dc88bc682b74987e4e1f2edde654d97d96
+    .github/agents/gem-documentation-writer.agent.md: sha256:8d55c587aa71d5d6dbb85ff9e54c40ef5d6c34a0722d49d06dde2850347f0121
+    .github/agents/gem-implementer-mobile.agent.md: sha256:a4abc2f403129d7ba1abd391fdbcb6ee322686e3c0ae5d8a4c24c554f59e1bda
+    .github/agents/gem-implementer.agent.md: sha256:20dc6f93759ea338b74c565fc002d960c2d961789250f16188f5e821c3b15b02
+    .github/agents/gem-mobile-tester.agent.md: sha256:c558cb026199428276e2ebb5959fed1b0c7f8ef2ac2e7065bf11a885c4cf1e96
+    .github/agents/gem-orchestrator.agent.md: sha256:e63f45cff7f26bbf84ca5f3ea4bd5e1f2077915c1e3f5212fba084ffb9373f7c
+    .github/agents/gem-planner.agent.md: sha256:c23a610723f484f25e04b51358e6a509eca7670eba9d6ff3e76c2749ca5c1f61
+    .github/agents/gem-researcher.agent.md: sha256:69df29b4d4707b4ef111cda1ca9d9e42c1916e05e585a6a987782d0567b9c6ca
+    .github/agents/gem-reviewer.agent.md: sha256:78c5b3f1a373605b15dc24859a282d8adf919eca6f50dd31803170c7b78330d9
+    .github/agents/gem-skill-creator.agent.md: sha256:aea184bfe13ec37909068cc8d05a734f75a637f6ce2d3febd4ee4be630aa0fde
+  content_hash: sha256:135d2197f3d367c34b5cac128948d2e2e59202466c327842edfc1e23592ec598
+  declared_license: Apache-2.0
