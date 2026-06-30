@@ -72,7 +72,7 @@ export interface SearchAdapter {
 - Normalize every response to the shared shapes (`NormalizedResult`,
   `ExtractResult`, `CrawlResult`). Always set `source` to your `name`. Scores
   normalize to `0–1`. **Never lose raw provider detail that matters** — the
-  common view is a convenience layer (`docs/NORTH_STAR.md` G6).
+  common view is a convenience layer (`docs/NORTH_STAR.md` G4).
 - Use the shared `fetchJson` helper from `src/http.js` (timeouts, User-Agent,
   error labeling) instead of raw `fetch`.
 - Throw on failure. Fanout isolates per-provider errors, so a throw fails only

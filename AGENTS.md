@@ -11,7 +11,7 @@ Route by task:
 - Durable decisions → `docs/ADRs/`
 - Add or change a provider → `docs/contributing/adding-a-provider.md`
 - Config, keys, CI → `docs/CONFIGURATION.md`, `docs/KEY_MANAGEMENT.md`, `docs/contributing/ci.md`
-- Active implementation plans → `plans/` (informational; issues and code win)
+- Active implementation plans → `plans/` (do not create progress file; informational; issues and code win)
 
 Crosses a goal, anti-goal, pillar, or invariant → stop and surface the conflict.
 
