@@ -131,6 +131,7 @@ Rules:
 - `summary` is optional, only emitted for successful catalogued tools, and must not hide raw details.
 - `catalogued: false` calls forward raw and add an entry to `meta.warnings` noting the tool is uncatalogued; they do not fail just because ColdSearch lacks metadata.
 - An unknown provider must be rejected locally before any network call.
+- `unknown provider` and `hard-excluded tool` preflight failures should return `error.code` values that make the failure path explicit (for example `UNKNOWN_PROVIDER` and `UNSUPPORTED_TOOL`), and `raw` should remain `null`.
 - Provider-tool calls must honor the same key resolution and timeout rules as normalized capabilities.
 - Errors must distinguish local preflight failures (resolution path) from remote provider-returned failures.
 
