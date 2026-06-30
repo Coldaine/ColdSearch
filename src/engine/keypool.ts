@@ -191,7 +191,7 @@ export class KeyPoolManager {
       // No-shell guarantee: execFile (shell:false by default) passes the secret
       // name as a literal argv entry — it is never interpolated into a shell
       // command, so it cannot be used for command injection.
-      const [stdout] = await execFileAsync(
+      const { stdout } = await execFileAsync(
         "doppler",
         ["secrets", "get", secretName, "--plain"],
         {
