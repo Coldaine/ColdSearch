@@ -53,7 +53,12 @@ This split is natural because each PR has a different owner surface:
 
 Do not add remote execution or cross-process key coordination to these five PRs. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Do add broadly useful provider tools; defer only niche verticals or high-risk tools that are explicitly named in the PR 1 plan.
 
-## Current Baseline
+## Historical Baseline Recorded 2026-06-22
+
+> This baseline and its “missing” list record the plan's original June 22 starting
+> point. They are retained as design and review history and are not a claim about
+> current implementation state. Use the 2026-07-16 status refresh above and the
+> linked dated review for the live starting point.
 
 Functional now:
 
@@ -65,7 +70,7 @@ Functional now:
 - `--no-cache`
 - Live provider canary workflow
 
-Missing now:
+Missing as recorded on 2026-06-22:
 
 - Baseline provider-native vs ColdSearch pass-through evidence for every real provider path
 - Controlled provider-tool registry and CLI surface
