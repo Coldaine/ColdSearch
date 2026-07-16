@@ -15,13 +15,13 @@
 **Files:**
 - Create: `docs/reviews/2026-07-16-project-review-and-bright-data.md`
 
-- [ ] **Step 1: Create the review directory**
+- [x] **Step 1: Create the review directory**
 
 Run: `New-Item -ItemType Directory -Force docs/reviews`
 
 Expected: `docs/reviews/` exists without modifying other files.
 
-- [ ] **Step 2: Write the evidence-backed review**
+- [x] **Step 2: Write the evidence-backed review**
 
 The document must include:
 
@@ -39,7 +39,7 @@ The document must include:
 
 Expected: volatile facts are labeled `Snapshot: 2026-07-16`; candidate capabilities never read as implemented.
 
-- [ ] **Step 3: Review the document for authority leakage**
+- [x] **Step 3: Review the document for authority leakage**
 
 Run: `rg -n "implemented|supported|verified|candidate|snapshot|no.*request|no.*credit" docs/reviews/2026-07-16-project-review-and-bright-data.md`
 
@@ -51,19 +51,19 @@ Expected: Bright Data implementation claims use candidate language; account and 
 - Modify: `docs/architecture.md`
 - Modify: `docs/PROVIDERS.md`
 
-- [ ] **Step 1: Correct provider-tool execution status**
+- [x] **Step 1: Correct provider-tool execution status**
 
 Change the resolved architecture question so it says networked `tool call` execution is current and identifies the next unresolved work as searchable result memory, batch execution, operator UX, and trace correlation.
 
 Expected: the open-question section no longer contradicts the current-status table.
 
-- [ ] **Step 2: Add a Bright Data candidate section outside the machine-checked matrix**
+- [x] **Step 2: Add a Bright Data candidate section outside the machine-checked matrix**
 
 Document Bright Data as not implemented, not configured, and not live-verified. Map likely products to ColdSearch category views and list the gates required before it can join default routing.
 
 Expected: the `## Dual Matrix` remains unchanged because no Bright Data adapter or registry entry exists.
 
-- [ ] **Step 3: Check the provider matrix boundary**
+- [x] **Step 3: Check the provider matrix boundary**
 
 Run: `npm run test:docs`
 
@@ -75,19 +75,19 @@ Expected: the capability-matrix drift test and documentation validation pass.
 - Modify: `README.md`
 - Modify: `plans/2026-06-22-remaining-implementation-master-plan.md`
 
-- [ ] **Step 1: Add documentation routing to the README**
+- [x] **Step 1: Add documentation routing to the README**
 
 Link the North Star, architecture, provider matrix, current dated review, and active implementation plan. State that dated reviews are snapshots and do not override authority documents.
 
 Expected: a new contributor can reach intent, architecture, provider state, review state, and implementation sequence from the README.
 
-- [ ] **Step 2: Add a dated plan status refresh**
+- [x] **Step 2: Add a dated plan status refresh**
 
 Record that provider-tool infrastructure and quick-win follow-ups landed in PRs #44 and #45, North Star reconciliation landed in #46, and open PR #43 is superseded. State that active implementation resumes with cache/searchable-memory work rather than replaying PR1.
 
 Expected: historical checklist text remains available, but a reader cannot mistake it for the live starting point.
 
-- [ ] **Step 3: Validate documentation references**
+- [x] **Step 3: Validate documentation references**
 
 Run: `npm run test:docs`
 
@@ -98,7 +98,7 @@ Expected: documentation links, provider matrix, and plan validation pass.
 **Files:**
 - Review: all changed Markdown files
 
-- [ ] **Step 1: Run repository validation**
+- [x] **Step 1: Run repository validation**
 
 Run:
 
@@ -111,7 +111,7 @@ git diff --check
 
 Expected: every command exits 0.
 
-- [ ] **Step 2: Review the complete diff**
+- [x] **Step 2: Review the complete diff**
 
 Run: `git diff --stat origin/main...HEAD; git diff origin/main...HEAD`
 
@@ -134,4 +134,3 @@ Expected: one non-draft PR targets `main` from `codex/project-review-bright-data
 Inspect the PR patch, checks, reviews, flat comments, and GraphQL `reviewThreads`. Address valid findings, push follow-up commits, and re-run affected validation until the PR is clean.
 
 Expected: all required checks pass and no valid unresolved review finding remains before reporting completion.
-
