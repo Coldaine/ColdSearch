@@ -117,13 +117,13 @@ Run: `git diff --stat origin/main...HEAD; git diff origin/main...HEAD`
 
 Expected: only approved documentation files changed; no secrets, generated files, or unrelated work are present.
 
-- [ ] **Step 3: Commit and push the documentation**
+- [x] **Step 3: Commit and push the documentation**
 
 Stage only the documentation files, commit with a documentation-scoped message, and push the current branch with upstream tracking.
 
 Expected: the branch is clean and synchronized with `origin/codex/project-review-bright-data-docs`.
 
-- [ ] **Step 4: Open a ready-for-review pull request to `main`**
+- [x] **Step 4: Open a ready-for-review pull request to `main`**
 
 The PR body must summarize what changed, why volatile and evergreen facts are separated, validation run, and the fact that no Bright Data quota or credit was consumed.
 
