@@ -6,9 +6,14 @@ import { JinaAdapter } from "./adapters/jina.js";
 import { SearXNGAdapter } from "./adapters/searxng.js";
 import { SerperAdapter } from "./adapters/serper.js";
 import { TavilyAdapter } from "./adapters/tavily.js";
+import { installBrightDataToolProfiles } from "./registry/brightdata-tool-profiles.js";
 import { resolveEligibleTools } from "./registry/tool-profiles.js";
 import type { CapabilityName, Config } from "./types.js";
 import type { SearchAdapter } from "./types.js";
+
+// Keep the existing provider-tool registry as the shared runtime object while
+// Bright Data profiles live in a smaller provider-specific module.
+installBrightDataToolProfiles();
 
 export interface ProviderMetadata {
   displayName: string;
