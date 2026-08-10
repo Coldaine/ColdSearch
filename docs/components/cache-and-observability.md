@@ -44,10 +44,13 @@ The initial history surface is:
 - `coldsearch history search <query>` — local-only retrieval over prior executions. Search the original request most strongly, then result titles and URLs/domains, then snippets/content and provider/tool metadata. Return matching executions with the fields/results that caused the match. Do not search arbitrary raw provider JSON by default and do not call providers.
 - `coldsearch history show <execution-id>` — reconstruct one execution: request, routing, cache provenance, provider attempts, final normalized output, and errors. If raw provider detail was not preserved on that execution path, say it is unavailable rather than reconstructing it.
 - `coldsearch history show <execution-id> --by-provider` — for stored fanout work, show each provider's pre-merge results/errors and the final merged/reranked output. Simple URL overlap/unique counts may be computed from stored data; do not rank providers or make new calls.
+- `coldsearch history clear --all` — explicitly delete all local history records without touching replay-cache entries. Require `--all` so the destructive operation is deliberate and report how many records were removed.
 
 `history compare` is a useful follow-on once these records exist, but it is not required to deliver the initial history implementation.
 
 When fanout already occurs for real work, preserve the provider result partitions before reranking so they remain inspectable later. Do not call extra providers solely to create comparison data.
+
+History is durable but operator-deletable. Do not invent an automatic history TTL or pruning policy until real storage/use patterns justify one; selective pruning can be added later if needed.
 
 ### Cache remains separate
 
@@ -58,6 +61,7 @@ Keep exact replay and cache maintenance as cache concerns:
 - `cache clear` clears replay-cache material only, not history
 - atomic writes and restrictive permissions apply where supported
 - crawl executions belong in history, while exact crawl replay remains disabled until a deliberate cache policy is chosen
+- provider-tool exact replay is allowed only when the tool has an explicit replay-safe request key/policy; otherwise provider-tool executions are history-only
 
 History results can be explicitly inspected and reused by a caller or agent, but PR 2 should not add automatic fuzzy reuse or silently turn related-history matches into cache hits.
 
