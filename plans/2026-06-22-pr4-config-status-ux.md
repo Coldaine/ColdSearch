@@ -76,10 +76,10 @@ Do not hide the original message. Add category next to it.
 ## Tasks
 
 - [ ] Add config schema fields for `[agent.llm]`.
-- [ ] Add `config init` command parsing.
+- [ ] Add `config init` command parsing. `config` must be registered in the commands array / parsing before the query fallback in `src/cli.ts` (commands array at `src/cli.ts:72`, fallback at `src/cli.ts:219-230`); otherwise `coldsearch config init` is silently parsed as a search query for "config init".
 - [ ] Implement config init so it refuses to overwrite an existing config.
 - [ ] Add `config doctor` command parsing.
-- [ ] Implement config doctor checks for TOML parse, required sections, provider names, capability compatibility, key references, and SearXNG base URL.
+- [ ] Implement config doctor checks for TOML parse, required sections, provider names, capability compatibility, key references, and SearXNG base URL. Doctor performs local diagnostics only: it must not contact provider APIs, must not consume provider credits, must not resolve `doppler:` references (syntax/presence check only), and the SearXNG base URL check is presence/format only, not a liveness probe.
 - [ ] Extract status-building logic into a testable helper.
 - [ ] Add config path to status output.
 - [ ] Add cache enabled/path to status output.
@@ -91,7 +91,7 @@ Do not hide the original message. Add category next to it.
 - [ ] Preserve CLI flag precedence over TOML.
 - [ ] Add error classification helpers.
 - [ ] Update `docs/CONFIGURATION.md`.
-- [ ] Update `docs/KEY_MANAGEMENT.md` so usage logging/status are no longer described as missing.
+- [ ] Update `docs/CONFIGURATION.md` so usage logging/status are no longer described as missing.
 - [ ] Update `config.example.toml`.
 
 ## Required Tests

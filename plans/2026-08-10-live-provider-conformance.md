@@ -68,7 +68,7 @@ For manual scoped checks, always provide a separate temporary/output directory. 
 - [ ] Offline tests prove a successful workflow summary can still disclose blocked/not-run rows without calling them passes.
 - [ ] Offline tests prove secrets and signed URLs are redacted from evidence and summaries.
 - [ ] Workflow/config tests prove live coverage is scheduled/manual only and does not gate PRs.
-- [ ] Offline tests or command-contract checks prove scoped runs do not overwrite the committed Gate 0 evidence directory.
+- [x] Offline tests or command-contract checks prove scoped runs do not overwrite the committed Gate 0 evidence directory. — Enforced by the baseline guard in `scripts/provider-pass-through.mjs` (refuses to write to the committed baseline unless `--overwrite-baseline` is passed) and verified by `test/provider-pass-through-guard.test.mjs`.
 
 ## Validation
 
