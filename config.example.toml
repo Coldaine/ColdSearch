@@ -91,10 +91,11 @@ serpZone = "your_serp_zone"
 unlockerZone = "your_unlocker_zone"
 searchEngine = "google"
 searchCountry = "us"
-# Hard safety bound for site-specific structured scraper input arrays. Increase
-# deliberately for larger paid runs; there is no universal cross-product dollar
-# estimator that would be safe to fake here.
-maxStructuredInputsPerCall = 25
+# Hard safety bound for site-specific structured scraper input arrays. Bright
+# Data documents up to 20 inputs for synchronous scraper requests; keep the same
+# conservative default for direct structured calls. Increase deliberately for
+# larger async paid runs.
+maxStructuredInputsPerCall = 20
 
 [providers.serper]
 [providers.serper.keyPool]
