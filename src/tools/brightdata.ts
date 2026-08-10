@@ -40,6 +40,10 @@ function requireValue(value: unknown, name: string): string {
   return value.trim();
 }
 
+function snapshotId(params: Record<string, any>): string {
+  return requireValue(params.snapshot_id ?? params.snapshotId ?? params.id, "snapshot_id");
+}
+
 function requireZone(
   params: Record<string, any>,
   config: Config,
@@ -237,14 +241,40 @@ export function buildBrightDataToolRequest(
     };
   }
 
+  if (tool === "progress") {
+    return {
+      url: `${baseUrl}/datasets/v3/progress/${encodeURIComponent(snapshotId(params))}`,
+      method: "GET",
+      headers,
+      body: null,
+      useTextParser: false,
+    };
+  }
+
+  if (tool === "snapshotMetadata") {
+    return {
+      url: `${baseUrl}/datasets/snapshots/${encodeURIComponent(snapshotId(params))}`,
+      method: "GET",
+      headers,
+      body: null,
+      useTextParser: false,
+    };
+  }
+
+  if (tool === "cancel") {
+    return {
+      url: `${baseUrl}/datasets/v3/snapshot/${encodeURIComponent(snapshotId(params))}/cancel`,
+      method: "POST",
+      headers,
+      body: null,
+      useTextParser: false,
+    };
+  }
+
   if (tool === "snapshot") {
-    const snapshotId = requireValue(
-      params.snapshot_id ?? params.snapshotId ?? params.id,
-      "snapshot_id"
-    );
     const format = typeof params.format === "string" ? params.format : "json";
     const requestUrl = new URL(
-      `${baseUrl}/datasets/snapshots/${encodeURIComponent(snapshotId)}/download`
+      `${baseUrl}/datasets/v3/snapshot/${encodeURIComponent(snapshotId(params))}`
     );
     requestUrl.searchParams.set("format", format);
     appendNativeQueryParams(
@@ -291,9 +321,7 @@ export function buildBrightDataSummary(
   }
 
   if (tool === "datasetsList") {
-    return {
-      datasets_count: Array.isArray(raw) ? raw.length : 0,
-    };
+    return { datasets_count: Array.isArray(raw) ? raw.length : 0 };
   }
 
   if (tool === "datasetMetadata") {
@@ -308,6 +336,7 @@ export function buildBrightDataSummary(
   if (tool === "scrape") {
     return {
       records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0,
+      snapshot_id: raw?.snapshot_id ?? null,
       cost_usd: typeof raw?.cost === "number" ? raw.cost : null,
     };
   }
@@ -319,10 +348,33 @@ export function buildBrightDataSummary(
     };
   }
 
-  if (tool === "snapshot") {
+  if (tool === "progress") {
     return {
-      records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0,
+      snapshot_id: raw.snapshot_id ?? null,
+      dataset_id: raw.dataset_id ?? null,
+      status: raw.status ?? null,
     };
+  }
+
+  if (tool === "snapshotMetadata") {
+    return {
+      snapshot_id: raw.id ?? raw.snapshot_id ?? null,
+      dataset_id: raw.dataset_id ?? null,
+      status: raw.status ?? null,
+      records_count: raw.dataset_size ?? null,
+      cost_usd: typeof raw.cost === "number" ? raw.cost : null,
+    };
+  }
+
+  if (tool === "cancel") {
+    return {
+      snapshot_id: raw.snapshot_id ?? raw.id ?? null,
+      status: raw.status ?? "cancel_requested",
+    };
+  }
+
+  if (tool === "snapshot") {
+    return { records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0 };
   }
 
   if (tool === "discover") {
