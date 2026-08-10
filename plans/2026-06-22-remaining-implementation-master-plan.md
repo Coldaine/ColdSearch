@@ -23,7 +23,7 @@ PR 1 is complete on `main`; PRs 2–5 remain:
 This split is natural because each PR has a different owner surface:
 
 - PR 1 delivered the provider-tool profile registry, `tool list`, `tool info`, networked `tool call`, raw-payload preservation, and safe usage logging.
-- PR 2 owns durable execution history, exploration/comparison, intentional reuse, and the persistence needed to support them.
+- PR 2 owns durable execution history, local history exploration, stored fanout inspection, and the cache/persistence work that supports them.
 - PR 3 owns high-volume execution workflows across normalized capabilities and provider tools.
 - PR 4 owns operator setup, diagnostics, and status.
 - PR 5 owns agent traceability.
@@ -49,11 +49,13 @@ Functional now:
 Missing now:
 
 - Durable execution records shared by normalized and provider-tool paths
-- `coldsearch history recent`, `search`, and `show`
-- Raw and normalized execution inspection
-- Related prior searches, per-provider fanout views, and intentional reuse
-- Atomic history writes and restrictive file permissions
-- Exact-replay freshness controls and cache maintenance
+- `coldsearch history recent`, `history search`, `history show`, and provider-partition inspection
+- Local discovery of related prior requests/results with visible match provenance
+- Stored pre-merge fanout provider partitions plus merged output
+- Cache-hit history that references the originating execution without calling providers
+- History retention independent from cache expiry and `cache clear`
+- `coldsearch cache stats`, `coldsearch cache clear`, and exact-replay freshness controls
+- Atomic history/cache writes and restrictive file permissions
 - `coldsearch batch`
 - Batch resumability by stable `id`
 - Batch controlled concurrency
@@ -83,7 +85,7 @@ What these do not prove:
 - They do not prove that ColdSearch hits real provider APIs.
 - They do not prove provider-native parity.
 - They do not prove a new CLI workflow is ergonomic or useful.
-- They do not prove cache, batch, provider-tool, or agent observability behavior unless focused tests for those behaviors were added.
+- They do not prove cache, history, batch, provider-tool, or agent observability behavior unless focused tests for those behaviors were added.
 
 ## Live Provider Conformance
 
@@ -152,7 +154,7 @@ After each implementation PR:
 - [ ] Run the required validation from that PR plan before opening the PR.
 - [ ] Wait for GitHub checks to complete.
 - [ ] Read required checks and advisory checks before characterizing failures.
-- [ ] Read all review surfaces: inline review threads, flat PR comments, bot comments, and CI summaries.
+- [ ] Read all review surfaces: inline review threads, flat comments, bot comments, and CI summaries.
 - [ ] Address valid findings with follow-up commits.
 - [ ] Re-run the validation that proves the changed behavior after follow-up commits. Include `npm test` for runtime/code changes and `npm run test:docs` for docs, provider matrix, registry, or plan-validator changes.
 - [ ] Wait again for checks and reviews after every push.
@@ -217,14 +219,16 @@ Plan: [2026-06-22-pr2-cache-a2.md](./2026-06-22-pr2-cache-a2.md)
 
 Success looks like:
 
-- Every meaningful normalized/provider-tool execution has a useful execution record.
-- `coldsearch history recent`, `search`, and `show` work offline.
-- Raw and normalized results, failures, URLs/artifacts, routing, timing, safe key references, and run/agent context are inspectable.
-- Fanout retains per-provider partitions and the merged view.
-- Related prior work and intentional reuse expose provenance and age.
-- History writes are atomic and use restrictive permissions where supported.
-- `cache clear`, freshness controls, and crawl replay policy remain supporting cache work.
-- Offline tests prove record convergence, retrieval, comparison, provenance, redaction, and persistence.
+- Every `search`, `extract`, `crawl`, and provider-tool invocation produces one top-level execution record.
+- `coldsearch history recent`, `history search`, and `history show` work entirely from local stored records.
+- `history show --by-provider` exposes stored fanout provider partitions and the final merged result.
+- History stores observable request/routing/result/error/timing provenance the runtime actually has; raw provider detail is shown only where already preserved.
+- Exact cache hits create new history executions that reference their origin when available and record zero provider calls.
+- Cache expiry and `cache clear` never erase execution history.
+- `cache stats`, `cache clear`, freshness controls, atomic writes, permissions, and crawl replay policy remain supporting cache work.
+- Approximate history retrieval never silently replaces a live provider request.
+- Run-ID and agent-step generation/propagation remain PR 5 work rather than a PR 2 prerequisite.
+- Offline tests prove record shape, retrieval, fanout inspection, cache/history separation, redaction, and persistence without live provider calls.
 - No history validation initiates paid provider comparisons or benchmark workloads.
 
 Review pause:
@@ -244,7 +248,7 @@ Review pause:
 
 Success looks like:
 
-- Batch work starts on top of merged provider-tool and cache behavior.
+- Batch work starts on top of merged provider-tool, history, and cache behavior.
 - The relevant offline and docs/registry checks are green before batch implementation begins.
 
 ### PR 3: Batch Runner for Search, Extract, Crawl, and Provider Tools
@@ -261,7 +265,7 @@ Success looks like:
 - Controlled concurrency works.
 - Duplicate handling is deterministic.
 - Per-item success/error output is present.
-- Existing exact cache and execution history are used for batch `search`, `extract`, and eligible provider-tool records.
+- Existing exact cache and execution history are available to batch `search`, `extract`, and eligible provider-tool records without silently treating approximate history matches as replay hits.
 - Offline tests prove JSONL validation, resumability, duplicate handling, concurrency, mixed record execution, and cache reuse.
 - Docs/config checks prove batch documentation matches the implemented flags.
 
@@ -367,7 +371,7 @@ Validation is evidence, not ceremony. A command belongs in a PR plan only when t
 
 Use this rule at every PR boundary:
 
-- Run `npm test` for runtime, CLI, adapter, cache, batch, agent, logging, or config changes. It proves the built project and offline test contracts still hold.
+- Run `npm test` for runtime, CLI, adapter, cache, history, batch, agent, logging, or config changes. It proves the built project and offline test contracts still hold.
 - Run `npm run test:docs` for provider matrix, registry, config docs, architecture docs, or plan-validator changes. It proves documented surfaces and code registries have not drifted.
 - Run scoped provider-native conformance only for provider-facing paths touched by the PR. Use the full matrix only for the deliberate baseline, a shared-transport change affecting every path, or an explicit user request.
 - Run targeted CLI checks when the PR creates or changes a user-facing command. These checks must use temp configs/files and assert parseable useful output.
@@ -377,7 +381,7 @@ A PR is not ready for review until:
 
 - Its new behavior has focused tests that can fail for a real implementation bug.
 - Existing behavior affected by the change remains covered.
-- Its new request/cache/provider/agent flow writes enough safe logs to reconstruct what happened.
+- Its new request/cache/history/provider/agent flow writes enough safe observable provenance to reconstruct what happened.
 - Any scoped live conformance required by a provider-facing change has explicit pass/fail/blocked/waived rows.
 - Documentation and provider/tool matrix drift checks run only when they prove something changed in docs or registry.
 - Manual review evidence is recorded when automation cannot prove the contract.
