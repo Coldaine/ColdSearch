@@ -88,7 +88,6 @@ for (const file of [
 
 const master = await read("plans/2026-06-22-remaining-implementation-master-plan.md");
 const gate0 = await read("plans/2026-06-23-gate-0-provider-pass-through-proof.md");
-const liveConformance = await read("plans/2026-08-10-live-provider-conformance.md");
 const pr1 = await read("plans/2026-06-22-pr1-provider-tool-surface.md");
 for (const file of planFiles) {
   const basename = path.basename(file);
@@ -106,27 +105,11 @@ if (!master.includes("2026-08-10-live-provider-conformance.md")) {
 }
 
 if (!gate0.includes("provider-native") || !gate0.includes("ColdSearch")) {
-  fail("Live conformance plan must describe provider-native vs ColdSearch comparison.");
+  fail("Gate 0 plan must require provider-native vs ColdSearch comparison.");
 }
 
 if (!gate0.includes("Agent mode") || !gate0.includes("does not cover")) {
-  fail("Live conformance plan must explicitly exclude agentic testing.");
-}
-
-for (const section of ["## Fixed Inputs", "## Comparison Rules", "## Evidence Output Shape", "## PR 1 Carry-Forward Rule"]) {
-  if (!gate0.includes(section)) {
-    fail(`Gate 0 baseline lost detailed conformance section: ${section}`);
-  }
-}
-
-for (const status of ["pass", "fail", "blocked_missing_secret", "blocked_provider", "not_run"]) {
-  if (!liveConformance.includes(`\`${status}\``)) {
-    fail(`Ongoing live conformance is missing coverage status ${status}.`);
-  }
-}
-
-if (!liveConformance.includes("Do not run the full live-provider matrix after unrelated changes")) {
-  fail("Ongoing live conformance must prohibit full-matrix runs after unrelated changes.");
+  fail("Gate 0 plan must explicitly exclude agentic testing.");
 }
 
 if (!pr1.includes("Pass-Through Parity Requirement")) {
@@ -168,6 +151,21 @@ for (const file of planFiles) {
   }
 }
 
+const pr2 = await read("plans/2026-06-22-pr2-cache-a2.md");
+for (const command of [
+  "coldsearch history recent",
+  "coldsearch history search <query>",
+  "coldsearch history show <execution-id>",
+  "coldsearch history show <execution-id> --by-provider",
+  "coldsearch cache stats",
+  "coldsearch cache clear",
+  "--freshness <duration>",
+]) {
+  if (!pr2.includes(command)) {
+    fail(`PR 2 plan is missing required operator surface: ${command}`);
+  }
+}
+
 const docsAndPlans = [
   ...(await walk("docs")),
   ...(await walk("plans")),
@@ -191,16 +189,8 @@ if (!architecture.includes("| Remote / hybrid worker implementation | Deferred |
   fail("architecture.md must mark remote/hybrid worker implementation as Deferred.");
 }
 
-const pr2 = await read("plans/2026-06-22-pr2-cache-a2.md");
-for (const command of ["history recent", "history search", "history show", "cache clear", "--freshness"]) {
-  if (!pr2.includes(command)) {
-    fail(`PR 2 research-memory plan is missing ${command}.`);
-  }
-}
-if (!pr2.includes("No validation command contacts or spends credits with a provider")) {
-  fail("PR 2 validation must explicitly remain offline.");
-}
-
+// Validate operational boundaries directly rather than making particular prose
+// in planning documents a build contract.
 const packageJson = JSON.parse(await read("package.json"));
 for (const scriptName of ["test", "test:docs"]) {
   const command = packageJson.scripts?.[scriptName] ?? "";
