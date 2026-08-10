@@ -41,6 +41,8 @@ Native tool **names are not authoritative**. Watch these collisions:
 |------------|-------------|-------------------|
 | Firecrawl `extract` | structured-LLM extraction (a `research`-style tool) | `extract` is backed by Firecrawl **`scrape`** |
 | Firecrawl `scrape` | known-URL page retrieval | ColdSearch `extract` |
+| Bright Data Web Scraper APIs | site-specific structured records such as products/reviews/companies | provider-native tools; **not** generic `extract` |
+| Bright Data Web Unlocker | known-URL page retrieval / anti-bot access | ColdSearch `extract` |
 | Brave Web Search | SERP-style search | ColdSearch `search` |
 | Brave LLM Context | search **plus** extracted context chunks for LLM grounding | not the plain `search` backer |
 | Exa `/search` | one endpoint spanning `instant` … `deep-reasoning` | `search` (and `research` at deep modes) |
@@ -48,13 +50,15 @@ Native tool **names are not authoritative**. Watch these collisions:
 
 The durable record for every provider-native tool — native params, common-view
 mappings (`direct`/`partial`/`derived`), feature predicates, sync/async
-behavior, and wired/available status — lives in the **provider-tool profile
-registry** (`src/registry/tool-profiles.ts`). Inspect it live, no network:
+behavior, and wired/available status — lives in the provider-tool profile
+registry. Core profiles remain in `src/registry/tool-profiles.ts`; provider-
+specific extensions such as Bright Data may live in a focused registry module
+that installs into the same runtime profile object. Inspect it live, no network:
 
 ```bash
 coldsearch tool list --json
-coldsearch tool list --provider firecrawl --json
-coldsearch tool info firecrawl.scrape --json
+coldsearch tool list --provider brightdata --json
+coldsearch tool info brightdata.scrape --json
 ```
 
 Parameter-level detail is intentionally kept in the registry (and surfaced by
@@ -73,15 +77,16 @@ ColdSearch columns = what the adapter actually implements today.
 | Firecrawl | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Vendor surface is richer than the adapter |
 | Exa | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | Crawl synthesized via discovery + `contents` |
 | Brave | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Search-only vendor |
+| Bright Data | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | SERP + Web Unlocker implemented; Crawl remains provider-native/candidate |
 | Serper | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Google SERP; search-only vendor |
 | Jina | ⚠️ | ✅ | ⚠️ | ❌ | ✅ | ❌ | Reader extraction only today |
 | SearXNG | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Self-hosted; operator-configured `baseUrl` |
 
 ## Live verification status
 
-Last verified **2026-05-28** against real provider APIs via `scripts/smoke.mjs`
-and ad-hoc probes. `✅⚡` = live-verified end-to-end · `✅` = implemented but not
-yet live-checked · `—` = not applicable.
+The legacy provider set was last broadly verified **2026-05-28** against real
+provider APIs via `scripts/smoke.mjs` and ad-hoc probes. `✅⚡` = live-verified
+end-to-end · `✅` = implemented but not yet live-checked · `—` = not applicable.
 
 | Provider | search | extract | crawl |
 |----------|:------:|:-------:|:-----:|
@@ -89,44 +94,59 @@ yet live-checked · `—` = not applicable.
 | Firecrawl | ✅⚡ | ✅⚡ | ✅⚡ |
 | Exa | ✅⚡ | ✅⚡ | ✅⚡ |
 | Brave | ✅⚡ | — | — |
+| Bright Data | ✅ (not live-verified) | ✅ (not live-verified) | — |
 | Jina | — | ✅⚡ | — |
 | Serper | ✅ (no key in test env) | — | — |
 | SearXNG | ✅ (needs an endpoint) | — | — |
 
-Only Serper and SearXNG search remain un-live-verified, and only because no key /
-endpoint was available in the verification environment — not because of code.
+Bright Data is intentionally **not** considered live-verified merely because its
+adapter and direct-tool mappers exist. Its first live proof must be an explicit,
+scoped run with intentionally supplied account configuration; it must not enter
+paid routine CI.
 
-## Candidate provider: Bright Data
+## Bright Data adoption status
 
-**Status: candidate, not implemented.** Bright Data has no ColdSearch adapter,
-provider registry entry, provider-tool profiles, configured credentials, default
-pool membership, or live ColdSearch verification. It is intentionally absent from
-the machine-checked Dual Matrix until those implementation facts change.
+**Status: implemented surface, explicit-only adoption.** Bright Data now has a
+ColdSearch adapter/registry entry for SERP `search` and Web Unlocker `extract`,
+plus provider-native mappings for its structured Web Scraper API lifecycle. It
+is deliberately absent from the example/default capability pools until measured
+quality, cost, and usage observability justify broader routing.
 
-Potential category and tool mappings:
+| Bright Data surface | ColdSearch fit | Current policy |
+|---------------------|----------------|----------------|
+| SERP API | `search` category backer | Implemented; explicit/configured use, not default pool |
+| Web Unlocker | `extract` category backer | Implemented; explicit/configured use, not default pool |
+| Dataset/scraper discovery + metadata | Provider-native tools | Catalogued; lets agents discover account-available scraper IDs/schemas |
+| Web Scraper synchronous scrape | Provider-native tool | Structured records; never flattened into generic `extract` |
+| Web Scraper async trigger + snapshot results | Provider-native tools | Explicit lifecycle for discovery/batch/longer collection |
+| Crawl API | Provider-native candidate | Do not claim normalized `crawl` until polling/output/spend mapping is proven |
+| Discover API | Provider-native candidate | Keep distinct from ordinary `search` |
+| Browser/proxy and marketplace purchase workflows | High-cost/stateful surfaces | Not part of the initial implementation |
 
-| Bright Data surface | ColdSearch fit | Adoption boundary |
-|---------------------|----------------|-------------------|
-| SERP/search products | `search` category backer | Explicit-provider benchmark before pool eligibility |
-| Web Unlocker / page retrieval | `extract` category backer | Explicit-only fallback until cost and quality are measured |
-| Crawling products | `crawl` category backer | Requires polling, cancellation, output, and spend characterization |
-| Structured scrapers and datasets | Provider-native tools | Preserve native schema and raw output |
-| Browser and proxy products | High-cost provider-native tools | Explicit opt-in with hard run caps; never default routing |
-
-Promotion beyond candidate requires an adapter/profile, secret-safe configuration,
-request and dollar caps, cost-aware usage logging, provider-native parity evidence,
-offline tests, an explicit manual live-verification record, and no paid live CI.
-Default routing remains disabled until measured quality and cost justify it.
-
-The dated account and adoption assessment lives in
-`docs/reviews/2026-07-16-project-review-and-bright-data.md`; volatile balances and
-promotional terms do not belong in this evergreen matrix.
+The dated account/adoption assessment remains in
+`docs/reviews/2026-07-16-project-review-and-bright-data.md`. Its guardrails still
+apply: secret-safe configuration, request/spend limits before recurring paid use,
+product/zone/cost observability, scoped parity evidence, offline tests, no paid
+live CI, and no default-pool promotion without evidence.
 
 ## Vendor tool surface
 
-What each vendor's API offers, and what ColdSearch wires. `✅` wired ·
-`❌` available upstream but not wired. Vendor pricing and rate limits live in each
-vendor's own docs (linked) — they go stale fast and are intentionally not mirrored here.
+What each vendor's API offers, and what ColdSearch wires. `✅` wired normalized
+backer · `🧰` catalogued/direct provider-native surface · `❌` available upstream
+but not adopted. Vendor pricing and rate limits live in each vendor's own docs —
+they go stale fast and are intentionally not mirrored here.
+
+### Bright Data — `src/adapters/brightdata.ts` / `src/tools/brightdata.ts` · [docs](https://docs.brightdata.com)
+- SERP `POST /request` with configured SERP zone → **search** ✅
+- Web Unlocker `POST /request` with configured Unlocker zone → **extract** ✅
+- `GET /datasets/list` → `brightdata.datasetsList` 🧰
+- `GET /datasets/{dataset_id}/metadata` → `brightdata.datasetMetadata` 🧰
+- `POST /datasets/v3/scrape` → `brightdata.scrape` 🧰
+- `POST /datasets/v3/trigger` → `brightdata.trigger` 🧰
+- snapshot download → `brightdata.snapshot` 🧰
+- Crawl API job triggering → `brightdata.crawl` 🧰 candidate; not normalized crawl
+- Discover API → `brightdata.discover` 🧰 candidate; not ordinary normalized search
+- Browser API / proxy products / marketplace purchase workflows ❌ initial scope
 
 ### Tavily — `src/adapters/tavily.ts` · [docs](https://docs.tavily.com)
 - `POST /search` → **search** ✅ (a `topic:"news"` variant exists but is not separately exposed)
@@ -149,10 +169,10 @@ vendor's own docs (linked) — they go stale fast and are intentionally not mirr
 ### Exa — `src/adapters/exa.ts` · [docs](https://docs.exa.ai)
 - `POST /search` → **search** ✅
   - **Config-driven options** (set in `config.toml` under `[providers.exa.options]`):
-    - `highlights` — token-efficient excerpts (~10x reduction) for agent workflows
-    - `category` — specialized indexes (space-separated values): `company`, `people`, `research paper`, `news`, `personal site`, `financial report`. Other strings are accepted as category hints.
-    - `searchType` — latency control: `auto`, `keyword`, `neural`, `fast`, `instant`, `deep-lite`, `deep`
-    - `maxAgeHours` — cache freshness: `0` = always livecrawl, `-1` = never livecrawl
+    - `highlights` — token-efficient excerpts (~10x reduction for agents)
+    - `category` — specialized indexes: `company`, `people`, `research paper`, `news`, `personal site`, `financial report`
+    - `searchType` — `auto`, `keyword`, `neural`, `fast`, `instant`, `deep-lite`, `deep`
+    - `maxAgeHours` — `0` = always livecrawl, `-1` = never livecrawl
     - `includeDomains` / `excludeDomains` — domain filters
     - `numResults` — result count (default: 10)
     - `useAutoprompt` — query enhancement (default: true)
@@ -191,11 +211,12 @@ skip vendor specialties. Highest-leverage gaps:
 - **Jina** — `embeddings` + `rerank` could back ColdSearch's own reranking step; plus a free `search`.
 - **Tavily `answer`/`research`** and **Exa `answer`/`research`** — one-call research that overlaps the hand-rolled ReAct agent (`docs/ADRs/003-react-agent.md`).
 - **Firecrawl** `map`, schema `extract`, and `batch` — directly useful for the planned batch mode (`plans/2026-06-22-pr3-batch-runner.md`).
+- **Bright Data** Crawl/Discover/Browser/Marketplace expansion should be driven by concrete workflows and spend controls, not by surface-area completion.
 
 ## Adding a provider
 
 See `docs/contributing/adding-a-provider.md`. In short: implement the
 `SearchAdapter`, register it in `src/providers.ts`, add a `ProviderToolProfile`
-per tool in `src/registry/tool-profiles.ts`, add a row to the **Dual Matrix**
-above, and add tests. `npm run test:docs` enforces that the Dual Matrix stays in
-sync with the registry and the adapter method surfaces.
+per tool, add a row to the **Dual Matrix** above, and add tests. `npm run test:docs`
+enforces that the Dual Matrix stays in sync with the registry and adapter method
+surfaces.
