@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { loadConfig } from "../config.js";
 import { LocalExecutionBackend } from "../execution/backend.js";
 import { KeyPoolManager } from "../engine/keypool.js";
@@ -198,17 +199,83 @@ export class LocalBatchExecutor implements BatchExecutor {
 }
 
 /**
- * Resolve every configured credential value (env:/doppler:/literal refs) for
- * output redaction, mirroring how the backend/substrate resolve secrets before
- * persisting history and cache content. Best-effort: an unresolvable ref (e.g.
- * a missing env var) has no value to scrub and is skipped.
+ * Accumulates resolved credential values for output redaction. Re-resolving on
+ * every append closes the timing gap where a transient resolution failure at
+ * startup is followed by a successful resolution mid-run: successes accumulate
+ * and failures are retried on each append. The single KeyPoolManager instance
+ * is kept for the whole run, so Doppler lookups stay cached (TTL-bounded) and
+ * env:/literal refs are direct reads — per-append re-resolution is cheap.
  */
-async function resolveConfiguredSecrets(config: Config): Promise<string[]> {
-  const keyPool = new KeyPoolManager();
-  for (const [provider, providerConfig] of Object.entries(config.providers ?? {})) {
-    if (providerConfig?.keyPool) keyPool.register(provider, providerConfig.keyPool);
+class SecretAccumulator {
+  private readonly keyPool = new KeyPoolManager();
+  private readonly resolved = new Set<string>();
+
+  constructor(config: Config) {
+    for (const [provider, providerConfig] of Object.entries(config.providers ?? {})) {
+      if (providerConfig?.keyPool) this.keyPool.register(provider, providerConfig.keyPool);
+    }
   }
-  return keyPool.resolveAllSecrets();
+
+  /** Re-resolve configured secrets, merge newly resolved values, return the accumulated set. */
+  async knownSecrets(): Promise<string[]> {
+    for (const secret of await this.keyPool.resolveAllSecrets()) {
+      this.resolved.add(secret);
+    }
+    return [...this.resolved];
+  }
+}
+
+/**
+ * Lexically resolve `p`, then realpath its nearest existing ancestor so
+ * symlinked parents (and the file itself, when it exists) canonicalize. Same
+ * approach as scripts/provider-pass-through.mjs.
+ */
+function canonicalizePath(p: string): string {
+  const resolved = path.resolve(p);
+  let existing = resolved;
+  const trailing: string[] = [];
+  while (!fs.existsSync(existing)) {
+    const parent = path.dirname(existing);
+    // No existing ancestor at all (e.g. a non-existent Windows drive root):
+    // realpathSync would throw, so fall back to the lexical path.
+    if (parent === existing) return resolved;
+    trailing.unshift(path.basename(existing));
+    existing = parent;
+  }
+  return path.join(fs.realpathSync(existing), ...trailing);
+}
+
+function batchAliasError(input: string, output: string): Error {
+  return new Error(
+    `Batch input and output resolve to the same file (${input}). ` +
+      `Use a distinct --output path so results are not appended to the input.`
+  );
+}
+
+/**
+ * Refuse to run when --input and --output alias the same file: appended
+ * results would corrupt the input. The canonical comparison catches lexical
+ * and symlink aliasing; when both files exist, an inode comparison catches
+ * hardlinks (which realpath does not collapse).
+ */
+function assertDistinctBatchPaths(input: string, output: string): void {
+  if (canonicalizePath(input) === canonicalizePath(output)) {
+    throw batchAliasError(input, output);
+  }
+  let inputStat: fs.Stats;
+  let outputStat: fs.Stats;
+  try {
+    inputStat = fs.statSync(input);
+    outputStat = fs.statSync(output);
+  } catch (error) {
+    // One of them does not exist yet; the canonical comparison above already
+    // covered every existing path segment.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  if (inputStat.dev === outputStat.dev && inputStat.ino === outputStat.ino) {
+    throw batchAliasError(input, output);
+  }
 }
 
 /**
@@ -218,6 +285,8 @@ async function resolveConfiguredSecrets(config: Config): Promise<string[]> {
  * alone and appended before execution starts. No item failure aborts the run.
  */
 export async function runBatch(options: BatchRunOptions): Promise<BatchRunSummary> {
+  assertDistinctBatchPaths(options.input, options.output);
+
   const records = await readBatchInput(options.input);
   const resumeIndex = await loadResumeIndex(options.output);
   const plan = buildBatchPlan(records, resumeIndex, { retryErrors: options.retryErrors });
@@ -248,6 +317,16 @@ export async function runBatch(options: BatchRunOptions): Promise<BatchRunSummar
     return summary;
   }
 
+  // Nothing will be appended — a fully-resumed run (or an empty plan) needs
+  // no config, no preflight, and no provider calls, and must succeed even
+  // without a valid config file.
+  if (!plan.some((e) => e.action === "execute" || e.action === "conflict")) {
+    summary.executed = 0;
+    summary.succeeded = 0;
+    summary.failed = 0;
+    return summary;
+  }
+
   const config = loadConfig(options.configPath);
 
   // Output preflight: verify the output path is appendable before any provider
@@ -263,16 +342,28 @@ export async function runBatch(options: BatchRunOptions): Promise<BatchRunSummar
     );
   }
 
-  // Resolve every configured credential value once; every output record is
-  // scrubbed with them before persistence, like history and cache records.
-  const secrets = await resolveConfiguredSecrets(config);
+  const secrets = new SecretAccumulator(config);
   const executor = options.executor ?? new LocalBatchExecutor(options.configPath);
+
+  // Serialized append queue: fs.appendFile may split a large payload across
+  // multiple write() calls, so concurrent workers' appends must never
+  // interleave. Each append re-resolves secrets and redacts with the
+  // accumulated set (see SecretAccumulator).
+  let appendQueue: Promise<void> = Promise.resolve();
+  const persist = (record: BatchOutputRecord): Promise<void> => {
+    const enqueued = appendQueue.then(async () => {
+      const known = await secrets.knownSecrets();
+      await appendBatchOutput(options.output, redactSensitive(record, known));
+    });
+    appendQueue = enqueued;
+    return enqueued;
+  };
 
   // Conflict records are determined by the input alone: append them before
   // execution starts, in plan order. Redacted like every other output record.
   for (const entry of plan) {
     if (entry.action === "conflict" && entry.conflict) {
-      await appendBatchOutput(options.output, redactSensitive(entry.conflict, secrets));
+      await persist(entry.conflict);
     }
   }
 
@@ -284,7 +375,7 @@ export async function runBatch(options: BatchRunOptions): Promise<BatchRunSummar
     options.concurrency,
     async (entry) => {
       const outputRecord = await safeExecute(executor, entry.record, config);
-      await appendBatchOutput(options.output, redactSensitive(outputRecord, secrets));
+      await persist(outputRecord);
       executed += 1;
       if (outputRecord.status === "success") succeeded += 1;
       else failed += 1;

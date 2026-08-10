@@ -2,12 +2,20 @@ import fs from "node:fs";
 import {
   DUPLICATE_ID_CONFLICT,
   isConflictError,
+  type BatchError,
   type BatchInputRecord,
   type BatchOutputRecord,
 } from "./types.js";
 
-/** Maps batch `id` -> the output records already present in the output file. */
-export type ResumeIndex = Map<string, BatchOutputRecord[]>;
+/** Compact per-id resume outcome: planning needs status + conflict flag only. */
+export interface ResumeOutcome {
+  status: "success" | "error";
+  /** True for duplicate/conflict error records, which --retry-errors never retries. */
+  conflict: boolean;
+}
+
+/** Maps batch `id` -> compact outcomes already present in the output file. */
+export type ResumeIndex = Map<string, ResumeOutcome[]>;
 
 /** Per-record run actions in batch plan order. */
 export type BatchPlanAction = "execute" | "skip" | "conflict";
@@ -22,9 +30,10 @@ export interface BatchPlanEntry {
 }
 
 /**
- * Load the resume index from an existing output file. Malformed or partial
- * trailing lines (an interrupted run's last write) are ignored — they carry no
- * resumable outcome. A missing file yields an empty index.
+ * Load the resume index from an existing output file. Malformed, partial, or
+ * contract-invalid lines (an interrupted run's last write, foreign data) are
+ * ignored — they carry no resumable outcome. A missing file yields an empty
+ * index. Payloads are discarded: planning only needs status + conflict flag.
  */
 export async function loadResumeIndex(outputPath: string): Promise<ResumeIndex> {
   const index: ResumeIndex = new Map();
@@ -40,18 +49,50 @@ export async function loadResumeIndex(outputPath: string): Promise<ResumeIndex> 
 
   for (const line of content.split(/\r?\n/)) {
     if (!line.trim()) continue;
-    let record: BatchOutputRecord;
+    let parsed: unknown;
     try {
-      record = JSON.parse(line) as BatchOutputRecord;
+      parsed = JSON.parse(line);
     } catch {
       continue; // partial line from an interrupted write; nothing to resume
     }
-    if (typeof record?.id !== "string" || record.id === "") continue;
-    const records = index.get(record.id) ?? [];
-    records.push(record);
-    index.set(record.id, records);
+    const outcome = toResumeOutcome(parsed);
+    if (!outcome) continue;
+    const outcomes = index.get(outcome.id) ?? [];
+    outcomes.push(outcome);
+    index.set(outcome.id, outcomes);
   }
   return index;
+}
+
+/**
+ * Validate one parsed output line against the batch output contract and reduce
+ * it to the compact resume outcome. A success must have `error: null` and a
+ * present, non-null `result`; an error must have `result: null` and an `error`
+ * object with a string `message`. Anything else is ignored like a malformed
+ * line — it is not a completed outcome and must not cause a resume skip.
+ */
+function toResumeOutcome(
+  raw: unknown
+): { id: string; status: "success" | "error"; conflict: boolean } | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.id !== "string" || record.id === "") return null;
+
+  if (record.status === "success") {
+    if (record.error !== null) return null;
+    if (record.result === undefined || record.result === null) return null;
+    return { id: record.id, status: "success", conflict: false };
+  }
+
+  if (record.status === "error") {
+    if (record.result !== null) return null;
+    const error = record.error;
+    if (error === null || typeof error !== "object" || Array.isArray(error)) return null;
+    if (typeof (error as Record<string, unknown>).message !== "string") return null;
+    return { id: record.id, status: "error", conflict: isConflictError(error as BatchError) };
+  }
+
+  return null;
 }
 
 /** Key-order-stable serialization of a record (minus its `id`) for duplicate comparison. */
@@ -115,12 +156,8 @@ export function buildBatchPlan(
   for (const record of records) {
     const existing = resumeIndex.get(record.id) ?? [];
     const hasSuccess = existing.some((r) => r.status === "success");
-    const hasRetriableError = existing.some(
-      (r) => r.status === "error" && !isConflictError(r.error)
-    );
-    const hasConflict = existing.some(
-      (r) => r.status === "error" && isConflictError(r.error)
-    );
+    const hasRetriableError = existing.some((r) => r.status === "error" && !r.conflict);
+    const hasConflict = existing.some((r) => r.status === "error" && r.conflict);
 
     const firstInput = seen.get(record.id);
     if (firstInput === undefined) {

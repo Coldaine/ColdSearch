@@ -332,14 +332,8 @@ test("retries existing errors only with retryErrors", async () => {
 });
 
 test("conflict error records are never retried, even with retryErrors", () => {
-  const priorConflict = {
-    id: "b",
-    capability: "search",
-    status: "error",
-    result: null,
-    error: { code: DUPLICATE_ID_CONFLICT, message: "conflict" },
-  };
-  const resumeIndex = new Map([[priorConflict.id, [priorConflict]]]);
+  // Compact resume index: the output holds one conflict outcome for id "b".
+  const resumeIndex = new Map([["b", [{ status: "error", conflict: true }]]]);
   // The input still repeats the id with different inputs: the primary has no
   // outcome of its own yet, and the secondary's conflict is already recorded.
   const records = [
@@ -545,6 +539,193 @@ test("unwritable output path rejects before the executor is called", async () =>
       /Cannot write batch output file/
     );
     assert.deepEqual(executor.calls, [], "preflight rejects before any executor call");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Serialized appends
+// ---------------------------------------------------------------------------
+
+test("serializes concurrent appends of large records into clean JSONL lines", async () => {
+  const dir = makeDir();
+  try {
+    const records = Array.from({ length: 50 }, (_, i) => ({
+      id: `r${i}`,
+      capability: "search",
+      query: `q${i}`,
+    }));
+    // Large payloads are where fs.appendFile may split a write into several
+    // syscalls, so an un-serialized append would interleave between workers.
+    const payload = "x".repeat(100 * 1024);
+    const executor = {
+      execute: async (record) => ({
+        id: record.id,
+        capability: "search",
+        status: "success",
+        result: { blob: payload, id: record.id },
+        error: null,
+      }),
+    };
+
+    const summary = await runBatchIn(dir, records, { concurrency: 8, executor });
+    assert.equal(summary.executed, 50);
+    assert.equal(summary.succeeded, 50);
+
+    const written = fs.readFileSync(path.join(dir, "out.jsonl"), "utf8");
+    const lines = written.trim().split("\n");
+    assert.equal(lines.length, 50, "exactly 50 output lines, none interleaved");
+    for (const line of lines) {
+      const parsed = JSON.parse(line); // throws if two records interleaved
+      assert.equal(parsed.status, "success");
+      assert.equal(parsed.result.blob.length, payload.length);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Input/output aliasing
+// ---------------------------------------------------------------------------
+
+test("input and output aliasing the same file rejects before any execution", async () => {
+  const dir = makeDir();
+  try {
+    const inputPath = writeInput(dir, [{ id: "a", capability: "search", query: "aa" }]);
+    const executor = fakeExecutor();
+    await assert.rejects(
+      () =>
+        runBatch({
+          input: inputPath,
+          output: inputPath,
+          concurrency: 2,
+          retryErrors: false,
+          configPath: writeMinimalConfig(dir),
+          executor,
+        }),
+      /same file/
+    );
+    assert.deepEqual(executor.calls, [], "alias rejection happens before any executor call");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("hardlinked input and output are rejected as the same file", async (t) => {
+  const dir = makeDir();
+  try {
+    const inputPath = writeInput(dir, [{ id: "a", capability: "search", query: "aa" }]);
+    const outputPath = path.join(dir, "out-hardlink.jsonl");
+    try {
+      fs.linkSync(inputPath, outputPath);
+    } catch {
+      t.skip("hard links are not supported on this filesystem");
+      return;
+    }
+    // Realpath does not collapse hardlinks; the dev/ino comparison must catch
+    // the alias so results cannot be appended onto the input.
+    await assert.rejects(
+      () =>
+        runBatch({
+          input: inputPath,
+          output: outputPath,
+          concurrency: 2,
+          retryErrors: false,
+          configPath: writeMinimalConfig(dir),
+          executor: fakeExecutor(),
+        }),
+      /same file/
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Resume record validation + compaction
+// ---------------------------------------------------------------------------
+
+test("loadResumeIndex compacts outcomes and discards contract-invalid lines", async () => {
+  const dir = makeDir();
+  try {
+    const outputPath = path.join(dir, "out.jsonl");
+    fs.writeFileSync(
+      outputPath,
+      [
+        JSON.stringify({ id: "a", status: "success" }), // invalid: no result payload
+        JSON.stringify({ id: "b", status: "success", result: {}, error: null }), // valid
+        JSON.stringify({ id: "c", status: "error", result: null, error: { message: "x" } }), // valid
+        JSON.stringify({ id: "d", status: "error", result: {}, error: { message: "x" } }), // invalid: result not null
+        JSON.stringify({ id: "e", status: "success", result: {}, error: { message: "x" } }), // invalid: success with error
+      ].join("\n") + "\n",
+      "utf8"
+    );
+    const index = await loadResumeIndex(outputPath);
+    assert.deepEqual([...index.keys()].sort(), ["b", "c"]);
+    assert.deepEqual(index.get("b"), [{ id: "b", status: "success", conflict: false }]);
+    assert.deepEqual(index.get("c"), [{ id: "c", status: "error", conflict: false }]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("contract-invalid output lines do not count as completed outcomes", async () => {
+  const dir = makeDir();
+  try {
+    // Parseable but contract-invalid: a success without a result payload must
+    // not be treated as an already-completed outcome (which would skip it).
+    const outputPath = path.join(dir, "out.jsonl");
+    fs.writeFileSync(outputPath, JSON.stringify({ id: "a", status: "success" }) + "\n", "utf8");
+    const executor = fakeExecutor();
+    const summary = await runBatchIn(dir, [{ id: "a", capability: "search", query: "aa" }], {
+      executor,
+    });
+    assert.deepEqual(executor.calls, ["a"], "invalid success line must not skip the record");
+    assert.equal(summary.executed, 1);
+    assert.equal(summary.skipped, 0);
+    assert.equal(outputRecords(outputPath).length, 2, "invalid line kept verbatim; valid record appended");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Fully-resumed runs
+// ---------------------------------------------------------------------------
+
+test("fully-resumed runs resolve without a valid config", async () => {
+  const dir = makeDir();
+  try {
+    const outputPath = path.join(dir, "out.jsonl");
+    // Prior run: id "a" succeeded; nothing remains to execute or append.
+    fs.writeFileSync(
+      outputPath,
+      JSON.stringify({
+        id: "a",
+        capability: "search",
+        status: "success",
+        result: { results: [], providers_used: ["exa"] },
+        error: null,
+      }) + "\n",
+      "utf8"
+    );
+    const inputPath = writeInput(dir, [{ id: "a", capability: "search", query: "aa" }]);
+    const summary = await runBatch({
+      input: inputPath,
+      output: outputPath,
+      concurrency: 2,
+      retryErrors: false,
+      // A nonexistent config would throw if loadConfig were reached.
+      configPath: path.join(dir, "missing-config.toml"),
+      executor: fakeExecutor(),
+    });
+    assert.equal(summary.executed, 0);
+    assert.equal(summary.succeeded, 0);
+    assert.equal(summary.failed, 0);
+    assert.equal(summary.skipped, 1);
+    assert.equal(summary.conflicts, 0);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
