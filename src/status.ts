@@ -8,6 +8,7 @@ import type {
 } from "./types.js";
 import { UsageLogger } from "./logging/usage.js";
 import { CacheStore } from "./cache/cache.js";
+import { PROVIDER_DEFAULT_DOPPLER_SECRETS } from "./engine/keypool.js";
 import {
   HARD_EXCLUDED_TOOLS,
   isHardExcluded,
@@ -353,7 +354,16 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
       });
       continue;
     }
-    const providers = Array.isArray(cfg?.providers) ? cfg.providers : [];
+    const rawProviders = cfg?.providers;
+    if (rawProviders !== undefined && !Array.isArray(rawProviders)) {
+      // Wrong schema (e.g. a bare string): routing expects an array.
+      errors.push({
+        category: "config",
+        message: `Capability '${capability}' providers must be an array of provider names`,
+      });
+      continue;
+    }
+    const providers = Array.isArray(rawProviders) ? rawProviders : [];
     if (providers.length === 0) {
       warnings.push({
         category: "config",
@@ -391,7 +401,10 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
       const hasDefaultSecret =
         typeof cfg?.keyPool?.defaultSecretName === "string" &&
         cfg.keyPool.defaultSecretName.trim().length > 0;
-      if (!isKeylessProvider(provider) && !hasDefaultSecret) {
+      // Built-in per-provider Doppler defaults are runtime-consumed too; keep
+      // the shared source (src/engine/keypool.ts) so this never drifts.
+      const hasBuiltInDefault = PROVIDER_DEFAULT_DOPPLER_SECRETS[provider] !== undefined;
+      if (!isKeylessProvider(provider) && !hasDefaultSecret && !hasBuiltInDefault) {
         warnings.push({
           category: "credentials",
           message: `Provider '${provider}' has no key references configured`,

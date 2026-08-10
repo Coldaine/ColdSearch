@@ -207,6 +207,11 @@ export function classifyError(error: unknown): ClassifiedError {
   const name = error instanceof Error ? error.name : "";
 
   if (error instanceof HTTPRequestError) {
+    // Authentication/authorization rejections are credential problems, not
+    // transport problems.
+    if (error.status === 401 || error.status === 403) {
+      return { category: "credentials", message };
+    }
     return { category: "network", message };
   }
   if (name === "AbortError") {

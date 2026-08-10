@@ -44,6 +44,16 @@ export function resolveConfigPath(configPath?: string): string {
 }
 
 /**
+ * @iarna/toml parse errors append the offending source lines (which may hold
+ * literal credentials) after the first newline. Keep the location/reason prefix
+ * and drop the source excerpt so secrets never surface in error output.
+ */
+function sanitizeTomlError(message: string): string {
+  const firstNewline = message.indexOf("\n");
+  return firstNewline === -1 ? message : message.slice(0, firstNewline);
+}
+
+/**
  * Load and parse configuration from a TOML file.
  */
 export function loadConfig(configPath?: string): Config {
@@ -69,7 +79,7 @@ export function loadConfig(configPath?: string): Config {
     parsed = TOML.parse(content);
   } catch (error) {
     throw new Error(
-      `Failed to parse config file ${path}: ${(error as Error).message}`
+      `Failed to parse config file ${path}: ${sanitizeTomlError((error as Error).message)}`
     );
   }
 

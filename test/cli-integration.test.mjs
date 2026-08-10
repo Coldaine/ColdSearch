@@ -291,6 +291,34 @@ test("config init refuses to overwrite an existing config", () => {
   });
 });
 
+test("config init --config with a missing or flag value fails clearly", () => {
+  const flagResult = runCli(["config", "init", "--config", "--json"]);
+  assert.equal(flagResult.status, 1);
+  assert.match(flagResult.stderr, /missing value for --config/i);
+
+  const missingResult = runCli(["config", "init", "--config"]);
+  assert.equal(missingResult.status, 1);
+  assert.match(missingResult.stderr, /missing value for --config/i);
+  assert.ok(!fs.existsSync(path.join(repoRoot, "--json")), "no flag-named file written");
+});
+
+test("config doctor does not leak TOML parse-error source excerpts", () => {
+  const { result } = withTempDir((dir) => {
+    const configPath = path.join(dir, "config.toml");
+    fs.writeFileSync(
+      configPath,
+      '[providers.tavily]\n[providers.tavily.keyPool]\nkeys = ["sk-fake-secret-xyz" oops]\n',
+      "utf8"
+    );
+    return { result: runCli(["config", "doctor", "--config", configPath, "--json"]) };
+  });
+
+  assert.equal(result.status, 1);
+  const output = result.stdout + result.stderr;
+  assert.doesNotMatch(output, /sk-fake-secret-xyz/);
+  assert.match(output, /row 3/);
+});
+
 test("config doctor --json reports valid config success", () => {
   const { result, configPath } = withTempDir((dir) => {
     const configPath = writeConfig(

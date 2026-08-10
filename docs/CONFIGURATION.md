@@ -335,6 +335,9 @@ base_url = "https://api.openai.com/v1"
 ```
 
 Environment fallbacks: `OPENAI_API_KEY` (and provider-specific keys such as
-`GROQ_API_KEY`), `OPENAI_BASE_URL` for the OpenAI-compatible base URL.
+`GROQ_API_KEY`). `OPENAI_BASE_URL` overrides the base URL for
+`provider = "openai"` only — the alias providers (groq, openrouter, cerebras,
+xai) always use their own fixed base URLs, and a TOML/CLI `base_url` takes
+precedence over the environment fallback.
 
 This is separate from provider key resolution in `config.toml`.

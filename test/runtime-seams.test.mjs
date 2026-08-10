@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { FanoutEngine } from "../dist/engine/fanout.js";
 import { SearXNGAdapter } from "../dist/adapters/searxng.js";
-import { classifyError } from "../dist/http.js";
+import { HTTPRequestError, classifyError } from "../dist/http.js";
 
 test("fanout rejects providers that do not implement requested capability", async () => {
   const engine = new FanoutEngine({
@@ -120,4 +120,30 @@ test("filesystem error codes classify as config", () => {
     err.code = code;
     assert.equal(classifyError(err).category, "config", code);
   }
+});
+
+test("HTTP 401/403 classify as credentials; other HTTP errors as network", () => {
+  for (const status of [401, 403]) {
+    const { category, message } = classifyError(
+      new HTTPRequestError(`Request failed with HTTP ${status}`, {
+        url: "https://api.example/x",
+        status,
+      })
+    );
+    assert.equal(category, "credentials", `status ${status}`);
+    assert.match(message, /HTTP 40/);
+  }
+
+  const serverError = classifyError(
+    new HTTPRequestError("Request failed with HTTP 500", {
+      url: "https://api.example/x",
+      status: 500,
+    })
+  );
+  assert.equal(serverError.category, "network");
+
+  const noStatus = classifyError(
+    new HTTPRequestError("Request failed", { url: "https://api.example/x" })
+  );
+  assert.equal(noStatus.category, "network");
 });

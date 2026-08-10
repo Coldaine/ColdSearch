@@ -80,33 +80,82 @@ test("doctor never echoes the SearXNG baseUrl value in errors", () => {
   assert.doesNotMatch(messages, /sk-super-secret-abc/);
 });
 
-test("doctor skips the no-key warning when defaultSecretName is set", () => {
-  const withDefault = buildDoctorReport(
+test("doctor skips the no-key warning when a key fallback exists", () => {
+  const capability = { search: { providers: ["tavily"], strategy: "random" } };
+
+  const withDefaultSecret = buildDoctorReport(
     {
-      capabilities: { search: { providers: ["tavily"], strategy: "random" } },
+      capabilities: capability,
       providers: {
-        tavily: { keyPool: { keys: [], defaultSecretName: "TAVILY_API_KEY" } },
+        tavily: { keyPool: { keys: [], defaultSecretName: "MY_TAVILY_KEY" } },
       },
     },
     "/tmp/config.toml"
   );
   assert.doesNotMatch(
-    withDefault.warnings.map((w) => w.message).join("\n"),
+    withDefaultSecret.warnings.map((w) => w.message).join("\n"),
     /no key references configured/
   );
 
-  // Control: a bare empty key pool still warns.
-  const withoutDefault = buildDoctorReport(
+  // A built-in per-provider Doppler default (runtime fallback) suppresses it too.
+  const withBuiltInDefault = buildDoctorReport(
     {
-      capabilities: { search: { providers: ["tavily"], strategy: "random" } },
+      capabilities: capability,
       providers: { tavily: { keyPool: { keys: [] } } },
     },
     "/tmp/config.toml"
   );
-  assert.match(
-    withoutDefault.warnings.map((w) => w.message).join("\n"),
+  assert.doesNotMatch(
+    withBuiltInDefault.warnings.map((w) => w.message).join("\n"),
     /no key references configured/
   );
+
+  // Control: a provider with neither a default nor a built-in fallback still warns.
+  const withoutFallback = buildDoctorReport(
+    {
+      capabilities: { search: { providers: ["brightdata"], strategy: "random" } },
+      providers: { brightdata: { keyPool: { keys: [] } } },
+    },
+    "/tmp/config.toml"
+  );
+  assert.match(
+    withoutFallback.warnings.map((w) => w.message).join("\n"),
+    /no key references configured/
+  );
+});
+
+test("doctor flags a non-array capability providers as a config error", () => {
+  const report = buildDoctorReport(
+    {
+      capabilities: {
+        search: { providers: "tavily" },
+        extract: { providers: [], strategy: "random" },
+        crawl: { providers: [], strategy: "random" },
+      },
+      providers: { tavily: { keyPool: { keys: [] } } },
+    },
+    "/tmp/config.toml"
+  );
+  assert.equal(report.valid, false);
+  assert.match(
+    report.errors.map((e) => e.message).join("\n"),
+    /providers must be an array/
+  );
+  assert.ok(report.errors.every((e) => e.category === "config"));
+
+  // A capability with no `providers` key stays a warning, not an error.
+  const missingProviders = buildDoctorReport(
+    {
+      capabilities: {
+        search: {},
+        extract: { providers: [], strategy: "random" },
+        crawl: { providers: [], strategy: "random" },
+      },
+      providers: { tavily: { keyPool: { keys: [] } } },
+    },
+    "/tmp/config.toml"
+  );
+  assert.equal(missingProviders.valid, true);
 });
 
 test("status summary is correct for a usage log larger than the read window", () => {
