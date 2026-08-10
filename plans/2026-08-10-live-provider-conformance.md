@@ -36,6 +36,8 @@ Every supported provider/path must be visible in the scheduled/manual report as 
 
 A workflow may complete successfully while some rows are blocked or not run, but its summary must show those rows and totals. “Workflow succeeded” must never imply “all supported provider integrations passed.” Reuse the Gate 0 status semantics and provider/path inventory rather than creating a second harness or status model.
 
+A CLI-only smoke check (`scripts/smoke.mjs`) never produces a conformance `pass`: it executes only the ColdSearch CLI and performs no provider-native leg or comparison. Scheduled smoke results are reported separately with an explicit smoke-only label, and a row that only ran smoke stays `not_run` in the native-vs-ColdSearch conformance vocabulary.
+
 The shared inventory must also cover provider-tool dispatch: add provider-tool rows (for example `tavily.map` or `brave.newsSearch`) with native runners for catalogued provider tools, using the same status vocabulary. Otherwise a scoped check triggered by a generic provider-tool change has no row to run, and the outstanding provider-tool parity evidence from PR 1 cannot be produced.
 
 ## Evidence Isolation
@@ -51,7 +53,7 @@ For manual scoped checks, always provide a separate temporary/output directory. 
 - [ ] Make the harness emit one machine-readable row per provider/path in scope.
 - [ ] Make omitted supported paths explicit as `not_run` in coverage summaries.
 - [ ] Reuse `pass`, `fail`, `blocked_missing_secret`, `blocked_provider`, and `waived_by_user` semantics from Gate 0.
-- [ ] Update `scripts/smoke.mjs` or a thin reporter around it to emit the same provider/path coverage vocabulary; do not invent a separate live harness.
+- [ ] Update `scripts/smoke.mjs` or a thin reporter around it to emit the same provider/path coverage vocabulary; do not invent a separate live harness. CLI-only smoke results carry an explicit smoke-only label and are never reported as native-vs-ColdSearch `pass`.
 - [ ] Publish totals and the provider/path table in the scheduled workflow summary.
 - [ ] Keep scheduled/manual live workflows non-gating and absent from push/PR triggers.
 - [ ] Document the scoped manual command in contributor testing guidance.
