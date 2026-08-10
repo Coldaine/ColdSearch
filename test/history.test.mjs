@@ -177,6 +177,19 @@ test("redactSensitive redacts signed-URL tokens and credential fields recursivel
   assert.ok(scrubbed.results[0].url.includes("a=1"));
 });
 
+test("redactSensitive redacts zone names that embed customer IDs", () => {
+  const value = {
+    options: { zone: "brd-customer_abc123-zone-serp", query: "pizza" },
+    nested: { serpZone: "brd-customer_abc123-zone-serp" },
+  };
+  const scrubbed = redactSensitive(value, []);
+  // Exact `zone` field is redacted; `serpZone` is a config option name that
+  // never appears in persisted params.
+  assert.equal(scrubbed.options.zone, REDACTED);
+  assert.equal(scrubbed.options.query, "pizza");
+  assert.equal(scrubbed.nested.serpZone, "brd-customer_abc123-zone-serp");
+});
+
 test("redactForPersistence returns null for unserializable content (fail-closed)", () => {
   const circular = {};
   circular.self = circular;

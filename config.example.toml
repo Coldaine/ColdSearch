@@ -96,6 +96,9 @@ searchCountry = "us"
 # conservative default for direct structured calls. Increase deliberately for
 # larger async paid runs.
 maxStructuredInputsPerCall = 20
+# Web Unlocker timeout in milliseconds. JS-rendered pages routinely exceed the
+# default 10s fetch timeout; raise this for slower pages.
+# unlockerTimeoutMs = 30000
 
 [providers.serper]
 [providers.serper.keyPool]

@@ -143,6 +143,9 @@ they go stale fast and are intentionally not mirrored here.
 - `GET /datasets/{dataset_id}/metadata` → `brightdata.datasetMetadata` 🧰
 - `POST /datasets/v3/scrape` → `brightdata.scrape` 🧰
 - `POST /datasets/v3/trigger` → `brightdata.trigger` 🧰
+- `GET /datasets/v3/progress/{snapshot_id}` → `brightdata.progress` 🧰
+- `GET /datasets/snapshots/{id}` → `brightdata.snapshotMetadata` 🧰
+- `POST /datasets/v3/snapshot/{snapshot_id}/cancel` → `brightdata.cancel` 🧰
 - snapshot download → `brightdata.snapshot` 🧰
 - Crawl API job triggering → `brightdata.crawl` 🧰 candidate; not normalized crawl
 - Discover API → `brightdata.discover` 🧰 candidate; not ordinary normalized search

@@ -12,7 +12,7 @@ import {
 const CAPABILITY_NAMES = ["search", "extract", "crawl"];
 const SEMANTIC_FITS = new Set(["direct", "partial", "derived", "not-recommended"]);
 const EXECUTION_MODES = new Set(["sync", "async-job", "streaming"]);
-const STATUSES = new Set(["wired", "available", "deferred"]);
+const STATUSES = new Set(["wired", "available", "deferred", "direct"]);
 
 test("every profile key equals `<provider>.<tool>`", () => {
   for (const [id, profile] of Object.entries(providerToolProfiles)) {

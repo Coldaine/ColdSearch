@@ -12,6 +12,10 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     description:
       "Bright Data SERP API. A configured SERP zone retrieves structured search-engine results and backs normalized ColdSearch search.",
     docsUrl: "https://docs.brightdata.com/scraping-automation/serp-api/introduction",
+    // requiredParams is a simple "all present" list; the real contract is
+    // "at least one of query/url", enforced in the serp request mapper. `query`
+    // is the canonical input (a search-engine URL is built from it); `url` is
+    // an accepted alternative for direct engine URLs.
     requiredParams: ["query"],
     optionalParams: ["url", "zone", "searchEngine", "country", "format", "method"],
     commonViews: [
@@ -189,7 +193,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     nativeName: "POST /datasets/v3/snapshot/{snapshot_id}/cancel",
     categories: [],
     description: "Cancel a running Bright Data scraper snapshot/job.",
-    docsUrl: "https://docs.brightdata.com/datasets/scrapers/scrapers-library/faqs",
+    docsUrl: "https://docs.brightdata.com/api-reference/scrapers/management-apis/cancel-snapshot",
     requiredParams: ["snapshot_id"],
     optionalParams: [],
     commonViews: [],

@@ -1,4 +1,4 @@
-import { fetchJson, fetchText, HTTPRequestError } from "../http.js";
+import { fetchJson, fetchText, HTTPRequestError, type RequestPolicy } from "../http.js";
 import { KeyPoolManager } from "../engine/keypool.js";
 import { getToolProfile, isHardExcluded } from "../registry/tool-profiles.js";
 import { UsageLogger } from "../logging/usage.js";
@@ -291,6 +291,7 @@ async function dispatchToolCall(
   let headers: Record<string, string> = { "Content-Type": "application/json" };
   let body: string | null = null;
   let useTextParser = false;
+  let requestTimeoutMs: number | undefined;
 
   // Construct Provider Call
   try {
@@ -339,6 +340,7 @@ async function dispatchToolCall(
       headers = request.headers;
       body = request.body;
       useTextParser = request.useTextParser;
+      requestTimeoutMs = request.timeoutMs;
     } else if (provider === "serper") {
       url = `https://google.serper.dev/${tool}`;
       headers["X-API-KEY"] = apiKey;
@@ -389,14 +391,18 @@ async function dispatchToolCall(
     }
 
     // Fire HTTP call
+    const requestPolicy: RequestPolicy = {
+      label: `${provider}.${tool}`,
+      ...(requestTimeoutMs ? { timeoutMs: requestTimeoutMs } : {}),
+    };
     let rawResponse: any;
     if (useTextParser) {
-      rawResponse = await fetchText(url, { method, headers }, { label: `${provider}.${tool}` });
+      rawResponse = await fetchText(url, { method, headers }, requestPolicy);
     } else {
       rawResponse = await fetchJson(
         url,
         { method, headers, ...(body ? { body } : {}) },
-        { label: `${provider}.${tool}` }
+        requestPolicy
       );
     }
 

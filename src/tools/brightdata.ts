@@ -6,6 +6,8 @@ export interface BrightDataToolRequest {
   headers: Record<string, string>;
   body: string | null;
   useTextParser: boolean;
+  /** Per-request HTTP timeout in ms; omitted means the substrate default. */
+  timeoutMs?: number;
 }
 
 function configuredString(
@@ -59,7 +61,8 @@ function requireZone(
   );
 }
 
-function searchUrlFromQuery(query: string, engine: string): string {
+/** Shared search-engine URL builder (used by the adapter and the serp mapper). */
+export function searchUrlFromQuery(query: string, engine: string): string {
   const q = encodeURIComponent(query);
   switch (engine.toLowerCase()) {
     case "bing":
@@ -119,6 +122,12 @@ export function buildBrightDataToolRequest(
   const baseUrl = "https://api.brightdata.com";
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey}`,
+  };
+  // Content-Type only applies when a JSON body is actually sent; bodyless GETs
+  // (datasets list, metadata, progress, snapshot download, cancel) must not
+  // claim a JSON request body.
+  const jsonHeaders: Record<string, string> = {
+    ...headers,
     "Content-Type": "application/json",
   };
 
@@ -152,7 +161,7 @@ export function buildBrightDataToolRequest(
     return {
       url: `${baseUrl}/request`,
       method: "POST",
-      headers,
+      headers: jsonHeaders,
       body: JSON.stringify(payload),
       useTextParser: false,
     };
@@ -162,21 +171,35 @@ export function buildBrightDataToolRequest(
     const zone = requireZone(params, config, "unlockerZone", "BRIGHTDATA_UNLOCKER_ZONE");
     const targetUrl = requireValue(params.url, "url");
     const format = typeof params.format === "string" ? params.format : "raw";
+    // Screenshots come back as binary PNG, which cannot be recorded in
+    // history/replay without corruption. Reject binary data formats up front.
+    const dataFormat = typeof params.data_format === "string" ? params.data_format : "markdown";
+    if (dataFormat === "screenshot") {
+      throw new Error(
+        "Bright Data unlocker data_format 'screenshot' returns binary PNG that cannot be recorded safely; " +
+          "use a text format such as 'markdown' or 'html'"
+      );
+    }
     const payload = {
       ...params,
       zone,
       url: targetUrl,
       format,
       method: params.method || "GET",
-      data_format: params.data_format || "markdown",
+      data_format: dataFormat,
     };
+    // Any non-JSON format is a text/HTML payload and must not go through the
+    // JSON response parser. The unlocker documents native `format: "html"`,
+    // which would otherwise fail JSON parsing.
+    const timeoutMs = configuredPositiveInteger(config, "unlockerTimeoutMs", 0);
 
     return {
       url: `${baseUrl}/request`,
       method: "POST",
-      headers,
+      headers: jsonHeaders,
       body: JSON.stringify(payload),
-      useTextParser: format === "raw",
+      useTextParser: format !== "json",
+      ...(timeoutMs > 0 ? { timeoutMs } : {}),
     };
   }
 
@@ -216,8 +239,10 @@ export function buildBrightDataToolRequest(
     return {
       url: requestUrl.toString(),
       method: "POST",
-      headers,
-      body: JSON.stringify(inputsFromParams(params, config)),
+      headers: jsonHeaders,
+      // The synchronous scrape API expects the input records under an `input`
+      // key (`{"input": [...]}`); async trigger/crawl take a bare array.
+      body: JSON.stringify({ input: inputsFromParams(params, config) }),
       useTextParser: format !== "json",
     };
   }
@@ -235,7 +260,7 @@ export function buildBrightDataToolRequest(
     return {
       url: requestUrl.toString(),
       method: "POST",
-      headers,
+      headers: jsonHeaders,
       body: JSON.stringify(inputsFromParams(params, config)),
       useTextParser: false,
     };
@@ -293,11 +318,14 @@ export function buildBrightDataToolRequest(
   }
 
   if (tool === "discover") {
+    const query = requireValue(params.query ?? params.q, "query");
+    const payload: Record<string, any> = { ...params, query };
+    delete payload.q;
     return {
       url: `${baseUrl}/discover`,
       method: "POST",
-      headers,
-      body: JSON.stringify(params),
+      headers: jsonHeaders,
+      body: JSON.stringify(payload),
       useTextParser: false,
     };
   }
@@ -314,9 +342,9 @@ export function buildBrightDataSummary(
   if (tool === "serp") {
     return {
       results_count: raw.organic?.length ?? 0,
-      search_engine: raw.general?.search_engine ?? null,
       query: raw.general?.query ?? null,
-      cost_usd: typeof raw.cost === "number" ? raw.cost : null,
+      search_type: raw.general?.search_type ?? null,
+      country: raw.general?.country ?? null,
     };
   }
 

@@ -85,7 +85,7 @@ test("SERP adapter sends configured zone and normalizes organic results", async 
           title: "Example result",
           link: "https://example.com/result",
           description: "Example description",
-          global_rank: 1,
+          global_rank: 3,
         },
       ],
     }), { status: 200, headers: { "content-type": "application/json" } });
@@ -97,6 +97,8 @@ test("SERP adapter sends configured zone and normalizes organic results", async 
     assert.equal(results[0].title, "Example result");
     assert.equal(results[0].url, "https://example.com/result");
     assert.equal(results[0].source, "brightdata");
+    // Organic rank is read from the parsed-SERP `global_rank` field.
+    assert.equal(results[0].score, 1 / 3);
   });
 
   assert.equal(requestBody.zone, "serp_test");
@@ -126,6 +128,71 @@ test("Unlocker adapter requests Markdown and returns extracted text", async () =
   assert.equal(requestBody.zone, "unlocker_test");
   assert.equal(requestBody.format, "raw");
   assert.equal(requestBody.data_format, "markdown");
+});
+
+test("adapter fails closed without configured zones", async () => {
+  const adapter = new BrightDataAdapter();
+  await assert.rejects(
+    () => adapter.search("q", "secret", { providerOptions: {} }),
+    /providers\.brightdata\.options\.serpZone/
+  );
+  await assert.rejects(
+    () => adapter.extract("https://example.com/page", "secret", { providerOptions: {} }),
+    /providers\.brightdata\.options\.unlockerZone/
+  );
+});
+
+test("adapter surfaces non-200 HTTP errors from the SERP endpoint", async () => {
+  const adapter = new BrightDataAdapter();
+  await withMockFetch(async () => new Response(JSON.stringify({ error: "boom" }), {
+    status: 400,
+    headers: { "content-type": "application/json" },
+  }), async () => {
+    await assert.rejects(
+      () => adapter.search("q", "secret", {
+        providerOptions: config().providers.brightdata.options,
+      }),
+      /HTTP 400/
+    );
+  });
+});
+
+test("adapter falls back to env zones when options are absent", async () => {
+  const prevSerp = process.env.BRIGHTDATA_SERP_ZONE;
+  const prevUnlocker = process.env.BRIGHTDATA_UNLOCKER_ZONE;
+  process.env.BRIGHTDATA_SERP_ZONE = "serp_env";
+  process.env.BRIGHTDATA_UNLOCKER_ZONE = "unlocker_env";
+  try {
+    const adapter = new BrightDataAdapter();
+    let serpBody;
+    await withMockFetch(async (_url, init) => {
+      serpBody = JSON.parse(init.body);
+      return new Response(JSON.stringify({ organic: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }, async () => {
+      await adapter.search("q", "secret", { providerOptions: {} });
+    });
+    assert.equal(serpBody.zone, "serp_env");
+
+    let unlockerBody;
+    await withMockFetch(async (_url, init) => {
+      unlockerBody = JSON.parse(init.body);
+      return new Response("# Page\nok", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+    }, async () => {
+      await adapter.extract("https://example.com/page", "secret", { providerOptions: {} });
+    });
+    assert.equal(unlockerBody.zone, "unlocker_env");
+  } finally {
+    if (prevSerp === undefined) delete process.env.BRIGHTDATA_SERP_ZONE;
+    else process.env.BRIGHTDATA_SERP_ZONE = prevSerp;
+    if (prevUnlocker === undefined) delete process.env.BRIGHTDATA_UNLOCKER_ZONE;
+    else process.env.BRIGHTDATA_UNLOCKER_ZONE = prevUnlocker;
+  }
 });
 
 test("dataset discovery and metadata build account-scoped GET requests", () => {
@@ -164,7 +231,9 @@ test("structured scrape separates dataset ID from input body and preserves nativ
   assert.equal(url.searchParams.get("format"), "json");
   assert.equal(url.searchParams.get("type"), "discover_new");
   assert.equal(url.searchParams.get("discover_by"), "input_filters");
-  assert.deepEqual(JSON.parse(request.body), [{ url: "https://example.com/product" }]);
+  assert.deepEqual(JSON.parse(request.body), {
+    input: [{ url: "https://example.com/product" }],
+  });
 });
 
 test("async trigger preserves snapshot lifecycle and native query controls", () => {
@@ -231,6 +300,73 @@ test("progress, metadata, cancellation, and download use snapshot IDs correctly"
   assert.equal(downloadUrl.searchParams.get("batch_size"), "1000");
 });
 
+test("unlocker direct tool uses the text parser for non-JSON formats and honors the timeout option", () => {
+  const html = buildBrightDataToolRequest(
+    "unlocker",
+    { url: "https://example.com/page", format: "html", data_format: "html" },
+    "secret",
+    config()
+  );
+  assert.equal(html.method, "POST");
+  assert.equal(html.useTextParser, true, "HTML unlocker output must not be JSON-parsed");
+  assert.equal(html.timeoutMs, undefined);
+
+  const slow = buildBrightDataToolRequest(
+    "unlocker",
+    { url: "https://example.com/page" },
+    "secret",
+    config({ unlockerTimeoutMs: 45000 })
+  );
+  assert.equal(slow.useTextParser, true, "raw default output is text");
+  assert.equal(slow.timeoutMs, 45000);
+
+  assert.throws(
+    () => buildBrightDataToolRequest(
+      "unlocker",
+      { url: "https://example.com/page", data_format: "screenshot" },
+      "secret",
+      config()
+    ),
+    /binary PNG/
+  );
+});
+
+test("discover requires a query and normalizes the q alias", () => {
+  assert.throws(
+    () => buildBrightDataToolRequest("discover", {}, "secret", config()),
+    /query is required/
+  );
+  const request = buildBrightDataToolRequest("discover", { q: "shoes" }, "secret", config());
+  assert.equal(request.method, "POST");
+  assert.equal(new URL(request.url).pathname, "/discover");
+  assert.deepEqual(JSON.parse(request.body), { query: "shoes" });
+});
+
+test("serp summary reads only fields present in the parsed SERP JSON", () => {
+  const summary = buildBrightDataSummary("serp", {
+    organic: [{ link: "https://example.com" }],
+    general: { query: "pizza", search_type: "text", country: "United States" },
+  });
+  assert.equal(summary.results_count, 1);
+  assert.equal(summary.query, "pizza");
+  assert.equal(summary.search_type, "text");
+  assert.equal(summary.country, "United States");
+  // Fields that never populate in parsed SERP JSON are omitted, not reported
+  // as permanent nulls.
+  assert.equal("search_engine" in summary, false);
+  assert.equal("cost_usd" in summary, false);
+});
+
+test("bodyless GET tools do not claim a JSON request body", () => {
+  const list = buildBrightDataToolRequest("datasetsList", {}, "secret", config());
+  assert.equal(list.method, "GET");
+  assert.equal(list.headers["Content-Type"], undefined);
+  const progress = buildBrightDataToolRequest("progress", { snapshot_id: "s_1" }, "secret", config());
+  assert.equal(progress.headers["Content-Type"], undefined);
+  const serp = buildBrightDataToolRequest("serp", { query: "x" }, "secret", config());
+  assert.equal(serp.headers["Content-Type"], "application/json");
+});
+
 test("structured request input count is capped before any paid request", () => {
   assert.throws(
     () => buildBrightDataToolRequest(
@@ -252,6 +388,10 @@ test("direct dataset discovery is catalogued and logs only safe key reference", 
   process.env.BRIGHTDATA_TEST_KEY = "super-secret-bright-data-key";
   const cfg = config();
   cfg.logging = { usage: { path: usagePath } };
+  // Pin history to the temp dir and disable the cache so this test never
+  // touches real user history or the replay cache.
+  cfg.history = { path: path.join(tmpDir, "history.jsonl") };
+  cfg.cache = { enabled: false };
 
   try {
     await withMockFetch(async (_url, init) => {

@@ -1,4 +1,5 @@
 import { fetchJson, fetchText } from "../http.js";
+import { searchUrlFromQuery } from "../tools/brightdata.js";
 import type {
   AdapterCallOptions,
   ExtractResult,
@@ -12,8 +13,7 @@ interface BrightDataSerpOrganicResult {
   description?: string;
   snippet?: string;
   source?: string;
-  rank?: number;
-  position?: number;
+  global_rank?: number;
 }
 
 interface BrightDataSerpResponse {
@@ -46,20 +46,6 @@ function optionalStringOption(
   return typeof configured === "string" && configured.trim()
     ? configured.trim()
     : fallback;
-}
-
-function buildSearchUrl(query: string, engine: string): string {
-  const q = encodeURIComponent(query);
-  switch (engine.toLowerCase()) {
-    case "bing":
-      return `https://www.bing.com/search?q=${q}`;
-    case "duckduckgo":
-    case "ddg":
-      return `https://duckduckgo.com/?q=${q}`;
-    case "google":
-    default:
-      return `https://www.google.com/search?q=${q}`;
-  }
 }
 
 /**
@@ -96,7 +82,7 @@ export class BrightDataAdapter implements SearchAdapter {
         },
         body: JSON.stringify({
           zone,
-          url: buildSearchUrl(query.trim(), engine),
+          url: searchUrlFromQuery(query.trim(), engine),
           format: "json",
           method: "GET",
           country,
@@ -106,12 +92,12 @@ export class BrightDataAdapter implements SearchAdapter {
     );
 
     return (data.organic || []).map((result, index) => {
+      // Bright Data parsed SERP organic entries report `global_rank`, not
+      // position/rank.
       const resolvedPosition =
-        (typeof result.position === "number" && result.position > 0
-          ? result.position
-          : typeof result.rank === "number" && result.rank > 0
-            ? result.rank
-            : index + 1);
+        typeof result.global_rank === "number" && result.global_rank > 0
+          ? result.global_rank
+          : index + 1;
 
       return {
         title: result.title || result.source || "",
@@ -134,6 +120,20 @@ export class BrightDataAdapter implements SearchAdapter {
     const country = optionalStringOption(options, "searchCountry", "us");
     const normalizedUrl = url.trim();
 
+    // JS-rendered pages routinely exceed the default 10s fetch timeout; allow
+    // an operator to raise it via unlockerTimeoutMs (milliseconds).
+    const configuredTimeout = options?.providerOptions?.["unlockerTimeoutMs"];
+    const timeoutMs =
+      typeof configuredTimeout === "number" &&
+      Number.isFinite(configuredTimeout) &&
+      configuredTimeout > 0
+        ? Math.floor(configuredTimeout)
+        : typeof configuredTimeout === "string" &&
+            /^\d+$/.test(configuredTimeout) &&
+            Number(configuredTimeout) > 0
+          ? Number(configuredTimeout)
+          : undefined;
+
     const content = await fetchText(
       `${this.baseUrl}/request`,
       {
@@ -151,7 +151,10 @@ export class BrightDataAdapter implements SearchAdapter {
           data_format: "markdown",
         }),
       },
-      { label: "Bright Data Web Unlocker extract" }
+      {
+        label: "Bright Data Web Unlocker extract",
+        ...(timeoutMs ? { timeoutMs } : {}),
+      }
     );
 
     return {
