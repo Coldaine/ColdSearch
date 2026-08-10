@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement each linked PR plan task-by-task. Do not collapse these PRs into one change unless the user explicitly changes the goal.
 
-**Goal:** Track the completed provider-tool foundation and finish the remaining ColdSearch work through four reviewable implementation PRs, with a hard review pause after each PR.
+**Goal:** Track the merged provider-tool foundation, its remaining live-verification follow-up, and finish the remaining ColdSearch implementation work through PRs 2–5 with a hard review pause after each PR.
 
 **Architecture:** Keep `coldsearch` as the stable CLI. Add missing behavior behind the existing local seams: provider adapters, provider-tool registry, `LocalExecutionBackend`, `CacheStore`, `UsageLogger`, `FanoutEngine`, `SearchAgent`, and the config loader. Documentation changes travel with the implementation PR that changes the operator-facing surface.
 
@@ -12,9 +12,9 @@
 
 ## Current Sequence
 
-PR 1 is complete on `main`; PRs 2–5 remain:
+The PR 1 implementation is merged on `main`; PRs 2–5 remain. PR 1's required provider-native parity evidence is not complete for every in-scope provider tool, so distinguish **implementation merged** from **live verification complete**.
 
-1. [PR 1: Provider Tool Surface](./2026-06-22-pr1-provider-tool-surface.md) — **completed**
+1. [PR 1: Provider Tool Surface](./2026-06-22-pr1-provider-tool-surface.md) — implementation merged; live parity follow-up remains
 2. [PR 2: Search History and Research Memory](./2026-06-22-pr2-cache-a2.md)
 3. [PR 3: Batch Runner for Search, Extract, Crawl, and Provider Tools](./2026-06-22-pr3-batch-runner.md)
 4. [PR 4: Operator Config and Status UX](./2026-06-22-pr4-config-status-ux.md)
@@ -22,13 +22,13 @@ PR 1 is complete on `main`; PRs 2–5 remain:
 
 This split is natural because each PR has a different owner surface:
 
-- PR 1 delivered the provider-tool profile registry, `tool list`, `tool info`, networked `tool call`, raw-payload preservation, and safe usage logging.
+- PR 1 delivered the provider-tool profile registry, `tool list`, `tool info`, networked `tool call`, raw-payload preservation, and safe usage logging; missing live parity evidence is tracked as conformance follow-up rather than pretending the code is absent.
 - PR 2 owns durable execution history, local history exploration, stored fanout inspection, and the cache/persistence work that supports them.
 - PR 3 owns high-volume execution workflows across normalized capabilities and provider tools.
 - PR 4 owns operator setup, diagnostics, and status.
 - PR 5 owns agent traceability.
 
-Do not add remote execution or cross-process key coordination to the remaining sequence. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Provider tools not currently wired remain visible through the registry rather than making completed PR 1 appear unfinished.
+Do not add remote execution or cross-process key coordination to the remaining sequence. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Provider tools not currently wired remain visible through the registry; provider tools that are implemented but not live-verified must not be described as live-verified.
 
 ## Current Baseline
 
@@ -48,13 +48,15 @@ Functional now:
 
 Missing now:
 
+- Two normalized Gate 0 rows remain unresolved because Serper/SearXNG evidence is blocked by missing configuration rather than passed/waived
+- Provider-native parity evidence required by PR 1 is not committed for every in-scope provider tool
 - Durable execution records shared by normalized and provider-tool paths
-- `coldsearch history recent`, `history search`, `history show`, and provider-partition inspection
+- `coldsearch history recent`, `history search`, `history show`, provider-partition inspection, and explicit history deletion
 - Local discovery of related prior requests/results with visible match provenance
 - Stored pre-merge fanout provider partitions plus merged output
 - Cache-hit history that references the originating execution without calling providers
 - History retention independent from cache expiry and `cache clear`
-- `coldsearch cache stats`, `coldsearch cache clear`, and exact-replay freshness controls
+- `coldsearch cache stats`, `coldsearch cache clear`, and exact-replay freshness controls including explicit provider-tool replay eligibility
 - Atomic history/cache writes and restrictive file permissions
 - `coldsearch batch`
 - Batch resumability by stable `id`
@@ -94,7 +96,7 @@ Plans:
 - [Gate 0: Initial Live Provider Conformance Baseline](./2026-06-23-gate-0-provider-pass-through-proof.md)
 - [Ongoing Live Provider Conformance](./2026-08-10-live-provider-conformance.md)
 
-Gate 0 established the initial provider/path baseline before PR 1; its committed evidence records 11 passes and 2 missing-configuration blocks. It is integration conformance, not benchmarking and not a recurring release gate. Later PRs run it only for provider-facing paths they change, while the scheduled canary reports broader coverage.
+Gate 0 was executed and committed evidence records **11 passes and 2 `blocked_missing_secret` rows**. Under Gate 0's own success criteria, that means the full baseline is **not complete** until the blocked Serper and SearXNG rows are either passed or explicitly waived by the user. Do not describe those rows as verified. This historical incompleteness does not require rerunning the full matrix after unrelated changes; complete the missing rows when the required key/endpoint is available or record an explicit waiver. Ongoing checks remain integration conformance, not benchmarking or a recurring release gate.
 
 Goal:
 
@@ -157,7 +159,7 @@ After each implementation PR:
 - [ ] Read all review surfaces: inline review threads, flat comments, bot comments, and CI summaries.
 - [ ] Address valid findings with follow-up commits.
 - [ ] Re-run the validation that proves the changed behavior after follow-up commits. Include `npm test` for runtime/code changes and `npm run test:docs` for docs, provider matrix, registry, or plan-validator changes.
-- [ ] Wait again for checks and reviews after every push.
+- [ ] Wait again after every push.
 - [ ] Do not start the next PR until the current PR is merged, or until the user explicitly authorizes parallel work.
 - [ ] Do not post the merge attestation until it is true:
 
@@ -169,49 +171,52 @@ This pause is part of the plan. Skipping it is a plan failure.
 
 ## Sequence
 
-### Completed: Gate 0 and PR 1
+### Provider-tool foundation merged; conformance follow-up remains
 
 - [x] Provider-tool profile registry and generic call substrate merged to `main`.
 - [x] `tool list`, `tool info`, and `tool call` are implemented.
 - [x] Raw provider payload and safe provider-tool usage logging are implemented.
 - [x] Offline provider-tool and drift tests are present.
+- [ ] Complete or explicitly waive the remaining normalized Gate 0 blocked rows.
+- [ ] Record the provider-native comparison evidence required by PR 1 for in-scope provider-tool calls that are not yet live-verified.
 
-Success looks like:
+Do not conflate these states:
 
-- The master plan no longer describes the core provider-tool surface as missing.
-- Gate 0 remains the detailed initial conformance method and evidence baseline.
-- Ongoing conformance is scoped and scheduled rather than routine PR validation.
+- the provider-tool **implementation foundation is merged**;
+- not every provider/tool path has the **live parity evidence** required by the historical PR 1 acceptance criteria.
 
-### Completed PR 1: Provider Tool Surface
+### PR 1: Provider Tool Surface — implementation merged, verification incomplete
 
 Plan: [2026-06-22-pr1-provider-tool-surface.md](./2026-06-22-pr1-provider-tool-surface.md)
 
-Success looks like:
+Implemented on `main`:
 
 - `coldsearch tool list` exists.
 - `coldsearch tool call <provider>.<tool>` exists.
-- Broadly useful tools from each configured provider are reachable through ColdSearch.
-- Niche or high-risk tools are explicitly deferred in docs.
 - Provider-tool calls preserve raw provider payloads.
 - Provider-tool calls produce safe usage/audit logs.
 - Provider-tool docs and registry stay in sync under a docs/registry drift check.
-- Offline tests prove the provider-tool registry, CLI parser, raw payload preservation, and safe usage logging.
-- Provider-native comparison evidence proves every in-scope tool actually reaches the real provider path.
+- Offline tests cover the provider-tool registry, CLI parser, raw payload preservation, and safe usage logging.
 
-Status: completed on `main`. The plan remains as historical implementation context; code and issues govern any remaining individual provider-tool wiring.
+Still required before describing the PR 1 acceptance evidence as complete:
+
+- provider-native comparison evidence for each in-scope provider tool required by the PR 1 plan, or an explicit documented waiver where appropriate.
+
+Do not block unrelated PR 2 history work on manufacturing provider comparisons. Carry the missing live evidence as conformance follow-up and do not claim unverified tools are live-verified.
 
 ### Between PR 1 and PR 2
 
 - [ ] Update local `main` from `origin/main`.
-- [ ] Confirm PR 1 changes are present on `main`.
+- [ ] Confirm the PR 1 implementation changes are present on `main`.
 - [ ] Create a fresh branch for PR 2.
 - [ ] Run `npm test` because PR 2 starts from runtime behavior changed by PR 1.
 - [ ] Run `npm run test:docs` because PR 2 relies on current provider/tool documentation and config docs.
 
 Success looks like:
 
-- Research-memory work starts on top of the finalized provider-tool surface.
+- Research-memory work starts on top of the merged provider-tool implementation foundation.
 - The relevant offline and docs/registry checks are green before execution-history implementation begins.
+- Outstanding provider live-parity evidence remains accurately tracked rather than silently treated as complete.
 
 ### PR 2: Search History and Research Memory
 
@@ -222,13 +227,15 @@ Success looks like:
 - Every `search`, `extract`, `crawl`, and provider-tool invocation produces one top-level execution record.
 - `coldsearch history recent`, `history search`, and `history show` work entirely from local stored records.
 - `history show --by-provider` exposes stored fanout provider partitions and the final merged result.
+- `history clear --all` provides explicit deletion of durable research history without touching replay cache.
 - History stores observable request/routing/result/error/timing provenance the runtime actually has; raw provider detail is shown only where already preserved.
 - Exact cache hits create new history executions that reference their origin when available and record zero provider calls.
 - Cache expiry and `cache clear` never erase execution history.
 - `cache stats`, `cache clear`, freshness controls, atomic writes, permissions, and crawl replay policy remain supporting cache work.
+- Provider-tool exact replay/freshness is implemented only for explicitly replay-safe tools with stable request keys; other tools remain history-only/live.
 - Approximate history retrieval never silently replaces a live provider request.
 - Run-ID and agent-step generation/propagation remain PR 5 work rather than a PR 2 prerequisite.
-- Offline tests prove record shape, retrieval, fanout inspection, cache/history separation, redaction, and persistence without live provider calls.
+- Offline tests prove record shape, retrieval, fanout inspection, cache/history separation, provider-tool freshness eligibility, redaction, and persistence without live provider calls.
 - No history validation initiates paid provider comparisons or benchmark workloads.
 
 Review pause:
@@ -356,13 +363,15 @@ Review pause:
 - [ ] Run `npm test` as the final offline regression check.
 - [ ] Run `npm run test:docs` as the final docs/registry consistency check.
 - [ ] Check open GitHub issues and close or update #6, #14, #31 as appropriate.
+- [ ] Reconcile any remaining blocked/waived live-conformance rows and provider-tool parity evidence before claiming full live verification.
 - [ ] Epic 5 stays deferred until you choose to start it; see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md).
 
 Success looks like:
 
-- The five-PR implementation sequence is complete.
-- Broadly useful tools from configured providers are usable through ColdSearch.
-- The active backlog no longer lists the completed provider-tool foundation, search history, batch, config bootstrap/status UX, or run IDs as missing.
+- The PR 2–5 implementation sequence is complete.
+- Broadly useful implemented tools from configured providers are usable through ColdSearch.
+- The active implementation backlog no longer lists search history, batch, config bootstrap/status UX, or run IDs as missing.
+- Any remaining live-conformance evidence gaps are explicitly tracked and are not mislabeled as passes.
 - Deferred epics remain explicitly deferred, not accidentally forgotten.
 
 ## Validation Adequacy Rule
