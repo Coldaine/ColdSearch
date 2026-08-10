@@ -82,3 +82,13 @@ test("unsupported provider-tool pairing is classified as unsupported_tool", () =
   assert.equal(category, "unsupported_tool");
   assert.equal(message, "Unknown provider tool: 'exa.nonexistent'");
 });
+
+test("legacy-config refusal is classified as config", () => {
+  const { category } = classifyError(
+    new Error(
+      "Legacy config found at ~/.config/coldsearch/config.toml; ColdSearch already reads it. " +
+        "Remove it or pass --config to initialize a new config elsewhere."
+    )
+  );
+  assert.equal(category, "config");
+});

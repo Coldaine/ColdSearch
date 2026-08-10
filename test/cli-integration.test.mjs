@@ -355,6 +355,7 @@ keys = ["sk-literal-secret-abc123"]
 
 test("status --json includes the config path", () => {
   const { result, configPath } = withTempDir((dir) => {
+    const usagePath = path.join(dir, "usage.jsonl").replaceAll("\\", "/");
     const configPath = writeConfig(
       dir,
       `
@@ -367,6 +368,9 @@ keys = []
 
 [providers.searxng.options]
 baseUrl = "https://search.example.internal"
+
+[logging.usage]
+path = "${usagePath}"
 `.trim()
     );
     return { result: runCli(["status", "--config", configPath, "--json"]), configPath };

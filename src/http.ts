@@ -229,7 +229,7 @@ export function classifyError(error: unknown): ClassifiedError {
     return { category: "provider", message };
   }
   if (
-    /unknown option|unknown '.*' subcommand|invalid limit|invalid rerank|invalid freshness|requires a .* argument|is only valid with|no configuration found for capability|not configured|config file|failed to parse config/i.test(
+    /unknown option|unknown '.*' subcommand|invalid limit|invalid rerank|invalid freshness|requires a .* argument|is only valid with|no configuration found for capability|not configured|config file|legacy config found|failed to parse config/i.test(
       message
     )
   ) {

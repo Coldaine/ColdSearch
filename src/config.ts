@@ -64,14 +64,25 @@ export function loadConfig(configPath?: string): Config {
     throw error;
   }
 
+  let parsed: unknown;
   try {
-    const parsed = TOML.parse(content);
-    return parsed as unknown as Config;
+    parsed = TOML.parse(content);
   } catch (error) {
     throw new Error(
       `Failed to parse config file ${path}: ${(error as Error).message}`
     );
   }
+
+  // `[agent.llm] base_url` (snake_case) is the documented TOML spelling; the
+  // runtime reads camelCase `baseUrl`, so normalize. Either spelling works —
+  // `baseUrl` wins if both are present.
+  const llm = (parsed as { agent?: { llm?: { base_url?: string; baseUrl?: string } } })
+    ?.agent?.llm;
+  if (llm?.base_url !== undefined && llm.baseUrl === undefined) {
+    llm.baseUrl = llm.base_url;
+  }
+
+  return parsed as unknown as Config;
 }
 
 /**
