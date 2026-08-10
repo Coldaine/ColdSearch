@@ -88,6 +88,6 @@ Observability should be rich enough to reconstruct observable application behavi
 
 Logs, cache metadata, and history records must not persist secret values. Key usage is recorded by safe reference only.
 
-Provider-supplied content — including error bodies that may echo a credential — is scrubbed of resolved credential values before it is persisted; content that cannot be scrubbed safely is recorded as unavailable. Caller-supplied inputs are treated the same way: signed URLs and credential fields in original requests or options are recursively redacted before persistence, never stored verbatim.
+Provider-supplied content — including error bodies that may echo a credential — is scrubbed of resolved credential values before it is persisted; content that cannot be scrubbed safely is recorded as unavailable. Caller-supplied inputs and persisted results are treated the same way: signed URLs and credential fields in original requests, options, and normalized/final result fields (including adapter URL fallbacks) are recursively redacted before persistence, never stored verbatim.
 
 A failed history write is surfaced as an observable, non-secret warning; history records are never silently dropped the way a cache miss is tolerated.
