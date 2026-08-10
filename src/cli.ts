@@ -118,17 +118,9 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
     }
     options.historyCommand = { sub };
     i = 2;
-    if (sub === "search" || sub === "show") {
-      if (!args[2] || args[2].startsWith("-")) {
-        throw new Error(
-          sub === "search"
-            ? `'history search' requires a <query> argument.`
-            : `'history show' requires an <execution-id> argument.`
-        );
-      }
-      options.historyCommand.target = args[2];
-      i = 3;
-    }
+    // The positional query/id is captured by the flag loop below; it may
+    // appear immediately after the subcommand or after flags (matching the
+    // main search command's parsing), and its absence is validated at the end.
   } else if (args.length > 0 && args[0] === "cache") {
     // `cache stats` / `cache clear`
     const sub = args[1];
@@ -293,6 +285,25 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
 
       default:
         if (!arg.startsWith("-")) {
+          if (
+            options.historyCommand &&
+            (options.historyCommand.sub === "search" ||
+              options.historyCommand.sub === "show") &&
+            options.historyCommand.target === undefined
+          ) {
+            // `history search <query>` / `history show <execution-id>` —
+            // consume trailing non-flag args as the target, so the positional
+            // may follow flags like the main search command's query.
+            const targetParts: string[] = [];
+            let j = i;
+            while (j < args.length && !args[j].startsWith("-")) {
+              targetParts.push(args[j]);
+              j++;
+            }
+            options.historyCommand.target = targetParts.join(" ");
+            i = j;
+            continue;
+          }
           const queryParts: string[] = [];
           let j = i;
           while (j < args.length && !args[j].startsWith("-")) {
@@ -306,6 +317,15 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
         throw new Error(`Unknown option: ${arg}`);
     }
     i++;
+  }
+
+  const hc = options.historyCommand;
+  if (hc && (hc.sub === "search" || hc.sub === "show") && hc.target === undefined) {
+    throw new Error(
+      hc.sub === "search"
+        ? `'history search' requires a <query> argument.`
+        : `'history show' requires an <execution-id> argument.`
+    );
   }
 
   return options;

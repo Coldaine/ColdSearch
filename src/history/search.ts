@@ -82,9 +82,11 @@ function collectResults(record: ExecutionRecord): ScannedResult[] {
  * Local-only retrieval over execution records. Makes zero provider/network
  * calls; raw provider JSON is not indexed by default.
  *
- * Match semantics: every whitespace-separated term of the query must appear
- * (case-insensitive substring) in the scanned text. Executions are ranked by
- * strongest matching tier, then recency. The result set is bounded by `limit`.
+ * Match semantics: for request/options and result text (titles, URLs,
+ * snippets/content) every whitespace-separated term of the query must appear
+ * (case-insensitive substring); provider/tool metadata matches when any query
+ * term appears in a provider/tool name. Executions are ranked by strongest
+ * matching tier, then recency. The result set is bounded by `limit`.
  */
 export function searchHistory(
   records: ExecutionRecord[],
@@ -138,14 +140,21 @@ export function searchHistory(
       }
     }
 
-    // 5. provider/tool metadata
+    // 5. provider/tool metadata. Provider names are short identifiers, so a
+    // single query term hitting one is a match even when other terms matched
+    // elsewhere; requiring every term inside a provider name would make this
+    // dimension useless for multi-word queries.
     const providerTerms = [
       ...(record.routing?.providers_attempted ?? []),
       ...record.attempts.map((attempt) =>
         attempt.tool ? `${attempt.provider}.${attempt.tool}` : attempt.provider
       ),
     ];
-    if (providerTerms.some((name) => matchesAll(name))) {
+    if (
+      providerTerms.some((name) =>
+        terms.some((term) => name.toLowerCase().includes(term))
+      )
+    ) {
       reasons.add("provider");
     }
 
