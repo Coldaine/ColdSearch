@@ -1,0 +1,295 @@
+import type { Config } from "../types.js";
+
+export interface BrightDataToolRequest {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: string | null;
+  useTextParser: boolean;
+}
+
+function configuredString(
+  config: Config,
+  key: string,
+  envName?: string
+): string | undefined {
+  const value = config.providers.brightdata?.options?.[key];
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (envName) {
+    const envValue = process.env[envName];
+    if (envValue?.trim()) return envValue.trim();
+  }
+  return undefined;
+}
+
+function requireValue(value: unknown, name: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Bright Data ${name} is required`);
+  }
+  return value.trim();
+}
+
+function requireZone(
+  params: Record<string, any>,
+  config: Config,
+  optionKey: "serpZone" | "unlockerZone",
+  envName: string
+): string {
+  const explicit = typeof params.zone === "string" ? params.zone.trim() : "";
+  if (explicit) return explicit;
+  const configured = configuredString(config, optionKey, envName);
+  if (configured) return configured;
+  throw new Error(
+    `Bright Data requires params.zone, providers.brightdata.options.${optionKey}, or ${envName}`
+  );
+}
+
+function searchUrlFromQuery(query: string, engine: string): string {
+  const q = encodeURIComponent(query);
+  switch (engine.toLowerCase()) {
+    case "bing":
+      return `https://www.bing.com/search?q=${q}`;
+    case "duckduckgo":
+    case "ddg":
+      return `https://duckduckgo.com/?q=${q}`;
+    case "google":
+    default:
+      return `https://www.google.com/search?q=${q}`;
+  }
+}
+
+function inputsFromParams(params: Record<string, any>): unknown[] {
+  if (Array.isArray(params.inputs)) return params.inputs;
+  if (Array.isArray(params.input)) return params.input;
+  if (params.input && typeof params.input === "object") return [params.input];
+  throw new Error("Bright Data scraper tool requires input or inputs");
+}
+
+/** Build an authenticated provider-native Bright Data HTTP request. */
+export function buildBrightDataToolRequest(
+  tool: string,
+  params: Record<string, any>,
+  apiKey: string,
+  config: Config
+): BrightDataToolRequest {
+  const baseUrl = "https://api.brightdata.com";
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+
+  if (tool === "serp") {
+    const zone = requireZone(params, config, "serpZone", "BRIGHTDATA_SERP_ZONE");
+    const engine =
+      typeof params.searchEngine === "string"
+        ? params.searchEngine
+        : configuredString(config, "searchEngine") || "google";
+    const url =
+      typeof params.url === "string" && params.url.trim()
+        ? params.url.trim()
+        : searchUrlFromQuery(requireValue(params.query ?? params.q, "query or url"), engine);
+    const country =
+      typeof params.country === "string"
+        ? params.country
+        : configuredString(config, "searchCountry") || "us";
+
+    const payload = {
+      ...params,
+      zone,
+      url,
+      format: params.format || "json",
+      method: params.method || "GET",
+      country,
+    };
+    delete payload.query;
+    delete payload.q;
+    delete payload.searchEngine;
+
+    return {
+      url: `${baseUrl}/request`,
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      useTextParser: false,
+    };
+  }
+
+  if (tool === "unlocker") {
+    const zone = requireZone(params, config, "unlockerZone", "BRIGHTDATA_UNLOCKER_ZONE");
+    const targetUrl = requireValue(params.url, "url");
+    const format = typeof params.format === "string" ? params.format : "raw";
+    const payload = {
+      ...params,
+      zone,
+      url: targetUrl,
+      format,
+      method: params.method || "GET",
+      data_format: params.data_format || "markdown",
+    };
+
+    return {
+      url: `${baseUrl}/request`,
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      useTextParser: format === "raw",
+    };
+  }
+
+  if (tool === "datasetsList") {
+    return {
+      url: `${baseUrl}/datasets/list`,
+      method: "GET",
+      headers,
+      body: null,
+      useTextParser: false,
+    };
+  }
+
+  if (tool === "datasetMetadata") {
+    const datasetId = requireValue(params.dataset_id ?? params.datasetId, "dataset_id");
+    return {
+      url: `${baseUrl}/datasets/${encodeURIComponent(datasetId)}/metadata`,
+      method: "GET",
+      headers,
+      body: null,
+      useTextParser: false,
+    };
+  }
+
+  if (tool === "scrape") {
+    const datasetId = requireValue(params.dataset_id ?? params.datasetId, "dataset_id");
+    const format = typeof params.format === "string" ? params.format : "json";
+    const requestUrl = new URL(`${baseUrl}/datasets/v3/scrape`);
+    requestUrl.searchParams.set("dataset_id", datasetId);
+    requestUrl.searchParams.set("format", format);
+
+    return {
+      url: requestUrl.toString(),
+      method: "POST",
+      headers,
+      body: JSON.stringify(inputsFromParams(params)),
+      useTextParser: format !== "json",
+    };
+  }
+
+  if (tool === "trigger" || tool === "crawl") {
+    const datasetId = requireValue(params.dataset_id ?? params.datasetId, "dataset_id");
+    const requestUrl = new URL(`${baseUrl}/datasets/v3/trigger`);
+    requestUrl.searchParams.set("dataset_id", datasetId);
+    if (typeof params.include_errors !== "undefined") {
+      requestUrl.searchParams.set("include_errors", String(params.include_errors));
+    }
+    if (typeof params.custom_output_fields === "string") {
+      requestUrl.searchParams.set("custom_output_fields", params.custom_output_fields);
+    }
+
+    return {
+      url: requestUrl.toString(),
+      method: "POST",
+      headers,
+      body: JSON.stringify(inputsFromParams(params)),
+      useTextParser: false,
+    };
+  }
+
+  if (tool === "snapshot") {
+    const snapshotId = requireValue(
+      params.snapshot_id ?? params.snapshotId ?? params.id,
+      "snapshot_id"
+    );
+    const format = typeof params.format === "string" ? params.format : "json";
+    const requestUrl = new URL(
+      `${baseUrl}/datasets/snapshots/${encodeURIComponent(snapshotId)}/download`
+    );
+    requestUrl.searchParams.set("format", format);
+
+    return {
+      url: requestUrl.toString(),
+      method: "GET",
+      headers,
+      body: null,
+      useTextParser: format !== "json",
+    };
+  }
+
+  if (tool === "discover") {
+    return {
+      url: `${baseUrl}/discover`,
+      method: "POST",
+      headers,
+      body: JSON.stringify(params),
+      useTextParser: false,
+    };
+  }
+
+  throw new Error(`Unsupported Bright Data tool mapper: ${tool}`);
+}
+
+export function buildBrightDataSummary(
+  tool: string,
+  raw: any
+): Record<string, any> | null {
+  if (raw == null) return null;
+
+  if (tool === "serp") {
+    return {
+      results_count: raw.organic?.length ?? 0,
+      search_engine: raw.general?.search_engine ?? null,
+      query: raw.general?.query ?? null,
+    };
+  }
+
+  if (tool === "datasetsList") {
+    return {
+      datasets_count: Array.isArray(raw) ? raw.length : 0,
+    };
+  }
+
+  if (tool === "datasetMetadata") {
+    return {
+      dataset_id: raw.id ?? null,
+      fields_count: raw.fields && typeof raw.fields === "object"
+        ? Object.keys(raw.fields).length
+        : 0,
+    };
+  }
+
+  if (tool === "scrape") {
+    return {
+      records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0,
+    };
+  }
+
+  if (tool === "trigger" || tool === "crawl") {
+    return {
+      snapshot_id: raw.snapshot_id ?? raw.id ?? null,
+    };
+  }
+
+  if (tool === "snapshot") {
+    return {
+      records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0,
+    };
+  }
+
+  if (tool === "discover") {
+    return {
+      task_id: raw.task_id ?? null,
+      status: raw.status ?? null,
+    };
+  }
+
+  if (tool === "unlocker") {
+    return {
+      content_length:
+        typeof raw === "string"
+          ? raw.length
+          : typeof raw.body === "string"
+            ? raw.body.length
+            : 0,
+    };
+  }
+
+  return null;
+}

@@ -1,4 +1,5 @@
 import { BraveAdapter } from "./brave.js";
+import { BrightDataAdapter } from "./brightdata.js";
 import { ExaAdapter } from "./exa.js";
 import { FirecrawlAdapter } from "./firecrawl.js";
 import { JinaAdapter } from "./jina.js";
@@ -22,4 +23,13 @@ export function getAvailableAdapters(): string[] {
   return listRegisteredProviders();
 }
 
-export { TavilyAdapter, BraveAdapter, ExaAdapter, SerperAdapter, JinaAdapter, FirecrawlAdapter, SearXNGAdapter };
+export {
+  TavilyAdapter,
+  BraveAdapter,
+  BrightDataAdapter,
+  ExaAdapter,
+  SerperAdapter,
+  JinaAdapter,
+  FirecrawlAdapter,
+  SearXNGAdapter,
+};

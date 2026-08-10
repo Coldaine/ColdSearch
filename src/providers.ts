@@ -1,4 +1,5 @@
 import { BraveAdapter } from "./adapters/brave.js";
+import { BrightDataAdapter } from "./adapters/brightdata.js";
 import { ExaAdapter } from "./adapters/exa.js";
 import { FirecrawlAdapter } from "./adapters/firecrawl.js";
 import { JinaAdapter } from "./adapters/jina.js";
@@ -27,6 +28,12 @@ export const providerRegistry = {
     displayName: "Brave",
     capabilities: ["search"],
     createAdapter: () => new BraveAdapter(),
+  },
+  brightdata: {
+    displayName: "Bright Data",
+    capabilities: ["search", "extract"],
+    optionKeys: ["serpZone", "unlockerZone", "searchEngine", "searchCountry"],
+    createAdapter: () => new BrightDataAdapter(),
   },
   exa: {
     displayName: "Exa",

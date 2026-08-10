@@ -4,6 +4,10 @@ import { getToolProfile, isHardExcluded } from "../registry/tool-profiles.js";
 import { UsageLogger } from "../logging/usage.js";
 import type { Config } from "../types.js";
 import { performance } from "node:perf_hooks";
+import {
+  buildBrightDataSummary,
+  buildBrightDataToolRequest,
+} from "./brightdata.js";
 
 export interface ToolCallResult {
   provider: string;
@@ -30,6 +34,10 @@ function buildToolSummary(provider: string, tool: string, raw: any): Record<stri
   if (!raw) return null;
 
   try {
+    if (provider === "brightdata") {
+      return buildBrightDataSummary(tool, raw);
+    }
+
     if (provider === "exa") {
       if (tool === "search" || tool === "findSimilar") {
         return {
@@ -168,7 +176,16 @@ export async function executeToolCall(
   const warnings: string[] = [];
 
   // 1. Validate known/configured provider
-  const knownProviders = ["tavily", "brave", "exa", "serper", "jina", "firecrawl", "searxng"];
+  const knownProviders = [
+    "tavily",
+    "brave",
+    "brightdata",
+    "exa",
+    "serper",
+    "jina",
+    "firecrawl",
+    "searxng",
+  ];
   const isConfigured = config.providers[provider] !== undefined;
   if (!isConfigured && !knownProviders.includes(provider)) {
     return {
@@ -297,6 +314,13 @@ export async function executeToolCall(
         urlObj.searchParams.set(k, String(v));
       }
       url = urlObj.toString();
+    } else if (provider === "brightdata") {
+      const request = buildBrightDataToolRequest(tool, params, apiKey, config);
+      url = request.url;
+      method = request.method;
+      headers = request.headers;
+      body = request.body;
+      useTextParser = request.useTextParser;
     } else if (provider === "serper") {
       url = `https://google.serper.dev/${tool}`;
       headers["X-API-KEY"] = apiKey;
@@ -351,7 +375,11 @@ export async function executeToolCall(
     if (useTextParser) {
       rawResponse = await fetchText(url, { method, headers }, { label: `${provider}.${tool}` });
     } else {
-      rawResponse = await fetchJson(url, { method, headers, ...(body ? { body } : {}) }, { label: `${provider}.${tool}` });
+      rawResponse = await fetchJson(
+        url,
+        { method, headers, ...(body ? { body } : {}) },
+        { label: `${provider}.${tool}` }
+      );
     }
 
     const duration = Math.round(performance.now() - startTime);
