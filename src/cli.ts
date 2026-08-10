@@ -12,6 +12,7 @@ import {
   providerToolProfiles,
 } from "./registry/tool-profiles.js";
 import { executeToolCall } from "./tools/substrate.js";
+import { runBatch } from "./batch/runner.js";
 import { getKeyReference } from "./logging/usage.js";
 import { HistoryStore } from "./history/store.js";
 import { searchHistory } from "./history/search.js";
@@ -132,6 +133,10 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
     }
     options.cacheCommand = { sub };
     i = 2;
+  } else if (args.length > 0 && args[0] === "batch") {
+    // `batch --input <file.jsonl> --output <file.jsonl> [--concurrency N] [--retry-errors] [--dry-run]`
+    options.batch = { input: undefined, output: undefined };
+    i = 1;
   } else if (args.length > 0 && commands.includes(args[0])) {
     options.command = args[0] as "search" | "extract" | "crawl";
     if (args[0] === "status") {
@@ -223,6 +228,47 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
           throw new Error("--all is only valid with 'history clear'");
         }
         options.historyCommand.all = true;
+        break;
+
+      case "--input":
+        i++;
+        if (!options.batch) {
+          throw new Error("--input is only valid with 'batch'");
+        }
+        if (!args[i] || args[i].startsWith("-")) {
+          throw new Error(`--input requires a JSONL file path`);
+        }
+        options.batch.input = args[i];
+        break;
+
+      case "--output":
+        i++;
+        if (!options.batch) {
+          throw new Error("--output is only valid with 'batch'");
+        }
+        if (!args[i] || args[i].startsWith("-")) {
+          throw new Error(`--output requires a JSONL file path`);
+        }
+        options.batch.output = args[i];
+        break;
+
+      case "--concurrency":
+        i++;
+        if (!options.batch) {
+          throw new Error("--concurrency is only valid with 'batch'");
+        }
+        const concurrency = parseInt(args[i], 10);
+        if (isNaN(concurrency) || concurrency < 1) {
+          throw new Error(`Invalid concurrency: ${args[i]}`);
+        }
+        options.batch.concurrency = concurrency;
+        break;
+
+      case "--retry-errors":
+        if (!options.batch) {
+          throw new Error("--retry-errors is only valid with 'batch'");
+        }
+        options.batch.retryErrors = true;
         break;
 
       case "--by-provider":
@@ -329,6 +375,12 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
     );
   }
 
+  if (options.batch) {
+    if (!options.batch.input || !options.batch.output) {
+      throw new Error("'batch' requires --input <file.jsonl> and --output <file.jsonl>");
+    }
+  }
+
   return options;
 }
 
@@ -353,6 +405,9 @@ Commands:
   history clear --all         Delete all execution history (keeps replay cache)
   cache stats                 Describe replay-cache storage
   cache clear                 Delete replay-cache entries (keeps history)
+  batch --input FILE --output FILE
+                              Run a resumable JSONL batch of search/extract/
+                              crawl/provider-tool records
   status                      Show configured providers and usage summary
 
 Options:
@@ -383,6 +438,13 @@ Options:
                          (search/extract and replay-safe provider tools)
     -h, --help           Show this help
     -v, --version        Show version
+
+  Batch Options (requires batch):
+    --input FILE         Input JSONL of batch records (required)
+    --output FILE        Output JSONL, appended in completion order (required)
+    --concurrency N      Maximum concurrent items (default: 1)
+    --retry-errors       Retry records that errored in a prior run
+    --dry-run            Report the planned records without executing
 
 Examples:
   # Search commands
@@ -415,6 +477,11 @@ Examples:
   ${APP_NAME} cache stats
   ${APP_NAME} search --freshness 30m "fresh results only"
   ${APP_NAME} cache clear
+
+  # Batch runs (resumable JSONL of search/extract/crawl/provider-tool records)
+  ${APP_NAME} batch --input queries.jsonl --output results.jsonl --concurrency 4
+  ${APP_NAME} batch --input queries.jsonl --output results.jsonl --concurrency 4 --retry-errors
+  ${APP_NAME} batch --input queries.jsonl --output results.jsonl --dry-run --json
   
   # Agent mode
   ${APP_NAME} --agent "explain quantum computing"
@@ -1315,6 +1382,41 @@ function runCacheCommand(options: ExtendedCLIOptions): void {
 }
 
 /**
+ * `coldsearch batch` — resumable JSONL runner for search/extract/crawl and
+ * provider-tool records. Each item executes through the same backend / tool
+ * substrate as the standalone command (same routing, cache, and history
+ * behavior); the output JSONL is batch's own append-only artifact.
+ */
+async function runBatchMode(options: ExtendedCLIOptions): Promise<void> {
+  const batch = options.batch!;
+  const summary = await runBatch({
+    input: batch.input!,
+    output: batch.output!,
+    concurrency: batch.concurrency ?? 1,
+    retryErrors: batch.retryErrors === true,
+    configPath: options.config,
+    dryRun: options.dryRun === true,
+  });
+
+  const human = summary.dry_run
+    ? [
+        `Dry run: ${summary.to_execute} to execute, ${summary.skipped} skipped, ${summary.conflicts} conflict(s)`,
+        ...(summary.records ?? []).map(
+          (r) =>
+            `  ${r.action === "execute" ? "execute" : r.action === "conflict" ? "conflict" : `skip (${r.reason})`}  ${r.id}  ${r.capability ?? r.tool}`
+        ),
+      ].join("\n")
+    : `Batch complete: ${summary.executed} executed (${summary.succeeded} succeeded, ${summary.failed} failed), ${summary.skipped} skipped, ${summary.conflicts} conflict(s); output: ${summary.output}`;
+  printData({ command: "batch", ...summary }, human, options);
+
+  // A batch that finished but had failing items still signals failure to
+  // scripts, without ever aborting sibling items.
+  if (!summary.dry_run && (summary.failed ?? 0) > 0) {
+    process.exitCode = 1;
+  }
+}
+
+/**
  * Main CLI entry point.
  */
 async function main(): Promise<void> {
@@ -1346,6 +1448,11 @@ async function main(): Promise<void> {
 
     if (options.cacheCommand) {
       runCacheCommand(options);
+      return;
+    }
+
+    if (options.batch) {
+      await runBatchMode(options);
       return;
     }
 

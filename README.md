@@ -78,6 +78,40 @@ keys = []
 baseUrl = "https://search.example.internal"
 ```
 
+## Batch runs
+
+`coldsearch batch` is a resumable JSONL runner for `search`, `extract`, `crawl`,
+and provider-tool records. Each item executes through the same backend/tool
+substrate as the standalone command — same routing, cache, and execution
+history — so batch adds no second history model. The output JSONL is batch's
+own append-only artifact.
+
+```bash
+coldsearch batch --input queries.jsonl --output results.jsonl --concurrency 4
+coldsearch batch --input queries.jsonl --output results.jsonl --concurrency 4 --retry-errors
+coldsearch batch --input queries.jsonl --output results.jsonl --dry-run --json
+```
+
+Input: one JSON object per line. Exactly one of `capability` | `tool` per
+record; `id` is the stable resume key.
+
+```jsonl
+{"id":"node-lts","capability":"search","query":"current node lts version","limit":5}
+{"id":"example-extract","capability":"extract","url":"https://example.com"}
+{"id":"example-crawl","capability":"crawl","url":"https://example.com","limit":10}
+{"id":"tavily-answer","tool":"tavily.answer","input":{"query":"current node lts version"}}
+```
+
+Optional knobs mirror the CLI flags: `limit`, `providers`, `singleProvider`,
+`noCache`.
+
+Output: one JSON object per processed record, appended in completion order.
+Successful records have `status:"success"` and `error:null`; failed records
+have `status:"error"` and `result:null`. Reruns resume by `id`: existing
+successes are skipped, existing errors are retried only with `--retry-errors`,
+and duplicate/conflict records (repeated `id` with different input) are emitted
+as visible error records that are never retried.
+
 ## Development
 
 ```bash

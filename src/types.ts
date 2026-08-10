@@ -100,6 +100,13 @@ export interface CLIOptions {
   json: boolean;
   config?: string;
   singleProvider?: boolean;
+  /** `coldsearch batch` resumable JSONL runner options. */
+  batch?: {
+    input?: string;
+    output?: string;
+    concurrency?: number;
+    retryErrors?: boolean;
+  };
 }
 
 /**
