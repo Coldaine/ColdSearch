@@ -75,9 +75,9 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     costNotes: "Paid Bright Data product; explicit/configured use initially, not default routing.",
   },
 
-  // These profiles are deliberately not normalized category backers. The
-  // current status model uses `available` for catalogued provider-native tools;
-  // executeToolCall still dispatches them through the generic substrate.
+  // These tools are implemented through the generic provider-tool substrate but
+  // deliberately do not back normalized categories. `direct` records that
+  // difference without pretending they are merely upstream ideas.
   "brightdata.datasetsList": {
     provider: "brightdata",
     tool: "datasetsList",
@@ -94,7 +94,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "raw" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
-    status: "available",
+    status: "direct",
   },
   "brightdata.datasetMetadata": {
     provider: "brightdata",
@@ -112,7 +112,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "raw" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
-    status: "available",
+    status: "direct",
   },
   "brightdata.scrape": {
     provider: "brightdata",
@@ -123,14 +123,14 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
       "Synchronous invocation of a Bright Data site-specific Web Scraper API. Returns native structured records (products, reviews, companies, repositories, listings, and other dataset schemas).",
     docsUrl: "https://docs.brightdata.com/datasets/scrapers/scrapers-library/overview",
     requiredParams: ["dataset_id", "input"],
-    optionalParams: ["inputs", "format"],
+    optionalParams: ["inputs", "format", "type", "discover_by", "limit_per_input"],
     commonViews: [],
     features: { structuredJson: true, siteSpecificSchema: true, realTimeCollection: true, keyless: false },
     execution: { mode: "sync", supportsWait: true },
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "raw" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
-    status: "available",
+    status: "direct",
     costNotes: "Site/dataset-specific paid collection; never invoke as routine validation or generic extract.",
   },
   "brightdata.trigger": {
@@ -142,14 +142,14 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
       "Start an asynchronous Bright Data structured scraper/discovery job and return its snapshot identifier.",
     docsUrl: "https://docs.brightdata.com/datasets/scrapers/trigger-a-collection",
     requiredParams: ["dataset_id", "input"],
-    optionalParams: ["inputs", "include_errors", "custom_output_fields"],
+    optionalParams: ["inputs", "include_errors", "custom_output_fields", "type", "discover_by"],
     commonViews: [],
     features: { structuredJson: true, asyncJob: true, siteSpecificSchema: true, keyless: false },
     execution: { mode: "async-job", supportsPolling: true, jobIdField: "snapshot_id" },
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
-    status: "available",
+    status: "direct",
   },
   "brightdata.snapshot": {
     provider: "brightdata",
@@ -166,7 +166,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "raw" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
-    status: "available",
+    status: "direct",
   },
   "brightdata.crawl": {
     provider: "brightdata",
@@ -174,7 +174,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     nativeName: "POST /datasets/v3/trigger (Crawl API dataset)",
     categories: [],
     description:
-      "Bright Data Crawl API job trigger. Catalogued provider-native surface; not a normalized ColdSearch crawl backer until polling/output/cost semantics are characterized.",
+      "Bright Data Crawl API job trigger. Direct provider-native surface; not a normalized ColdSearch crawl backer until polling/output/cost semantics are characterized.",
     docsUrl: "https://docs.brightdata.com/scraping-automation/crawl-api/overview",
     requiredParams: ["dataset_id", "input"],
     optionalParams: ["inputs", "include_errors", "custom_output_fields"],
@@ -184,7 +184,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
-    status: "available",
+    status: "direct",
   },
   "brightdata.discover": {
     provider: "brightdata",
@@ -192,7 +192,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     nativeName: "POST /discover",
     categories: [],
     description:
-      "Bright Data Discover API candidate. Kept provider-native rather than silently substituted for ordinary web search.",
+      "Bright Data Discover API direct tool. Kept provider-native rather than silently substituted for ordinary web search.",
     docsUrl: "https://docs.brightdata.com/api-reference/discover/overview",
     requiredParams: ["query"],
     optionalParams: [],
@@ -202,7 +202,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
-    status: "available",
+    status: "direct",
   },
 };
 
