@@ -1,3 +1,5 @@
+import type { ErrorCategory } from "./types.js";
+
 export interface RequestPolicy {
   label?: string;
   timeoutMs?: number;
@@ -182,4 +184,66 @@ export async function fetchText(
 ): Promise<string> {
   const response = await fetchWithPolicy(input, init, policy);
   return response.text();
+}
+
+export interface ClassifiedError {
+  category: ErrorCategory;
+  message: string;
+}
+
+/**
+ * Classify an unknown error into one of the machine-readable categories used
+ * by status/doctor output and user-facing CLI errors.
+ *
+ * Rule-based on error type and message text. The original message is always
+ * preserved in full next to the category — classification never redacts or
+ * replaces it. Pattern checks are ordered so specific pairings
+ * (unsupported_capability / unsupported_tool) win over generic ones.
+ */
+export function classifyError(error: unknown): ClassifiedError {
+  const message = error instanceof Error ? error.message : String(error);
+  const name = error instanceof Error ? error.name : "";
+
+  if (error instanceof HTTPRequestError) {
+    return { category: "network", message };
+  }
+  if (name === "AbortError") {
+    return { category: "network", message };
+  }
+  if (name === "TypeError" && /fetch|network|dns|lookup/i.test(message)) {
+    return { category: "network", message };
+  }
+
+  // Specific pairings first: a capability the provider cannot back, and a tool
+  // the provider/registry does not expose.
+  if (/does not implement capability/i.test(message)) {
+    return { category: "unsupported_capability", message };
+  }
+  if (
+    /unknown provider tool|hard-excluded|unsupported tool/i.test(message)
+  ) {
+    return { category: "unsupported_tool", message };
+  }
+
+  if (/unknown provider/i.test(message)) {
+    return { category: "provider", message };
+  }
+  if (
+    /unknown option|unknown '.*' subcommand|invalid limit|invalid rerank|invalid freshness|requires a .* argument|is only valid with|no configuration found for capability|not configured|config file|failed to parse config/i.test(
+      message
+    )
+  ) {
+    return { category: "config", message };
+  }
+  if (
+    /environment variable .*not set|api[_-]?key|failed to resolve doppler|doppler cli not found|\bbws:/i.test(
+      message
+    )
+  ) {
+    return { category: "credentials", message };
+  }
+
+  // Default: provider — most unclassified runtime errors surface from provider
+  // calls. The original message is always kept.
+  return { category: "provider", message };
 }

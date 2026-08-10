@@ -262,3 +262,156 @@ path = "${cachePath.replaceAll("\\", "/")}"
   assert.equal(result.status, 1);
   assert.match(result.stderr, /No configuration found for capability: extract/i);
 });
+
+// ---------------------------------------------------------------------------
+// config init / config doctor / status
+// ---------------------------------------------------------------------------
+
+test("config init creates a starter config at a temp path", () => {
+  withTempDir((dir) => {
+    const target = path.join(dir, "config.toml");
+    const result = runCli(["config", "init", "--config", target]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(fs.existsSync(target), "config file must exist");
+    const content = fs.readFileSync(target, "utf8");
+    assert.match(content, /\[capabilities\.search\]/);
+    assert.match(content, /\[capabilities\.extract\]/);
+    assert.match(content, /\[capabilities\.crawl\]/);
+  });
+});
+
+test("config init refuses to overwrite an existing config", () => {
+  withTempDir((dir) => {
+    const target = path.join(dir, "config.toml");
+    fs.writeFileSync(target, 'original = true\n', "utf8");
+    const result = runCli(["config", "init", "--config", target]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /already exists/i);
+    assert.equal(fs.readFileSync(target, "utf8"), 'original = true\n');
+  });
+});
+
+test("config doctor --json reports valid config success", () => {
+  const { result, configPath } = withTempDir((dir) => {
+    const configPath = writeConfig(
+      dir,
+      `
+[capabilities.search]
+providers = ["searxng"]
+
+[providers.searxng]
+[providers.searxng.keyPool]
+keys = []
+
+[providers.searxng.options]
+baseUrl = "https://search.example.internal"
+`.trim()
+    );
+    return { result: runCli(["config", "doctor", "--config", configPath, "--json"]), configPath };
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const out = JSON.parse(result.stdout);
+  assert.equal(out.command, "config doctor");
+  assert.equal(out.config_path, configPath);
+  assert.equal(out.valid, true);
+  assert.deepEqual(out.errors, []);
+  assert.ok(Array.isArray(out.warnings));
+});
+
+test("config doctor --json reports missing env vars without printing secret values", () => {
+  const { result } = withTempDir((dir) => {
+    const configPath = writeConfig(
+      dir,
+      `
+[capabilities.search]
+providers = ["brave", "tavily"]
+
+[providers.brave]
+[providers.brave.keyPool]
+keys = ["env:COLDSEARCH_TEST_UNSET_VAR"]
+
+[providers.tavily]
+[providers.tavily.keyPool]
+keys = ["sk-literal-secret-abc123"]
+`.trim()
+    );
+    const env = { ...process.env };
+    delete env.COLDSEARCH_TEST_UNSET_VAR;
+    return { result: runCli(["config", "doctor", "--config", configPath, "--json"], env) };
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const out = JSON.parse(result.stdout);
+  assert.equal(out.valid, true);
+  const warnings = out.warnings.map((w) => `${w.category}: ${w.message}`).join("\n");
+  // The unset env var NAME is reported…
+  assert.match(warnings, /COLDSEARCH_TEST_UNSET_VAR/);
+  // …the raw literal key is flagged…
+  assert.match(warnings, /raw literal/);
+  // …but the secret VALUE is never echoed anywhere.
+  assert.doesNotMatch(result.stdout + result.stderr, /sk-literal-secret-abc123/);
+});
+
+test("status --json includes the config path", () => {
+  const { result, configPath } = withTempDir((dir) => {
+    const configPath = writeConfig(
+      dir,
+      `
+[capabilities.search]
+providers = ["searxng"]
+
+[providers.searxng]
+[providers.searxng.keyPool]
+keys = []
+
+[providers.searxng.options]
+baseUrl = "https://search.example.internal"
+`.trim()
+    );
+    return { result: runCli(["status", "--config", configPath, "--json"]), configPath };
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const out = JSON.parse(result.stdout);
+  assert.equal(out.command, "status");
+  assert.equal(out.config_path, configPath);
+});
+
+test("status --json includes cache state and usage path", () => {
+  const { result, cachePath, usagePath } = withTempDir((dir) => {
+    const cachePath = path.join(dir, "cache").replaceAll("\\", "/");
+    const usagePath = path.join(dir, "usage.jsonl").replaceAll("\\", "/");
+    const configPath = writeConfig(
+      dir,
+      `
+[capabilities.search]
+providers = ["searxng"]
+
+[providers.searxng]
+[providers.searxng.keyPool]
+keys = []
+
+[providers.searxng.options]
+baseUrl = "https://search.example.internal"
+
+[cache]
+path = "${cachePath}"
+
+[logging.usage]
+path = "${usagePath}"
+`.trim()
+    );
+    return {
+      result: runCli(["status", "--config", configPath, "--json"]),
+      cachePath,
+      usagePath,
+    };
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const out = JSON.parse(result.stdout);
+  assert.equal(out.cache.enabled, true);
+  assert.equal(out.cache.path, cachePath);
+  assert.equal(out.usage_log, usagePath);
+});

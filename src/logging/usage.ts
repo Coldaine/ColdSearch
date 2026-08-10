@@ -22,7 +22,7 @@ export interface UsageLogEntry {
   result_count?: number;
 }
 
-function defaultUsageLogPath(): string {
+export function defaultUsageLogPath(): string {
   return join(homedir(), ".config", "coldsearch", "usage.jsonl");
 }
 

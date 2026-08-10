@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { FanoutEngine } from "../dist/engine/fanout.js";
 import { SearXNGAdapter } from "../dist/adapters/searxng.js";
+import { classifyError } from "../dist/http.js";
 
 test("fanout rejects providers that do not implement requested capability", async () => {
   const engine = new FanoutEngine({
@@ -64,4 +65,20 @@ test("searxng preserves configured base paths when building the search URL", asy
   assert.equal(parsedUrl.pathname, "/searxng/search");
   assert.equal(parsedUrl.searchParams.get("q"), "fusion");
   assert.equal(parsedUrl.searchParams.get("format"), "json");
+});
+
+test("unsupported provider/capability pairing is classified as unsupported_capability", () => {
+  const { category, message } = classifyError(
+    new Error("Provider 'jina' does not implement capability 'search'")
+  );
+  assert.equal(category, "unsupported_capability");
+  assert.equal(message, "Provider 'jina' does not implement capability 'search'");
+});
+
+test("unsupported provider-tool pairing is classified as unsupported_tool", () => {
+  const { category, message } = classifyError(
+    new Error("Unknown provider tool: 'exa.nonexistent'")
+  );
+  assert.equal(category, "unsupported_tool");
+  assert.equal(message, "Unknown provider tool: 'exa.nonexistent'");
 });
