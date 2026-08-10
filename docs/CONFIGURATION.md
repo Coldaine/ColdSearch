@@ -132,6 +132,111 @@ Each entry contains:
 - `response_time_ms`
 - `error`, when present
 
+## Result cache
+
+Read-through exact-replay cache for `search` / `extract` and for provider
+tools with an explicit replay-safe policy. On by default; a hit serves the
+stored response without calling any provider.
+
+```toml
+[cache]
+enabled = true
+search_ttl = "6h"
+extract_ttl = "24h"
+tool_ttl = "6h"
+# path = "~/.config/coldsearch/cache"
+```
+
+- `enabled`: set to `false` to disable the cache entirely
+- `search_ttl` / `extract_ttl` / `tool_ttl`: freshness windows (`s`/`m`/`h`/`d`
+  suffix or bare seconds). `tool_ttl` applies to explicitly replay-safe
+  provider tools only.
+- `path`: storage directory (default `~/.config/coldsearch/cache`)
+
+Per-invocation overrides:
+
+- `--no-cache` bypasses the cache for that call
+- `--freshness <duration>` overrides the TTL for that invocation only; it
+  neither persists nor changes the configured defaults. Applies to `search`,
+  `extract`, and replay-safe provider tools.
+
+Maintenance:
+
+- `coldsearch cache stats` describes replay-cache storage
+- `coldsearch cache clear` deletes replay-cache entries (history is kept)
+
+Crawl results are never replay-cached; crawls are recorded in history only.
+
+## Execution history
+
+Every `search` / `extract` / `crawl` / `tool call` invocation is recorded as
+one top-level execution record in a local JSONL history — including cache
+replays, partial successes, and failures.
+
+Default path: `~/.config/coldsearch/history.jsonl`
+
+```toml
+[history]
+path = "~/.config/coldsearch/history.jsonl"
+```
+
+History is independent of the replay cache: cache expiry and `cache clear`
+never erase it, and `history clear` never touches the cache.
+
+Commands:
+
+- `coldsearch history recent [--limit N] [--json]` — newest executions first
+- `coldsearch history search <query> [--limit N] [--json]` — local-only search
+  over prior executions (requests, result titles/URLs, content, provider
+  metadata); makes zero provider calls
+- `coldsearch history show <execution-id> [--json]` — full record of one
+  execution; `--by-provider` shows stored fanout partitions and the merged
+  result
+- `coldsearch history clear --all [--json]` — explicitly delete all history
+  (requires `--all`; replay cache is untouched)
+
+Records are scrubbed before persistence: resolved credential values, signed-URL
+tokens, and credential fields are redacted from inputs, options, results, and
+provider-supplied raw detail.
+
+## Batch execution
+
+`coldsearch batch` runs `search` / `extract` / `crawl` / provider-tool records
+from a JSONL input file, writing one JSONL output line per processed record.
+
+```bash
+coldsearch batch --input queries.jsonl --output results.jsonl --concurrency 4
+coldsearch batch --input queries.jsonl --output results.jsonl --concurrency 4 --retry-errors
+coldsearch batch --input queries.jsonl --output results.jsonl --dry-run --json
+```
+
+Flags:
+
+- `--input FILE` — input JSONL of batch records (required)
+- `--output FILE` — output JSONL, appended in completion order (required)
+- `--concurrency N` — maximum concurrent items (default: `1`)
+- `--retry-errors` — retry records that errored in a prior run
+- `--dry-run` — report the planned records without executing or writing
+- `--json` — print the run summary as JSON on stdout
+
+Behavior:
+
+- Every item executes through the same backend / tool substrate as the
+  standalone command, so routing, cache, and execution-history behavior are
+  identical; batch does not create a second history model.
+- The output file is append-only. Reruns resume by stable `id`: existing
+  success records are skipped, existing error records are retried only with
+  `--retry-errors`.
+- Resume is keyed on `id` only: if you change an item's input, give it a new
+  `id` or it will be skipped as already-succeeded.
+- Batch items are configured per-record; the global `--limit`, `--providers`,
+  `--no-cache`, and `--freshness` flags do not apply to `batch`.
+- Duplicate `id`s resolve to the first occurrence: identical later records are
+  skipped; later records with different input emit a visible
+  `DUPLICATE_ID_CONFLICT` error record that is never retried.
+- A failing item never aborts unrelated items; the run completes and exits
+  non-zero when any executed item failed.
+
 ## Agent LLM
 
 Agent mode (`--agent`) uses an OpenAI-compatible chat completions endpoint:

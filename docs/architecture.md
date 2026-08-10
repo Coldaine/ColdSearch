@@ -32,7 +32,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 | Config-driven routing | Current | `~/.config/coldsearch/config.toml`; provider pools per capability |
 | Key and secret resolution | Current | Doppler-injected environment variables preferred; env refs, optional BWS refs, and keyless providers supported; per-process pools |
 | Basic cache store | Current | Read-through file cache for search/extract |
-| Searchable result memory | Planned | Index recent search/extract/tool results and surface relevant prior items before provider calls |
+| Search history / research memory | Current | Durable execution records; recent/search/show exploration; stored fanout inspection and related prior work |
 | Usage and audit logging | Current | JSONL usage log; richer flow logs and trace correlation Planned |
 | Agent mode | Current | ReAct loop; OpenAI-compatible LLM dispatch |
 | Service / API / MCP entrypoints | Planned | Same core, thin wrappers |
@@ -52,7 +52,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 | Provider registry | Current | Capability matrix in code | `src/providers.ts` |
 | Provider-tool profile registry | Current | Native tool params, common-view mappings, feature predicates | `docs/ADRs/005-provider-tool-profiles.md`, `src/registry/tool-profiles.ts` |
 | Cache store | Current | Read-through JSON cache | `src/cache/` |
-| Observability and result memory | Planned | Rich logs plus searchable recent prior work | `docs/components/cache-and-observability.md` |
+| Execution history and observability | Current | Durable, searchable execution history plus provider-partition inspection | `docs/components/cache-and-observability.md` |
 | Agent | Current | ReAct + SSRF-safe fetch | `docs/ADRs/003-react-agent.md`, `docs/ADRs/004-ssrf-protection.md` |
 
 ## Architectural Invariants
@@ -62,7 +62,8 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 - **Interface-agnostic core.** Routing, keys, retries, and normalization must not depend on whether the caller is CLI, API, or MCP (Planned entrypoints).
 - **Comparable execution.** Fanout and per-provider error isolation enable cross-provider comparison (`docs/ADRs/001-fanout-architecture.md`).
 - **Logging is a product surface.** Networked work, routing, cache lookup/retrieval, key selection by safe reference, retries, errors, timings, run IDs, and agent/tool flow should produce rich durable logs (`docs/NORTH_STAR.md` Audit First pillar).
-- **Searchable cache over blind replay.** Cache work should support retrieval over recent prior results. Exact response replay is secondary and should only be used where it is simple, explicit, and freshness-safe (`docs/NORTH_STAR.md` G3).
+- **History and cache are distinct.** History records what ColdSearch did and remains inspectable independently of cache expiry or clearing. Exact response replay is a supporting cache policy and remains freshness-controlled; related history never becomes an automatic cache hit (`docs/NORTH_STAR.md` G3).
+- **Evaluation is observational.** Provider-effectiveness exploration uses accumulated executions and is not a release gate. Live native-vs-ColdSearch checks are integration conformance scoped to provider-facing changes, never routine benchmarks.
 - **No lossy normalization.** Shared schemas are convenience; provider detail stays available when needed (`docs/NORTH_STAR.md` G4).
 - **Provider coverage is documented.** Registry and `docs/PROVIDERS.md` Dual Matrix stay in sync (`npm run test:docs`).
 

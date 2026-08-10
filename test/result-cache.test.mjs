@@ -47,6 +47,9 @@ enabled = ${cacheEnabled}
 search_ttl = "6h"
 extract_ttl = "24h"
 path = ${JSON.stringify(cacheDir)}
+
+[history]
+path = ${JSON.stringify(join(dir, "history.jsonl"))}
 `;
   writeFileSync(configPath, toml, "utf8");
   return { dir, configPath };

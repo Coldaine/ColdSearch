@@ -1,8 +1,10 @@
-# Gate 0: Provider Pass-Through Proof Plan
+# Gate 0: Initial Live Provider Conformance Baseline
+
+> This is the one-time, full-matrix native-vs-ColdSearch conformance baseline. It verifies integration behavior; it is not provider-effectiveness evaluation, a benchmark, or routine PR validation. Ongoing scoped and scheduled checks are defined in [Live Provider Conformance](./2026-08-10-live-provider-conformance.md).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:systematic-debugging for investigation discipline and superpowers:executing-plans or superpowers:subagent-driven-development for execution. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Prove ColdSearch actually passes through to real provider platform paths and returns useful real provider results before building more provider-tool surface.
+**Goal:** Establish the initial provider/path conformance baseline: prove ColdSearch reaches real provider platform paths, preserves required provider detail, and returns useful real results before building more provider-tool surface.
 
 **Architecture:** Treat each provider path as a two-leg comparison: provider-native request first, then the equivalent ColdSearch request with a single provider selected. ColdSearch does not need byte-identical output, but it must hit the same real provider path, return non-empty useful results, preserve enough provider detail, and make any transformation explicit.
 
@@ -12,7 +14,7 @@
 
 ## Scope
 
-Implement and run a live provider proof gate before PR 1.
+Implement and run this full live-provider conformance baseline once before PR 1. After the baseline, do not rerun the full matrix after unrelated changes; follow the scoped rules in the ongoing Live Provider Conformance plan.
 
 This gate covers:
 
@@ -160,13 +162,13 @@ Run only commands that prove the Gate 0 contract:
 
 ```bash
 npm run build
-node scripts/provider-pass-through.mjs --all
+node scripts/provider-pass-through.mjs --all --overwrite-baseline
 ```
 
 What these prove:
 
 - `npm run build` proves the checked source compiles into the CLI that the harness will execute.
-- `node scripts/provider-pass-through.mjs --all` proves provider-native responses and equivalent ColdSearch responses were both collected, compared, and recorded for every required provider path.
+- `node scripts/provider-pass-through.mjs --all --overwrite-baseline` proves provider-native responses and equivalent ColdSearch responses were both collected, compared, and recorded for every required provider path. `--overwrite-baseline` is required because the command regenerates the committed baseline evidence in place; scoped runs must use `--out-dir` instead.
 
 What is not Gate 0 evidence:
 

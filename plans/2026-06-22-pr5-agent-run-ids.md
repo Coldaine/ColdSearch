@@ -4,7 +4,7 @@
 
 **Goal:** Resolve issue #14 by adding structured run IDs to agent mode and related logs, while strengthening agent/tool-flow observability.
 
-**Architecture:** Generate or accept a run ID at the CLI/agent boundary, store it on the `SearchAgent`/`ResearchContext`, and pass it through backend search/provider-tool calls so usage logs can correlate provider calls to an agent run.
+**Architecture:** Generate or accept a run ID at the CLI/agent boundary, store it on the `SearchAgent`/`ResearchContext`, and pass it through backend search/provider-tool calls so usage logs can correlate provider calls to an agent run. Relationship to PR 2 execution IDs: every underlying search/extract/tool execution keeps its own PR 2 `execution_id`; an agent research run has one `run_id`, and every execution record created during that run records the same optional `run_id`. `run_id` never replaces `execution_id`.
 
 **Tech Stack:** TypeScript, Node.js `crypto`, built-in `node:test`, existing agent and CLI tests.
 
@@ -19,7 +19,7 @@ Implement:
 - `run_id` in agent CLI JSON output
 - `run_id` in agent steps
 - `run_id` in usage logs created by agent-triggered search
-- `run_id` in usage logs created by agent-triggered provider-tool calls
+- `run_id` in usage logs created by agent-triggered provider-tool calls, if/when an agent→provider-tool path exists (agent mode currently never reaches `executeToolCall`; its tools are search/fetch/refine via `backend.search` and its own fetch, and `executeToolCall` is only reached via `coldsearch tool call`)
 - Richer agent/tool-flow logs with run ID, tool name, selected provider/tool, cache lookup result, timing, and error metadata where available
 - Validation for explicit run IDs
 
@@ -40,6 +40,7 @@ Do not implement:
 - Modify: `src/logging/usage.ts`
 - Modify: `src/types.ts`
 - Modify: `src/cli.ts`
+- Modify (only if/when an agent→provider-tool path is wired): `src/tools/substrate.ts` — `executeToolCall(provider, tool, params, config)` currently has no options channel, and one would be required to pass a run ID through.
 - Test: `test/agent-mode.test.mjs`
 - Test: `test/agent-payloads.test.mjs`
 - Test: `test/cli-integration.test.mjs`
@@ -73,7 +74,7 @@ Rules:
 - [ ] Add `runId?: string` to backend/fanout options.
 - [ ] Pass run ID from agent search tool calls into backend search.
 - [ ] Pass run ID from agent provider-tool calls into the provider-tool surface if agent mode uses it.
-- [ ] Add `run_id?: string` to `UsageLogEntry`.
+- [ ] Rename the existing dead `runId?: string` field on `UsageLogEntry` (`src/logging/usage.ts:12`, camelCase) to `run_id` (snake_case, consistent with `response_time_ms`); do not add a second field.
 - [ ] Write `run_id` only when present.
 - [ ] Add safe agent/tool-flow log fields needed to reconstruct provider/tool/cache flow.
 - [ ] Confirm no raw API keys or hidden secrets are logged.
@@ -116,7 +117,7 @@ Expected:
 
 ## Success Criteria
 
-- Every agent run can be correlated across output, steps, and usage logs.
+- Every agent run can be correlated across output, steps, and usage logs. Step-level `run_id` correlation is observable at the `AgentResult` level (unit tests); CLI JSON output emits `steps` as a count (`src/cli.ts:463`), so CLI output correlation is via the top-level `run_id` field. No CLI steps-output change in this PR.
 - Agent-triggered search and provider-tool calls carry the same run ID when they write usage logs.
 - Explicit `--run-id` works and invalid values fail early.
 - Existing non-agent usage records remain backward compatible.
@@ -129,7 +130,7 @@ After implementation:
 - [ ] Commit the completed PR 5 scope.
 - [ ] Push the branch.
 - [ ] Open PR 5 only after validation passes.
-- [ ] Wait for CI, merge-gate, and advisory reviewers.
+- [ ] Wait for CI and advisory reviewers.
 - [ ] Read inline review threads, flat comments, bot comments, and check summaries.
 - [ ] Address valid findings.
 - [ ] Re-run the validation that proves the changed behavior after every follow-up commit. Include `npm test` for runtime changes and `npm run test:docs` only for docs/registry/validator changes.
