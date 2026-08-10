@@ -200,7 +200,7 @@ After implementation:
 - [ ] Commit the completed PR 1 scope.
 - [ ] Push the branch.
 - [ ] Open PR 1 only after validation passes.
-- [ ] Wait for CI, merge-gate, and advisory reviewers.
+- [ ] Wait for CI and advisory reviewers.
 - [ ] Read inline review threads, flat comments, bot comments, and check summaries.
 - [ ] Address valid findings.
 - [ ] Re-run the validation that proves the changed behavior after every follow-up commit. Include `npm test` for runtime changes, `npm run test:docs` for registry/docs changes, and provider-native comparison for touched provider tools.

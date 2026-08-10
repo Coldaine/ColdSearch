@@ -189,11 +189,7 @@ After each implementation PR:
 - [ ] Re-run the validation that proves the changed behavior after follow-up commits. Include `npm test` for runtime/code changes and `npm run test:docs` for docs, provider matrix, registry, or plan-validator changes.
 - [ ] Wait again after every push.
 - [ ] Do not start the next PR until the current PR is merged, or until the user explicitly authorizes parallel work.
-- [ ] Do not post the merge attestation until it is true:
-
-```text
-I have read all checks and review comments on this PR and affirm I have addressed all valid findings.
-```
+- [ ] Do not merge until `ci` is green and every valid review finding is addressed.
 
 This pause is part of the plan. Skipping it is a plan failure.
 
