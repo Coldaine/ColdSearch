@@ -616,3 +616,94 @@ test("history commands fail loudly when the history file exists but cannot be re
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Pre-dispatch tool-call failures still record one failed history entry
+// ---------------------------------------------------------------------------
+
+test("tool call pre-dispatch failure records history (malformed tool ID)", () => {
+  const dir = makeDir();
+  try {
+    const configPath = writeConfig(dir);
+
+    const result = runCli([
+      "tool", "call", "exa.search.extra", "--config", configPath, "--json",
+    ]);
+    assert.equal(result.status, 1, result.stderr);
+
+    const lines = readHistoryLines(path.join(dir, "history.jsonl"));
+    assert.equal(lines.length, 1, "exactly one history record for the invocation");
+    const record = JSON.parse(lines[0]);
+    assert.equal(record.outcome, "failed");
+    assert.equal(record.command, "tool");
+    assert.deepEqual(record.attempts, [], "no provider attempt happened pre-dispatch");
+    assert.equal(record.source, "live");
+    assert.equal(record.duration_ms, 0);
+    assert.deepEqual(record.routing.providers_attempted, []);
+    assert.equal(record.input, "exa.search.extra");
+    assert.match(record.errors["exa.search.extra"], /^Invalid tool ID:/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("tool call pre-dispatch failure records history (missing input file)", () => {
+  const dir = makeDir();
+  try {
+    const configPath = writeConfig(dir);
+    const missing = path.join(dir, "does-not-exist.json");
+
+    const result = runCli([
+      "tool", "call", "exa.search", "--json-input", missing, "--config", configPath, "--json",
+    ]);
+    assert.equal(result.status, 1, result.stderr);
+
+    const lines = readHistoryLines(path.join(dir, "history.jsonl"));
+    assert.equal(lines.length, 1, "exactly one history record for the invocation");
+    const record = JSON.parse(lines[0]);
+    assert.equal(record.outcome, "failed");
+    assert.equal(record.command, "tool");
+    assert.deepEqual(record.attempts, [], "no provider attempt happened pre-dispatch");
+    assert.equal(record.source, "live");
+    assert.equal(record.duration_ms, 0);
+    assert.deepEqual(record.routing.providers_attempted, []);
+    assert.equal(record.input, "exa.search");
+    assert.match(record.errors["exa.search"], /^JSON input file not found:/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("tool call pre-dispatch failure records history (invalid JSON params)", () => {
+  const dir = makeDir();
+  try {
+    const configPath = writeConfig(dir);
+    // Deliberately unparseable JSON containing a secret-looking token: the
+    // persisted record must not echo the parser's excerpt of the input.
+    const badJson = path.join(dir, "bad.json");
+    fs.writeFileSync(badJson, '{"api_key": "sekrit"', "utf8");
+
+    const result = runCli([
+      "tool", "call", "exa.search", "--json-input", badJson, "--config", configPath, "--json",
+    ]);
+    assert.equal(result.status, 1, result.stderr);
+
+    const lines = readHistoryLines(path.join(dir, "history.jsonl"));
+    assert.equal(lines.length, 1, "exactly one history record for the invocation");
+    const record = JSON.parse(lines[0]);
+    assert.equal(record.outcome, "failed");
+    assert.equal(record.command, "tool");
+    assert.deepEqual(record.attempts, [], "no provider attempt happened pre-dispatch");
+    assert.equal(record.source, "live");
+    assert.equal(record.duration_ms, 0);
+    assert.deepEqual(record.routing.providers_attempted, []);
+    assert.equal(record.input, "exa.search");
+    assert.match(record.errors["exa.search"], /^Failed to parse JSON input:/);
+    assert.ok(
+      !lines[0].includes("sekrit"),
+      "history record must not contain the parser's excerpt of the input"
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
