@@ -137,7 +137,7 @@ export function buildBrightDataToolRequest(
         ? params.country
         : configuredString(config, "searchCountry") || "us";
 
-    const payload = {
+    const payload: Record<string, any> = {
       ...params,
       zone,
       url,
