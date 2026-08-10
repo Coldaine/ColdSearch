@@ -343,7 +343,8 @@ test("verifies duplicate conflicting IDs produce an error", async () => {
       ["batch", "--input", inputPath, "--output", outputPath, "--config", configPath, "--json"],
       nodeOptions
     );
-    assert.equal(result.status, 0, result.stderr);
+    // Newly emitted conflicts signal malformed input to scripts: exit 1.
+    assert.equal(result.status, 1, result.stderr);
     const out = JSON.parse(result.stdout);
     assert.equal(out.executed, 2, "first occurrence of d and e");
     assert.equal(out.conflicts, 1, "conflicting d emits an error record");
@@ -360,6 +361,18 @@ test("verifies duplicate conflicting IDs produce an error", async () => {
     assert.equal(dConflict.result, null);
     assert.equal(records.filter((r) => r.id === "e").length, 1, "identical duplicate produces no output");
     assert.equal(records.find((r) => r.id === "e").status, "success");
+
+    // Rerun: the prior conflict is skipped (resume-conflict), not re-emitted,
+    // so the exit code returns to 0 — reruns stay deterministic.
+    const rerun = await runCli(
+      ["batch", "--input", inputPath, "--output", outputPath, "--config", configPath, "--json"],
+      nodeOptions
+    );
+    assert.equal(rerun.status, 0, rerun.stderr);
+    const rerunOut = JSON.parse(rerun.stdout);
+    assert.equal(rerunOut.executed, 0);
+    assert.equal(rerunOut.conflicts, 0, "prior conflict is not re-emitted");
+    assert.equal(outputRecords(outputPath).length, 3, "no new output lines on rerun");
   } finally {
     await closeServer(server);
     fs.rmSync(dir, { recursive: true, force: true });
