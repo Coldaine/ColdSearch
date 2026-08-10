@@ -37,7 +37,13 @@ export const providerRegistry = {
   brightdata: {
     displayName: "Bright Data",
     capabilities: ["search", "extract"],
-    optionKeys: ["serpZone", "unlockerZone", "searchEngine", "searchCountry"],
+    optionKeys: [
+      "serpZone",
+      "unlockerZone",
+      "searchEngine",
+      "searchCountry",
+      "maxStructuredInputsPerCall",
+    ],
     createAdapter: () => new BrightDataAdapter(),
   },
   exa: {
