@@ -36,6 +36,12 @@ export interface FanoutOptions {
    * execution backend; FanoutEngine itself ignores this flag.
    */
   noCache?: boolean;
+  /**
+   * Per-invocation `--freshness <duration>` override of the config `[cache]`
+   * TTL. Threaded from the CLI to the execution backend; FanoutEngine itself
+   * ignores this flag.
+   */
+  freshness?: string;
 }
 
 /**
@@ -45,6 +51,51 @@ interface ProviderResult {
   provider: string;
   results: NormalizedResult[];
   error?: string;
+  durationMs: number;
+  keyRef: string;
+  /** Resolved credential value used for this call, when any. */
+  secret?: string;
+}
+
+/**
+ * One provider attempt inside a fanout execution, as observed by the engine.
+ * Surfaced for history recording; the key is a safe reference, never a value.
+ */
+export interface FanoutAttempt {
+  provider: string;
+  success: boolean;
+  error?: string;
+  duration_ms?: number;
+  key_ref?: string;
+  result_count?: number;
+}
+
+/**
+ * Thrown when every provider for a capability failed. Carries the per-provider
+ * attempts/errors (and resolved secrets, in-memory only for history
+ * redaction) so a failed execution stays inspectable in history.
+ */
+export class AllProvidersFailedError extends Error {
+  readonly attempts: FanoutAttempt[];
+  readonly providerErrors: Record<string, string>;
+  readonly secretsUsed: string[];
+
+  constructor(
+    errors: Record<string, string>,
+    attempts: FanoutAttempt[],
+    secretsUsed: string[]
+  ) {
+    super(`All providers failed: ${JSON.stringify(errors)}`);
+    this.name = "AllProvidersFailedError";
+    this.providerErrors = errors;
+    this.attempts = attempts;
+    this.secretsUsed = secretsUsed;
+    // In-memory redaction context only: keep resolved credentials off the
+    // serialized surface. JSON.stringify on a caught error picks up
+    // enumerable own properties, so an enumerable secretsUsed would leak
+    // every resolved key to any wrapper/structured logger that serializes it.
+    Object.defineProperty(this, "secretsUsed", { enumerable: false });
+  }
 }
 
 /**
@@ -94,11 +145,22 @@ export class FanoutEngine {
 
   /**
    * Execute search across all configured providers.
+   *
+   * Beyond the merged/reranked output, returns the pre-merge per-provider
+   * partitions and per-provider attempts so the execution backend can record
+   * them in history instead of discarding them after reranking.
+   *
+   * `secretsUsed` holds resolved credential values from this call, in memory
+   * only — it exists so the history writer can redact them from persisted
+   * content. It must never be persisted or logged.
    */
   async search(query: string, options: FanoutOptions): Promise<{
     results: NormalizedResult[];
     providersUsed: string[];
     errors: Record<string, string>;
+    partitions: Record<string, NormalizedResult[]>;
+    attempts: FanoutAttempt[];
+    secretsUsed: string[];
   }> {
     // Get providers to use
     const providers = this.getProvidersForCapability("search", options);
@@ -112,27 +174,45 @@ export class FanoutEngine {
     const resultsByProvider = new Map<string, NormalizedResult[]>();
     const errors: Record<string, string> = {};
     const providersUsed: string[] = [];
+    const attempts: FanoutAttempt[] = [];
+    const secretsUsed: string[] = [];
 
     results.forEach((result, index) => {
       const provider = providers[index];
-      
+
       if (result.status === "fulfilled") {
-        if (result.value.error) {
-          errors[provider] = result.value.error;
+        const value = result.value;
+        if (value.secret) secretsUsed.push(value.secret);
+        if (value.error) {
+          errors[provider] = value.error;
+          attempts.push({
+            provider,
+            success: false,
+            error: value.error,
+            duration_ms: value.durationMs,
+            key_ref: value.keyRef,
+          });
         } else {
-          resultsByProvider.set(provider, result.value.results);
+          resultsByProvider.set(provider, value.results);
           providersUsed.push(provider);
+          attempts.push({
+            provider,
+            success: true,
+            duration_ms: value.durationMs,
+            key_ref: value.keyRef,
+            result_count: value.results.length,
+          });
         }
       } else {
-        errors[provider] = result.reason?.message || "Unknown error";
+        const message = result.reason?.message || "Unknown error";
+        errors[provider] = message;
+        attempts.push({ provider, success: false, error: message });
       }
     });
 
     // If all providers failed, throw error
     if (providersUsed.length === 0) {
-      throw new Error(
-        `All providers failed: ${JSON.stringify(errors)}`
-      );
+      throw new AllProvidersFailedError(errors, attempts, secretsUsed);
     }
 
     // Rerank results
@@ -148,19 +228,27 @@ export class FanoutEngine {
       results: rankedResults,
       providersUsed,
       errors,
+      partitions: Object.fromEntries(resultsByProvider),
+      attempts,
+      secretsUsed,
     };
   }
 
   /**
    * Extract content from a URL.
+   * `secretsUsed` is in-memory only (history redaction); never persist it.
    */
   async extract(url: string, options: FanoutOptions): Promise<{
     result: ExtractResult | null;
     provider: string;
     errors?: Record<string, string>;
+    attempts: FanoutAttempt[];
+    secretsUsed: string[];
   }> {
     const providers = this.getProvidersForCapability("extract", options);
     const errors: Record<string, string> = {};
+    const attempts: FanoutAttempt[] = [];
+    const secretsUsed: string[] = [];
 
     // Try providers in order (or single random provider)
     for (const provider of providers) {
@@ -171,6 +259,11 @@ export class FanoutEngine {
 
         if (!adapter.extract) {
           errors[provider] = "Adapter does not support extract";
+          attempts.push({
+            provider,
+            success: false,
+            error: errors[provider],
+          });
           continue;
         }
 
@@ -178,24 +271,35 @@ export class FanoutEngine {
         const keyResult = await this.keyPool.getNextKeyWithRefOrEmpty(provider);
         const apiKey = keyResult.value;
         keyRef = keyResult.ref;
+        if (apiKey) secretsUsed.push(apiKey);
         const result = await adapter.extract(url, apiKey, {
           providerOptions: this.config.providers[provider]?.options,
         });
 
+        const durationMs = Math.round(performance.now() - start);
         this.usageLogger.write({
           timestamp: new Date().toISOString(),
           provider,
           capability: "extract",
           key: keyRef,
           success: true,
-          response_time_ms: Math.round(performance.now() - start),
+          response_time_ms: durationMs,
+        });
+        attempts.push({
+          provider,
+          success: true,
+          duration_ms: durationMs,
+          key_ref: keyRef,
         });
         return {
           result,
           provider,
           errors: Object.keys(errors).length > 0 ? errors : undefined,
+          attempts,
+          secretsUsed,
         };
       } catch (error) {
+        const durationMs = Math.round(performance.now() - start);
         errors[provider] = (error as Error).message;
         this.usageLogger.write({
           timestamp: new Date().toISOString(),
@@ -203,25 +307,37 @@ export class FanoutEngine {
           capability: "extract",
           key: keyRef,
           success: false,
-          response_time_ms: Math.round(performance.now() - start),
+          response_time_ms: durationMs,
           error: (error as Error).message,
+        });
+        attempts.push({
+          provider,
+          success: false,
+          error: (error as Error).message,
+          duration_ms: durationMs,
+          key_ref: keyRef,
         });
       }
     }
 
-    throw new Error(`All providers failed: ${JSON.stringify(errors)}`);
+    throw new AllProvidersFailedError(errors, attempts, secretsUsed);
   }
 
   /**
    * Crawl a website.
+   * `secretsUsed` is in-memory only (history redaction); never persist it.
    */
   async crawl(url: string, options: FanoutOptions): Promise<{
     results: CrawlResult[];
     provider: string;
     errors?: Record<string, string>;
+    attempts: FanoutAttempt[];
+    secretsUsed: string[];
   }> {
     const providers = this.getProvidersForCapability("crawl", options);
     const errors: Record<string, string> = {};
+    const attempts: FanoutAttempt[] = [];
+    const secretsUsed: string[] = [];
 
     // Try providers in order (or single random provider)
     for (const provider of providers) {
@@ -232,6 +348,11 @@ export class FanoutEngine {
 
         if (!adapter.crawl) {
           errors[provider] = "Adapter does not support crawl";
+          attempts.push({
+            provider,
+            success: false,
+            error: errors[provider],
+          });
           continue;
         }
 
@@ -239,25 +360,37 @@ export class FanoutEngine {
         const keyResult = await this.keyPool.getNextKeyWithRefOrEmpty(provider);
         const apiKey = keyResult.value;
         keyRef = keyResult.ref;
+        if (apiKey) secretsUsed.push(apiKey);
         const results = await adapter.crawl(url, apiKey, {
           limit: options.limit,
           providerOptions: this.config.providers[provider]?.options,
         });
 
+        const durationMs = Math.round(performance.now() - start);
         this.usageLogger.write({
           timestamp: new Date().toISOString(),
           provider,
           capability: "crawl",
           key: keyRef,
           success: true,
-          response_time_ms: Math.round(performance.now() - start),
+          response_time_ms: durationMs,
+        });
+        attempts.push({
+          provider,
+          success: true,
+          duration_ms: durationMs,
+          key_ref: keyRef,
+          result_count: results.length,
         });
         return {
           results: results,
           provider,
           errors: Object.keys(errors).length > 0 ? errors : undefined,
+          attempts,
+          secretsUsed,
         };
       } catch (error) {
+        const durationMs = Math.round(performance.now() - start);
         errors[provider] = (error as Error).message;
         this.usageLogger.write({
           timestamp: new Date().toISOString(),
@@ -265,13 +398,20 @@ export class FanoutEngine {
           capability: "crawl",
           key: keyRef,
           success: false,
-          response_time_ms: Math.round(performance.now() - start),
+          response_time_ms: durationMs,
           error: (error as Error).message,
+        });
+        attempts.push({
+          provider,
+          success: false,
+          error: (error as Error).message,
+          duration_ms: durationMs,
+          key_ref: keyRef,
         });
       }
     }
 
-    throw new Error(`All providers failed: ${JSON.stringify(errors)}`);
+    throw new AllProvidersFailedError(errors, attempts, secretsUsed);
   }
 
   /**
@@ -283,42 +423,54 @@ export class FanoutEngine {
   ): Promise<ProviderResult> {
     const start = performance.now();
     let keyRef = "none";
+    let resolvedSecret: string | undefined;
     try {
       const keyResult = await this.keyPool.getNextKeyWithRefOrEmpty(provider);
       const apiKey = keyResult.value;
       keyRef = keyResult.ref;
+      if (apiKey) resolvedSecret = apiKey;
       const adapter = createAdapter(provider);
       const results = await adapter.search(query, apiKey, {
         providerOptions: this.config.providers[provider]?.options,
       });
 
+      const durationMs = Math.round(performance.now() - start);
       this.usageLogger.write({
         timestamp: new Date().toISOString(),
         provider,
         capability: "search",
         key: keyRef,
         success: true,
-        response_time_ms: Math.round(performance.now() - start),
+        response_time_ms: durationMs,
       });
 
       return {
         provider,
         results,
+        durationMs,
+        keyRef,
+        ...(resolvedSecret ? { secret: resolvedSecret } : {}),
       };
     } catch (error) {
+      const durationMs = Math.round(performance.now() - start);
       this.usageLogger.write({
         timestamp: new Date().toISOString(),
         provider,
         capability: "search",
         key: keyRef,
         success: false,
-        response_time_ms: Math.round(performance.now() - start),
+        response_time_ms: durationMs,
         error: (error as Error).message,
       });
       return {
         provider,
         results: [],
         error: (error as Error).message,
+        durationMs,
+        keyRef,
+        // The secret may have resolved before the call failed; the error
+        // string can echo it, so keep it available for history redaction.
+        ...(resolvedSecret ? { secret: resolvedSecret } : {}),
       };
     }
   }

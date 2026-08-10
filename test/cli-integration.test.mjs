@@ -22,7 +22,13 @@ function withTempDir(fn) {
 
 function writeConfig(dir, toml) {
   const p = path.join(dir, "config.toml");
-  fs.writeFileSync(p, toml, "utf8");
+  // Keep execution history hermetic: without an explicit [history] path the
+  // CLI would write to the real ~/.config/coldsearch/history.jsonl.
+  fs.writeFileSync(
+    p,
+    `${toml}\n\n[history]\npath = ${JSON.stringify(path.join(dir, "history.jsonl"))}\n`,
+    "utf8"
+  );
   return p;
 }
 

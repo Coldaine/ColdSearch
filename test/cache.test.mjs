@@ -26,7 +26,7 @@ test("set then get returns the stored value", () => {
   }
 });
 
-test("an entry past its TTL returns null (miss)", () => {
+test("an entry past its TTL is still readable; freshness is the caller's decision", () => {
   const dir = makeTempDir();
   try {
     const store = new CacheStore({ path: dir });
@@ -43,7 +43,13 @@ test("an entry past its TTL returns null (miss)", () => {
     };
     writeFileSync(join(capDir, `${key}.json`), JSON.stringify(expired), "utf8");
 
-    assert.equal(store.get("search", key), null);
+    // The store does not evict at read time: a per-invocation --freshness
+    // override may WIDEN the accepted window, which read-time eviction would
+    // make impossible. Callers enforce freshness via isFresh.
+    const got = store.getEntry("search", key);
+    assert.ok(got, "expired entries remain readable");
+    assert.deepEqual(got.payload, { stale: true });
+    assert.equal(store.stats().expired_entries, 1, "stats still reports it expired");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

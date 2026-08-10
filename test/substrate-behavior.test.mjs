@@ -92,6 +92,8 @@ test("substrate builds a dispatchable request for every wired profile", async ()
           searxng: { keyPool: { keys: [] }, options: { baseUrl: base } },
         },
         logging: { usage: { path: tmpUsagePath("matrix") } },
+        history: { path: tmpUsagePath("matrix-history") },
+        cache: { enabled: false },
       };
 
       for (const profile of wired) {
@@ -127,6 +129,8 @@ test("firecrawl.scrape with read-only actions is forwarded, not hard-excluded", 
         capabilities: {},
         providers: { firecrawl: { keyPool: { keys: ["env:FIRECRAWL_API_KEY"] } } },
         logging: { usage: { path: tmpUsagePath("scrape") } },
+        history: { path: tmpUsagePath("scrape-history") },
+        cache: { enabled: false },
       };
       const result = await executeToolCall(
         "firecrawl",
@@ -146,6 +150,7 @@ test("firecrawl.agent stays hard-excluded via the registry exclusion list", asyn
   const config = {
     capabilities: {},
     providers: { firecrawl: { keyPool: { keys: ["env:FIRECRAWL_API_KEY"] } } },
+    history: { path: tmpUsagePath("excluded-history") },
   };
   const result = await executeToolCall("firecrawl", "agent", {}, config);
   assert.equal(result.ok, false);
@@ -168,6 +173,8 @@ test("a tool whose name merely contains 'agent' is not blanket-excluded", async 
         capabilities: {},
         providers: { exa: { keyPool: { keys: ["env:EXA_API_KEY"] } } },
         logging: { usage: { path: tmpUsagePath("agentname") } },
+        history: { path: tmpUsagePath("agentname-history") },
+        cache: { enabled: false },
       };
       const result = await executeToolCall("exa", "agentsearch", { q: "hi" }, config);
       assert.notEqual(result.error?.code, "HARD_EXCLUDED");
@@ -192,6 +199,8 @@ test("jina embeddings sends Authorization when a key is configured", async () =>
         capabilities: {},
         providers: { jina: { keyPool: { keys: ["env:JINA_API_KEY"] } } },
         logging: { usage: { path: tmpUsagePath("jina-emb") } },
+        history: { path: tmpUsagePath("jina-emb-history") },
+        cache: { enabled: false },
       };
       const result = await executeToolCall(
         "jina",
@@ -216,6 +225,8 @@ test("jina reader works without any key configured (keyless)", async () => {
         capabilities: {},
         providers: { jina: { keyPool: { keys: [] } } },
         logging: { usage: { path: tmpUsagePath("jina-reader") } },
+        history: { path: tmpUsagePath("jina-reader-history") },
+        cache: { enabled: false },
       };
       const result = await executeToolCall("jina", "reader", { url: "https://example.com" }, config);
       assert.equal(result.ok, true, result.error?.message);
@@ -242,6 +253,8 @@ test("untrusted provider error bodies stay out of the error message and log", as
         capabilities: {},
         providers: { exa: { keyPool: { keys: ["env:EXA_API_KEY"] } } },
         logging: { usage: { path: usageLogPath } },
+        history: { path: tmpUsagePath("leak-history") },
+        cache: { enabled: false },
       };
       const result = await executeToolCall("exa", "search", { query: "hi" }, config);
 
@@ -274,6 +287,8 @@ test("CLI `tool call` exits 1 with the right error code on preflight/parse failu
       'keys = ["env:FIRECRAWL_API_KEY"]',
       "[logging.usage]",
       `path = "${path.join(dir, "usage.jsonl").replaceAll("\\", "/")}"`,
+      "[history]",
+      `path = "${path.join(dir, "history.jsonl").replaceAll("\\", "/")}"`,
     ].join("\n"),
     "utf8"
   );

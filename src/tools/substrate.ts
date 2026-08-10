@@ -2,6 +2,12 @@ import { fetchJson, fetchText, HTTPRequestError } from "../http.js";
 import { KeyPoolManager } from "../engine/keypool.js";
 import { getToolProfile, isHardExcluded } from "../registry/tool-profiles.js";
 import { UsageLogger } from "../logging/usage.js";
+import { CacheStore, type CacheEntryMeta } from "../cache/cache.js";
+import { cacheKey, parseDuration } from "../cache/key.js";
+import { HistoryStore } from "../history/store.js";
+import { redactForPersistence, redactSensitive } from "../history/redact.js";
+import { newExecutionId, type ExecutionRecord } from "../history/types.js";
+import { isReplaySafeTool } from "./replay.js";
 import type { Config } from "../types.js";
 import { performance } from "node:perf_hooks";
 
@@ -155,15 +161,18 @@ function buildToolSummary(provider: string, tool: string, raw: any): Record<stri
 }
 
 /**
- * Execute a generic provider tool call.
- * Handles key resolution, timeout/error logic, warn-but-forward, and usage logging.
+ * Execute a generic provider tool call against the upstream API.
+ * Handles key resolution, timeout/error logic, warn-but-forward, and usage
+ * logging. Returns the result plus any resolved credential values (in-memory
+ * only — used by the caller to redact persisted history/cache content, never
+ * persisted itself).
  */
-export async function executeToolCall(
+async function dispatchToolCall(
   provider: string,
   tool: string,
   params: Record<string, any>,
   config: Config
-): Promise<ToolCallResult> {
+): Promise<{ result: ToolCallResult; secrets: string[] }> {
   const startTime = performance.now();
   const warnings: string[] = [];
 
@@ -172,17 +181,20 @@ export async function executeToolCall(
   const isConfigured = config.providers[provider] !== undefined;
   if (!isConfigured && !knownProviders.includes(provider)) {
     return {
-      provider,
-      tool,
-      ok: false,
-      catalogued: false,
-      summary: null,
-      raw: null,
-      error: {
-        code: "UNKNOWN_PROVIDER",
-        message: `Provider '${provider}' is not configured or recognized.`,
+      result: {
+        provider,
+        tool,
+        ok: false,
+        catalogued: false,
+        summary: null,
+        raw: null,
+        error: {
+          code: "UNKNOWN_PROVIDER",
+          message: `Provider '${provider}' is not configured or recognized.`,
+        },
+        meta: { duration_ms: 0, safe_key_ref: null, warnings },
       },
-      meta: { duration_ms: 0, safe_key_ref: null, warnings },
+      secrets: [],
     };
   }
 
@@ -192,17 +204,20 @@ export async function executeToolCall(
 
   if (isHardExcluded(toolId)) {
     return {
-      provider,
-      tool,
-      ok: false,
-      catalogued: registryProfile !== undefined,
-      summary: null,
-      raw: null,
-      error: {
-        code: "HARD_EXCLUDED",
-        message: `Tool '${provider}.${tool}' is hard-excluded: it runs an autonomous agent, mutates remote state, or requires complex stateful setup.`,
+      result: {
+        provider,
+        tool,
+        ok: false,
+        catalogued: registryProfile !== undefined,
+        summary: null,
+        raw: null,
+        error: {
+          code: "HARD_EXCLUDED",
+          message: `Tool '${provider}.${tool}' is hard-excluded: it runs an autonomous agent, mutates remote state, or requires complex stateful setup.`,
+        },
+        meta: { duration_ms: 0, safe_key_ref: null, warnings },
       },
-      meta: { duration_ms: 0, safe_key_ref: null, warnings },
+      secrets: [],
     };
   }
 
@@ -232,17 +247,20 @@ export async function executeToolCall(
       keyResult = await keyPool.getNextKeyWithRef(provider);
     } catch (err: any) {
       return {
-        provider,
-        tool,
-        ok: false,
-        catalogued,
-        summary: null,
-        raw: null,
-        error: {
-          code: "KEY_RESOLUTION_FAILED",
-          message: `Key resolution failed: ${err.message}`,
+        result: {
+          provider,
+          tool,
+          ok: false,
+          catalogued,
+          summary: null,
+          raw: null,
+          error: {
+            code: "KEY_RESOLUTION_FAILED",
+            message: `Key resolution failed: ${err.message}`,
+          },
+          meta: { duration_ms: 0, safe_key_ref: null, warnings },
         },
-        meta: { duration_ms: 0, safe_key_ref: null, warnings },
+        secrets: [],
       };
     }
   }
@@ -369,17 +387,20 @@ export async function executeToolCall(
     });
 
     return {
-      provider,
-      tool,
-      ok: true,
-      catalogued,
-      summary: buildToolSummary(provider, tool, rawResponse),
-      raw: rawResponse,
-      meta: {
-        duration_ms: duration,
-        safe_key_ref: safeKeyRefStr || null,
-        warnings,
+      result: {
+        provider,
+        tool,
+        ok: true,
+        catalogued,
+        summary: buildToolSummary(provider, tool, rawResponse),
+        raw: rawResponse,
+        meta: {
+          duration_ms: duration,
+          safe_key_ref: safeKeyRefStr || null,
+          warnings,
+        },
       },
+      secrets: apiKey ? [apiKey] : [],
     };
   } catch (err: any) {
     const duration = Math.round(performance.now() - startTime);
@@ -418,21 +439,253 @@ export async function executeToolCall(
     }
 
     return {
-      provider,
-      tool,
-      ok: false,
-      catalogued,
-      summary: null,
-      raw: parsedRawError,
-      error: {
-        code: "PROVIDER_ERROR",
-        message: errorMsg,
+      result: {
+        provider,
+        tool,
+        ok: false,
+        catalogued,
+        summary: null,
+        raw: parsedRawError,
+        error: {
+          code: "PROVIDER_ERROR",
+          message: errorMsg,
+        },
+        meta: {
+          duration_ms: duration,
+          safe_key_ref: safeKeyRefStr || null,
+          warnings,
+        },
       },
-      meta: {
-        duration_ms: duration,
-        safe_key_ref: safeKeyRefStr || null,
-        warnings,
-      },
+      secrets: apiKey ? [apiKey] : [],
     };
   }
+}
+
+export interface ToolCallOptions {
+  /**
+   * Per-invocation `--freshness <duration>` override of `[cache].tool_ttl`.
+   * Honored only for explicitly replay-safe tools (see `./replay.js`);
+   * ignored (with a warning) for everything else.
+   */
+  freshness?: string;
+  /**
+   * Per-invocation `--no-cache` bypass: skip both the exact-replay lookup AND
+   * the cache store for this call. History recording still happens as a
+   * normal live execution.
+   */
+  noCache?: boolean;
+}
+
+/**
+ * Non-secret request-shaping provider config that must participate in an
+ * exact tool cache key. A provider's resolved endpoint (configured base URL or
+ * `<PROVIDER>_BASE_URL` env fallback) decides which instance answers the
+ * request; a cache entry sourced from one instance would replay stale results
+ * after the endpoint changes. Only endpoint-like option values are included —
+ * never credential material. Kept generic: any configured endpoint-like option
+ * shapes the key, not a searxng-specific carve-out.
+ */
+function endpointKeyMaterial(config: Config, provider: string): Record<string, string> {
+  const options = (config.providers[provider]?.options ?? {}) as Record<string, unknown>;
+  const material: Record<string, string> = {};
+  for (const [name, value] of Object.entries(options)) {
+    if (typeof value !== "string" || value === "") continue;
+    if (!/(base|endpoint|api|url|host|origin)/i.test(name)) continue;
+    // Endpoint-like NAME only: exclude anything that could be credential
+    // material (e.g. an api_key option) from the key material.
+    if (/(key|token|secret|credential|password|authorization)/i.test(name)) continue;
+    material[name] = value;
+  }
+  const envName = `${provider.toUpperCase()}_BASE_URL`;
+  const envValue = process.env[envName];
+  if (envValue) material[envName] = envValue;
+  return material;
+}
+
+function isFreshEntry(meta: CacheEntryMeta, ttlSeconds: number): boolean {
+  return Date.now() - meta.created_at <= ttlSeconds * 1000;
+}
+
+/** Shape guard so a malformed tool-cache file is a miss, never a replay crash. */
+const isToolCachePayload = (p: unknown): p is ToolCallResult =>
+  !!p &&
+  typeof p === "object" &&
+  typeof (p as ToolCallResult).ok === "boolean" &&
+  !!(p as ToolCallResult).meta &&
+  typeof (p as ToolCallResult).meta === "object" &&
+  Array.isArray((p as ToolCallResult).meta.warnings);
+
+/**
+ * Execute a provider tool call with the PR 2 history/replay behavior:
+ *
+ * - EVERY invocation that reaches the substrate is recorded as one top-level
+ *   history execution (live or cache replay), with credential values and
+ *   signed-URL tokens redacted before persistence.
+ * - Exact replay (read-through cache + `--freshness`) applies ONLY to tools
+ *   on the explicit replay-safe allowlist. All other tools are history-only
+ *   and always execute live.
+ * - A failed history write surfaces as a non-secret warning in
+ *   `meta.warnings` instead of silently dropping the record.
+ */
+export async function executeToolCall(
+  provider: string,
+  tool: string,
+  params: Record<string, any>,
+  config: Config,
+  options?: ToolCallOptions
+): Promise<ToolCallResult> {
+  const history = new HistoryStore({ path: config.history?.path });
+  const toolId = `${provider}.${tool}`;
+  const warnings: string[] = [];
+
+  const replaySafe = isReplaySafeTool(provider, tool);
+  if (options?.freshness && !replaySafe) {
+    warnings.push(
+      `--freshness ignored: '${toolId}' has no explicit replay-safe policy; it always executes live.`
+    );
+  }
+
+  const cacheEnabled = config.cache?.enabled !== false;
+  const noCache = options?.noCache === true;
+  const toolTtl = parseDuration(config.cache?.tool_ttl ?? "6h", 21600);
+  const effectiveTtl = options?.freshness
+    ? parseDuration(options.freshness, toolTtl)
+    : toolTtl;
+
+  // --no-cache bypasses both the lookup and the store for this invocation;
+  // history recording below is untouched.
+  const cache = replaySafe && cacheEnabled && !noCache
+    ? new CacheStore({ enabled: true, path: config.cache?.path })
+    : null;
+  const key = cache
+    ? cacheKey("tool", toolId, { ...params, ...endpointKeyMaterial(config, provider) })
+    : null;
+
+  const recordExecution = (record: ExecutionRecord): void => {
+    try {
+      history.append(record);
+    } catch (error) {
+      warnings.push(
+        `Execution ${record.id} was not recorded in history: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  };
+
+  // Exact replay path — explicitly replay-safe tools only.
+  if (cache && key) {
+    const entry = cache.getEntry("tool", key, isToolCachePayload);
+    if (entry && isFreshEntry(entry.meta, effectiveTtl)) {
+      recordExecution({
+        id: newExecutionId(),
+        timestamp: new Date().toISOString(),
+        command: "tool",
+        input: redactSensitive(toolId),
+        options: redactSensitive(params),
+        routing: { providers_attempted: [] },
+        source: "cache",
+        origin_execution_id: entry.meta.origin_execution_id,
+        cache: {
+          created_at: new Date(entry.meta.created_at).toISOString(),
+          age_seconds: Math.round((Date.now() - entry.meta.created_at) / 1000),
+          ttl_seconds: entry.meta.ttl_seconds,
+        },
+        attempts: [],
+        result: redactForPersistence(entry.payload.summary) ?? undefined,
+        result_count:
+          typeof entry.payload.summary?.results_count === "number"
+            ? entry.payload.summary.results_count
+            : undefined,
+        raw: redactForPersistence(entry.payload.raw) ?? undefined,
+        raw_available: entry.payload.raw !== null && entry.payload.raw !== undefined,
+        duration_ms: 0,
+        outcome: entry.payload.ok ? "success" : "failed",
+      });
+      return {
+        ...entry.payload,
+        meta: { ...entry.payload.meta, warnings: [...entry.payload.meta.warnings, ...warnings] },
+      };
+    }
+  }
+
+  // Live execution.
+  const executionId = newExecutionId();
+  const startTime = performance.now();
+  const { result, secrets } = await dispatchToolCall(provider, tool, params, config);
+
+  // A provider/tool attempt happened only once the request was actually
+  // dispatched; preflight failures (unknown provider, hard-excluded, key
+  // resolution) never reached the provider.
+  const attempted = result.ok || result.error?.code === "PROVIDER_ERROR";
+  const scrubbedRaw =
+    result.raw !== null && result.raw !== undefined
+      ? redactForPersistence(result.raw, secrets)
+      : null;
+
+  recordExecution({
+    id: executionId,
+    timestamp: new Date().toISOString(),
+    command: "tool",
+    input: redactSensitive(toolId, secrets),
+    options: redactSensitive(params, secrets),
+    routing: { providers_attempted: attempted ? [provider] : [] },
+    source: "live",
+    attempts: attempted
+      ? [
+          {
+            provider,
+            tool,
+            success: result.ok,
+            error: result.error ? redactSensitive(result.error.message, secrets) : undefined,
+            duration_ms: result.meta.duration_ms,
+            key_ref: result.meta.safe_key_ref ?? undefined,
+            result_count:
+              typeof result.summary?.results_count === "number"
+                ? result.summary.results_count
+                : undefined,
+          },
+        ]
+      : [],
+    result: redactForPersistence(result.summary, secrets) ?? undefined,
+    result_count:
+      typeof result.summary?.results_count === "number"
+        ? result.summary.results_count
+        : undefined,
+    raw: scrubbedRaw ?? undefined,
+    // The tool path preserves raw provider detail; if it cannot be scrubbed
+    // safely it is recorded as unavailable rather than persisted verbatim.
+    raw_available: result.raw !== null && result.raw !== undefined && scrubbedRaw !== null,
+    errors: result.error
+      ? { [toolId]: redactSensitive(result.error.message, secrets) }
+      : undefined,
+    duration_ms: Math.round(performance.now() - startTime),
+    outcome: result.ok ? "success" : "failed",
+  });
+
+  // Store eligible exact results for replay, scrubbed of resolved credential
+  // values — the replay cache must never become a local secret store either.
+  // The entry always records the CONFIG TTL: --freshness decides only whether
+  // THIS invocation may read an entry; it must never persist into the entry.
+  if (cache && key && result.ok) {
+    // An exact replay must be an exact equivalent of the live response. If
+    // scrubbing CHANGED the payload (e.g. a signed URL inside the response),
+    // a later replay would return a different value than the live call did —
+    // worse than no replay. Skip exact caching in that case; history above
+    // still records the scrubbed copy, and the next invocation executes live.
+    const scrubbed = redactSensitive(result, secrets);
+    if (JSON.stringify(scrubbed) === JSON.stringify(result)) {
+      cache.set("tool", key, scrubbed, toolTtl, {
+        originExecutionId: executionId,
+      });
+    }
+  }
+
+  if (warnings.length > 0) {
+    return {
+      ...result,
+      meta: { ...result.meta, warnings: [...result.meta.warnings, ...warnings] },
+    };
+  }
+  return result;
 }
