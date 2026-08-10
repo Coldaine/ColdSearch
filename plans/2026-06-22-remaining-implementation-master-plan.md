@@ -10,6 +10,29 @@
 
 ---
 
+## Live Status Refresh — 2026-07-16
+
+This plan preserves the original five-PR decomposition, but its unchecked historical
+steps are not the current implementation state.
+
+- Provider-tool discovery and networked `tool call` execution landed in
+  [PR #44](https://github.com/Coldaine/ColdSearch/pull/44) on 2026-06-26.
+- Quick-win corrections from that review landed in
+  [PR #45](https://github.com/Coldaine/ColdSearch/pull/45) on 2026-06-26.
+- North Star and architecture reconciliation landed in
+  [PR #46](https://github.com/Coldaine/ColdSearch/pull/46) on 2026-06-30.
+- [PR #43](https://github.com/Coldaine/ColdSearch/pull/43) is an open, plan-only
+  predecessor that is superseded by #44 and #45; it should not be merged as-is.
+
+**Current starting point:** resume with PR 2, searchable recent-result memory and
+cache hardening. PR 1 sections below are retained as historical design and review
+criteria, not as an instruction to reimplement merged work. Gate 0 remains the
+required evidence pattern for any new provider path, including a future Bright Data
+candidate, but it does not roll back the merged provider-tool surface.
+
+The dated reconciliation, including issue and Bright Data assessment, is in
+`docs/reviews/2026-07-16-project-review-and-bright-data.md`.
+
 ## Current Sequence
 
 The PR 1 implementation is merged on `main`; PRs 2–5 remain. PR 1's required provider-native parity evidence is not complete for every in-scope provider tool, so distinguish **implementation merged** from **live verification complete**.
@@ -30,7 +53,12 @@ This split is natural because each PR has a different owner surface:
 
 Do not add remote execution or cross-process key coordination to the remaining sequence. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Provider tools not currently wired remain visible through the registry; provider tools that are implemented but not live-verified must not be described as live-verified.
 
-## Current Baseline
+## Historical Baseline Recorded 2026-06-22
+
+> This baseline and its “missing” list record the plan's original June 22 starting
+> point. They are retained as design and review history and are not a claim about
+> current implementation state. Use the 2026-07-16 status refresh above and the
+> linked dated review for the live starting point.
 
 Functional now:
 
@@ -46,7 +74,7 @@ Functional now:
 - Provider-tool raw-payload preservation and safe usage/audit logging
 - Provider registry/docs drift checks
 
-Missing now:
+Missing as recorded on 2026-06-22:
 
 - Two normalized Gate 0 rows remain unresolved because Serper/SearXNG evidence is blocked by missing configuration rather than passed/waived
 - Provider-native parity evidence required by PR 1 is not committed for every in-scope provider tool
