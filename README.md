@@ -105,6 +105,11 @@ record; `id` is the stable resume key.
 Optional knobs mirror the CLI flags: `limit`, `providers`, `singleProvider`,
 `noCache`.
 
+Resume is keyed on `id` only: if you change an item's input, give it a new
+`id` or it will be skipped as already-succeeded. Batch items are configured
+per-record; the global `--limit`, `--providers`, `--no-cache`, and
+`--freshness` flags do not apply to `batch`.
+
 Output: one JSON object per processed record, appended in completion order.
 Successful records have `status:"success"` and `error:null`; failed records
 have `status:"error"` and `result:null`. Reruns resume by `id`: existing

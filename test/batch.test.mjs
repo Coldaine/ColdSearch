@@ -453,3 +453,99 @@ test("dry run reports the plan without executing or writing", async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Output redaction
+// ---------------------------------------------------------------------------
+
+test("redacts configured secrets from written output records", async () => {
+  const dir = makeDir();
+  try {
+    const secret = "the-batch-literal-secret-123456";
+    const configPath = path.join(dir, "config.toml");
+    fs.writeFileSync(
+      configPath,
+      [
+        "[providers.tavily]",
+        "[providers.tavily.keyPool]",
+        `keys = [${JSON.stringify(secret)}]`,
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    const executor = {
+      calls: [],
+      execute: async (record) => {
+        executor.calls.push(record.id);
+        const base = { id: record.id, capability: "search" };
+        if (record.id === "err") {
+          // A provider error string can echo the resolved key back.
+          return { ...base, status: "error", result: null, error: { message: `All providers failed: ${secret}` } };
+        }
+        // A tool success record can carry the key in raw provider output.
+        return {
+          ...base,
+          status: "success",
+          result: { raw: `echo ${secret} here`, api_key: secret },
+          error: null,
+        };
+      },
+    };
+
+    // Note: call runBatch directly (not runBatchIn) — runBatchIn rewrites
+    // config.toml with the empty minimal config, which would drop the key.
+    const inputPath = writeInput(dir, [
+      { id: "ok", capability: "search", query: "ok" },
+      { id: "err", capability: "search", query: "err" },
+    ]);
+    const summary = await runBatch({
+      input: inputPath,
+      output: path.join(dir, "out.jsonl"),
+      concurrency: 2,
+      retryErrors: false,
+      configPath,
+      executor,
+    });
+    assert.equal(summary.executed, 2);
+    assert.equal(summary.succeeded, 1);
+    assert.equal(summary.failed, 1);
+
+    const written = fs.readFileSync(path.join(dir, "out.jsonl"), "utf8");
+    assert.ok(!written.includes(secret), "secret value must not appear in the output file");
+    // Completion order is not input order under concurrency: index by id.
+    const records = outputRecords(path.join(dir, "out.jsonl"));
+    const ok = records.find((r) => r.id === "ok");
+    const err = records.find((r) => r.id === "err");
+    assert.equal(ok.result.api_key, "[REDACTED]");
+    assert.ok(!ok.result.raw.includes(secret), "secret scrubbed from result.raw");
+    assert.ok(!err.error.message.includes(secret), "secret scrubbed from error message");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Output preflight
+// ---------------------------------------------------------------------------
+
+test("unwritable output path rejects before the executor is called", async () => {
+  const dir = makeDir();
+  try {
+    // A path whose parent directory does not exist: readable-as-missing (so
+    // the resume index is empty) but not appendable — the preflight must
+    // reject before any provider work happens.
+    const outputPath = path.join(dir, "no-such-dir", "out.jsonl");
+    const executor = fakeExecutor();
+    await assert.rejects(
+      () =>
+        runBatchIn(dir, [{ id: "a", capability: "search", query: "aa" }], {
+          executor,
+          output: outputPath,
+        }),
+      /Cannot write batch output file/
+    );
+    assert.deepEqual(executor.calls, [], "preflight rejects before any executor call");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

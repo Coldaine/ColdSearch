@@ -1,6 +1,9 @@
+import fs from "node:fs";
 import { loadConfig } from "../config.js";
 import { LocalExecutionBackend } from "../execution/backend.js";
+import { KeyPoolManager } from "../engine/keypool.js";
 import type { FanoutOptions } from "../engine/fanout.js";
+import { redactSensitive } from "../history/redact.js";
 import { executeToolCall } from "../tools/substrate.js";
 import type { CapabilityName, Config } from "../types.js";
 import { appendBatchOutput, readBatchInput } from "./jsonl.js";
@@ -151,11 +154,9 @@ export class LocalBatchExecutor implements BatchExecutor {
       const result = await executeToolCall(provider, tool, record.input ?? {}, config, {
         noCache: record.noCache,
       });
-      for (const warning of result.meta.warnings) {
-        if (warning.includes("not recorded in history") || warning.includes("--freshness ignored")) {
-          console.error(`Warning: ${warning}`);
-        }
-      }
+      // Warning parity with the standalone `tool call` command: surface every
+      // substrate warning (failed history writes, ignored --freshness, ...).
+      this.warn(result.meta.warnings);
       if (result.ok) {
         return { ...base, status: "success", result, error: null };
       }
@@ -197,6 +198,20 @@ export class LocalBatchExecutor implements BatchExecutor {
 }
 
 /**
+ * Resolve every configured credential value (env:/doppler:/literal refs) for
+ * output redaction, mirroring how the backend/substrate resolve secrets before
+ * persisting history and cache content. Best-effort: an unresolvable ref (e.g.
+ * a missing env var) has no value to scrub and is skipped.
+ */
+async function resolveConfiguredSecrets(config: Config): Promise<string[]> {
+  const keyPool = new KeyPoolManager();
+  for (const [provider, providerConfig] of Object.entries(config.providers ?? {})) {
+    if (providerConfig?.keyPool) keyPool.register(provider, providerConfig.keyPool);
+  }
+  return keyPool.resolveAllSecrets();
+}
+
+/**
  * Run one batch: read + validate input, plan against the output file's prior
  * outcomes, then execute with bounded concurrency, appending each record to
  * the output JSONL as it completes. Conflicts are deterministic from the input
@@ -234,13 +249,30 @@ export async function runBatch(options: BatchRunOptions): Promise<BatchRunSummar
   }
 
   const config = loadConfig(options.configPath);
+
+  // Output preflight: verify the output path is appendable before any provider
+  // call burns budget. Creates the file when missing; throws on unwritable
+  // paths so the whole run fails fast instead of mid-batch.
+  try {
+    await fs.promises.appendFile(options.output, "");
+  } catch (error) {
+    throw new Error(
+      `Cannot write batch output file ${options.output}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  // Resolve every configured credential value once; every output record is
+  // scrubbed with them before persistence, like history and cache records.
+  const secrets = await resolveConfiguredSecrets(config);
   const executor = options.executor ?? new LocalBatchExecutor(options.configPath);
 
   // Conflict records are determined by the input alone: append them before
-  // execution starts, in plan order.
+  // execution starts, in plan order. Redacted like every other output record.
   for (const entry of plan) {
     if (entry.action === "conflict" && entry.conflict) {
-      await appendBatchOutput(options.output, entry.conflict);
+      await appendBatchOutput(options.output, redactSensitive(entry.conflict, secrets));
     }
   }
 
@@ -252,7 +284,7 @@ export async function runBatch(options: BatchRunOptions): Promise<BatchRunSummar
     options.concurrency,
     async (entry) => {
       const outputRecord = await safeExecute(executor, entry.record, config);
-      await appendBatchOutput(options.output, outputRecord);
+      await appendBatchOutput(options.output, redactSensitive(outputRecord, secrets));
       executed += 1;
       if (outputRecord.status === "success") succeeded += 1;
       else failed += 1;

@@ -227,6 +227,10 @@ Behavior:
 - The output file is append-only. Reruns resume by stable `id`: existing
   success records are skipped, existing error records are retried only with
   `--retry-errors`.
+- Resume is keyed on `id` only: if you change an item's input, give it a new
+  `id` or it will be skipped as already-succeeded.
+- Batch items are configured per-record; the global `--limit`, `--providers`,
+  `--no-cache`, and `--freshness` flags do not apply to `batch`.
 - Duplicate `id`s resolve to the first occurrence: identical later records are
   skipped; later records with different input emit a visible
   `DUPLICATE_ID_CONFLICT` error record that is never retried.

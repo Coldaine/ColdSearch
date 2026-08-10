@@ -49,12 +49,25 @@ function startMockServer() {
       res.end(JSON.stringify({ error: `unexpected ${req.method} ${url.pathname}` }));
     }
   });
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error("mock server failed to listen within 10s"));
+    }, 10_000);
+    server.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     server.listen(0, "127.0.0.1", () => {
+      clearTimeout(timer);
       const addr = server.address();
       resolve({ server, state, port: typeof addr === "object" && addr ? addr.port : 0 });
     });
   });
+}
+
+/** Close a mock server, awaiting the close callback so ports free deterministically. */
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
 }
 
 /**
@@ -129,26 +142,47 @@ function writeConfig(dir, { cacheEnabled = false } = {}) {
  * Async CLI spawn. The mock provider server lives in this test process, so the
  * parent event loop must stay free to accept the child's connections while the
  * CLI runs — `spawnSync` would block it and every provider call would hang.
+ * A timeout guard kills a wedged child and rejects; a spawn error rejects too.
  */
 function runCli(args, nodeOptions) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["dist/cli.js", ...args], {
       cwd: repoRoot,
       env: {
         ...process.env,
         EXA_API_KEY: "test-exa-key",
         TAVILY_API_KEY: "test-tavily-key",
-        ...(nodeOptions ? { NODE_OPTIONS: nodeOptions } : {}),
+        ...(nodeOptions
+          ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} ${nodeOptions}`.trim() }
+          : {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`runCli timed out after 30s; stderr: ${stderr}`));
+    }, 30_000);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
-    child.on("close", (code) => resolve({ status: code ?? 0, stdout, stderr }));
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ status: code ?? 0, stdout, stderr });
+    });
   });
 }
 
@@ -227,7 +261,7 @@ test("runs a mixed search/extract/crawl/provider-tool batch with mocked provider
       .map(JSON.parse);
     assert.equal(history.length, 4, "one history record per executed item");
   } finally {
-    server.close();
+    await closeServer(server);
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -286,7 +320,7 @@ test("resumes a partial output file", async () => {
     assert.equal(bRecords[0].status, "error");
     assert.equal(bRecords[1].status, "success");
   } finally {
-    server.close();
+    await closeServer(server);
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -327,7 +361,7 @@ test("verifies duplicate conflicting IDs produce an error", async () => {
     assert.equal(records.filter((r) => r.id === "e").length, 1, "identical duplicate produces no output");
     assert.equal(records.find((r) => r.id === "e").status, "success");
   } finally {
-    server.close();
+    await closeServer(server);
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -370,7 +404,7 @@ test("verifies batch search/extract/provider-tool records can use eligible cache
     assert.equal(records[1].result.result.content, "mock body content", "extract replayed from cache");
     assert.equal(records[2].result.ok, true, "tool replayed from cache");
   } finally {
-    server.close();
+    await closeServer(server);
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -401,7 +435,44 @@ test("batch --dry-run reports planned records without any provider calls", async
     assert.equal(state.requests, 0, "dry run must not call providers");
     assert.equal(fs.existsSync(outputPath), false, "dry run writes no output");
   } finally {
-    server.close();
+    await closeServer(server);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("failing item produces error record and exit code 1", async () => {
+  const dir = makeDir();
+  const { server, state, port } = await startMockServer();
+  const nodeOptions = preloadOptions(dir, port);
+  try {
+    // tavily.crawl POSTs to /crawl, which the mock does not serve -> 404 ->
+    // PROVIDER_ERROR -> backend-throw style failure surfaces as an error record.
+    const inputPath = writeInput(dir, [
+      { id: "failing-1", tool: "tavily.crawl", input: { url: "https://example.com" } },
+    ]);
+    const outputPath = path.join(dir, "out.jsonl");
+    const configPath = writeConfig(dir);
+
+    const result = await runCli(
+      ["batch", "--input", inputPath, "--output", outputPath, "--config", configPath, "--json"],
+      nodeOptions
+    );
+    assert.equal(result.status, 1, result.stderr);
+    const out = JSON.parse(result.stdout);
+    assert.equal(out.command, "batch");
+    assert.equal(out.executed, 1);
+    assert.equal(out.succeeded, 0);
+    assert.equal(out.failed, 1);
+    assert.equal(state.requests, 1, "the failing item still dispatched one provider call");
+
+    const records = outputRecords(outputPath);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].id, "failing-1");
+    assert.equal(records[0].status, "error");
+    assert.equal(records[0].result, null);
+    assert.match(records[0].error.message, /404/);
+  } finally {
+    await closeServer(server);
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

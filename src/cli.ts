@@ -257,9 +257,11 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
         if (!options.batch) {
           throw new Error("--concurrency is only valid with 'batch'");
         }
-        const concurrency = parseInt(args[i], 10);
-        if (isNaN(concurrency) || concurrency < 1) {
-          throw new Error(`Invalid concurrency: ${args[i]}`);
+        const concurrency = Number(args[i]);
+        if (!Number.isInteger(concurrency) || concurrency < 1) {
+          throw new Error(
+            `Invalid concurrency: ${args[i] ?? "(none)"}. Use a positive integer.`
+          );
         }
         options.batch.concurrency = concurrency;
         break;
