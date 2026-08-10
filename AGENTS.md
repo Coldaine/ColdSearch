@@ -15,4 +15,4 @@ Route by task:
 
 Crosses a goal, anti-goal, pillar, or invariant → stop and surface the conflict.
 
-Commands: `npm install && npm run build` · `npm test` · PRs to `main` only (`docs/contributing/ci.md` merge protocol)
+Commands: `npm install && npm run build` · `npm test` · PRs to `main` only (`docs/contributing/ci.md`)

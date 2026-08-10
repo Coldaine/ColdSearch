@@ -178,7 +178,7 @@ After implementation:
 - [ ] Commit the completed PR 3 scope.
 - [ ] Push the branch.
 - [ ] Open PR 3 only after validation passes.
-- [ ] Wait for CI, merge-gate, and advisory reviewers.
+- [ ] Wait for CI and advisory reviewers.
 - [ ] Read inline review threads, flat comments, bot comments, and check summaries.
 - [ ] Address valid findings.
 - [ ] Re-run the validation that proves the changed behavior after every follow-up commit. Include `npm test` for runtime changes and `npm run test:docs` only for docs/registry/validator changes.
