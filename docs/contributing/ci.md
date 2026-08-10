@@ -23,6 +23,10 @@ How ColdSearch is verified — and, more importantly, **how to read a check that
 
 `ci` is a **required** status, and `merge-gate` is being added as required (see [Merge protocol](#merge-protocol-agents)). The rest are advisory — but advisory is not the same as ignorable (see the rule below).
 
+The canary is health monitoring, not provider-effectiveness evaluation. Paid multi-provider comparisons and benchmark workloads must not be added to required CI or normal PR validation. Manual native-vs-ColdSearch conformance is limited to provider-facing changes; unrelated changes rely on offline tests and scheduled coverage.
+
+Canary success is not full provider coverage: the workflow deliberately omits keyed providers when their secrets are unavailable. Its provider/path summary should report `pass`, `fail`, blocked, and intentionally unrun rows explicitly so a green workflow cannot be read as “all supported integrations passed.” See `plans/2026-08-10-live-provider-conformance.md`.
+
 ## Reading a red check
 
 > A red check is a **question, not a fact**. You don't get to say *why* it failed until you've read the reason. "Probably X" about a check you haven't opened is a fabrication — the tell is the word "probably."

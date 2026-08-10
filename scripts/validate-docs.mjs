@@ -76,6 +76,7 @@ const planFiles = [
 for (const file of [
   "plans/2026-06-22-remaining-implementation-master-plan.md",
   "plans/2026-06-23-gate-0-provider-pass-through-proof.md",
+  "plans/2026-08-10-live-provider-conformance.md",
   ...planFiles,
   "plans/2026-06-22-epic-5-remote-agentic-execution.md",
   "docs/NORTH_STAR.md",
@@ -87,6 +88,7 @@ for (const file of [
 
 const master = await read("plans/2026-06-22-remaining-implementation-master-plan.md");
 const gate0 = await read("plans/2026-06-23-gate-0-provider-pass-through-proof.md");
+const liveConformance = await read("plans/2026-08-10-live-provider-conformance.md");
 const pr1 = await read("plans/2026-06-22-pr1-provider-tool-surface.md");
 for (const file of planFiles) {
   const basename = path.basename(file);
@@ -99,16 +101,32 @@ if (!master.includes("2026-06-23-gate-0-provider-pass-through-proof.md")) {
   fail("Master plan does not link the Gate 0 provider pass-through proof plan.");
 }
 
-if (!master.includes("Provider Pass-Through Proof")) {
-  fail("Master plan is missing Gate 0 provider pass-through proof.");
+if (!master.includes("2026-08-10-live-provider-conformance.md")) {
+  fail("Master plan does not link ongoing live provider conformance.");
 }
 
 if (!gate0.includes("provider-native") || !gate0.includes("ColdSearch")) {
-  fail("Gate 0 plan must require provider-native vs ColdSearch comparison.");
+  fail("Live conformance plan must describe provider-native vs ColdSearch comparison.");
 }
 
 if (!gate0.includes("Agent mode") || !gate0.includes("does not cover")) {
-  fail("Gate 0 plan must explicitly exclude agentic testing.");
+  fail("Live conformance plan must explicitly exclude agentic testing.");
+}
+
+for (const section of ["## Fixed Inputs", "## Comparison Rules", "## Evidence Output Shape", "## PR 1 Carry-Forward Rule"]) {
+  if (!gate0.includes(section)) {
+    fail(`Gate 0 baseline lost detailed conformance section: ${section}`);
+  }
+}
+
+for (const status of ["pass", "fail", "blocked_missing_secret", "blocked_provider", "not_run"]) {
+  if (!liveConformance.includes(`\`${status}\``)) {
+    fail(`Ongoing live conformance is missing coverage status ${status}.`);
+  }
+}
+
+if (!liveConformance.includes("Do not run the full live-provider matrix after unrelated changes")) {
+  fail("Ongoing live conformance must prohibit full-matrix runs after unrelated changes.");
 }
 
 if (!pr1.includes("Pass-Through Parity Requirement")) {
@@ -171,6 +189,29 @@ for (const file of docsAndPlans) {
 const architecture = await read("docs/architecture.md");
 if (!architecture.includes("| Remote / hybrid worker implementation | Deferred |")) {
   fail("architecture.md must mark remote/hybrid worker implementation as Deferred.");
+}
+
+const pr2 = await read("plans/2026-06-22-pr2-cache-a2.md");
+for (const command of ["history recent", "history search", "history show", "cache clear", "--freshness"]) {
+  if (!pr2.includes(command)) {
+    fail(`PR 2 research-memory plan is missing ${command}.`);
+  }
+}
+if (!pr2.includes("No validation command contacts or spends credits with a provider")) {
+  fail("PR 2 validation must explicitly remain offline.");
+}
+
+const packageJson = JSON.parse(await read("package.json"));
+for (const scriptName of ["test", "test:docs"]) {
+  const command = packageJson.scripts?.[scriptName] ?? "";
+  if (/provider-pass-through|smoke\.mjs/.test(command)) {
+    fail(`${scriptName} must not run live provider conformance or smoke checks.`);
+  }
+}
+
+const canaryWorkflow = await read(".github/workflows/canary.yml");
+if (/^\s{2}(push|pull_request):/m.test(canaryWorkflow)) {
+  fail("Live provider canary must not run on push or pull_request.");
 }
 
 const rootEntries = await readdir(root);

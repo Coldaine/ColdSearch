@@ -1,4 +1,4 @@
-# Cache And Observability
+# Search History, Cache, And Observability
 
 ## Current
 
@@ -6,16 +6,22 @@
 - Usage logging exists as JSONL.
 - Agent and provider paths have some structured errors and timings.
 
-## Target
+## Target: Research Memory
 
-ColdSearch cache should become searchable recent result memory, not just exact request replay.
+Search history/research memory is the user-facing concept. The exact-response cache is an implementation mechanism with separate freshness and replay policy; it must not define the exploration surface.
 
 The retrieval path should:
 
-1. Record search/extract/tool results with provider, tool, query or URL, timestamp, cache key, freshness metadata, and raw provider detail.
-2. Search recent cached items before paying providers again.
-3. Surface relevant prior items to the caller or agent with provenance.
-4. Only replay an exact prior response when policy says it is fresh enough and the implementation is simple.
+1. Give every meaningful search/extract/crawl/tool execution an execution ID.
+2. Record the original request, native parameters, routing decision, normalized output, raw provider detail, result URLs/artifact references, failures, provider/tool, timings, safe key reference, live/cache status, run ID, and agent step where applicable.
+3. Preserve fanout results by provider as well as the merged result so recurring and unique URLs remain inspectable.
+4. Support recent/search/show/compare exploration and surface related prior work with provenance.
+5. Permit intentional reuse while clearly displaying age and source.
+6. Only replay an exact prior response when cache policy says it is fresh enough and replay is explicit and simple.
+
+Provider-effectiveness analysis should operate on accumulated records and must not initiate paid provider calls as part of normal validation.
+
+Build this by extending the execution detail already preserved by normalized paths, usage logging, and the generic provider-tool substrate. Do not create a second observability system or require annotations/scoring.
 
 Observability should be rich enough to reconstruct how work flowed through the app:
 
@@ -23,7 +29,7 @@ Observability should be rich enough to reconstruct how work flowed through the a
 - provider/tool selected
 - routing strategy and candidate providers
 - key reference used, never the key value
-- cache lookup, search, hit, miss, and selected prior items
+- history retrieval, related-item selection, intentional reuse, and exact-cache hit/miss
 - request timings
 - retry attempts
 - normalized and provider-specific errors
