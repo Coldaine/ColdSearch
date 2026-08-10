@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -14,6 +15,7 @@ import { HistoryStore } from "../dist/history/store.js";
 import { searchHistory } from "../dist/history/search.js";
 import { redactSensitive, redactForPersistence, REDACTED } from "../dist/history/redact.js";
 import { CacheStore } from "../dist/cache/cache.js";
+import { cacheKey } from "../dist/cache/key.js";
 import { LocalExecutionBackend } from "../dist/execution/backend.js";
 import { installFetchMock, jsonResponse, textResponse } from "./adapters/_fetch-mock.mjs";
 
@@ -690,6 +692,63 @@ path = ${JSON.stringify(historyPath)}
     const record = readRecords(historyPath)[0];
     assert.equal(record.outcome, "failed");
     assert.ok(record.attempts[0].error.includes(REDACTED));
+  } finally {
+    restore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--freshness does not persist into the stored cache entry", async () => {
+  const { dir, cacheDir, configPath } = writeTempConfig();
+  const counter = { calls: 0 };
+  const restore = installFetchMock(makeSearchMock(counter));
+
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    const opts = { limit: 10, rerankStrategy: "rrf" };
+    await backend.search("ttl persistence", { ...opts, freshness: "1h" });
+
+    const searchDir = join(cacheDir, "search");
+    const file = join(searchDir, readdirSync(searchDir)[0]);
+    const stored = JSON.parse(readFileSync(file, "utf8"));
+    assert.equal(stored.ttl_seconds, 21600, "entry keeps the config TTL, not the override");
+
+    // Age the entry to 2h: a default read must still treat it as fresh (6h
+    // config TTL) — the earlier 1h override must not have shortened it.
+    stored.created_at = Date.now() - 2 * 3600 * 1000;
+    writeFileSync(file, JSON.stringify(stored), "utf8");
+    await backend.search("ttl persistence", opts);
+    assert.equal(counter.calls, 2, "override did not shorten the entry for later reads");
+  } finally {
+    restore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a malformed cache payload is a miss, not a crash", async () => {
+  const { dir, cacheDir, configPath } = writeTempConfig();
+  const counter = { calls: 0 };
+  const restore = installFetchMock(makeSearchMock(counter));
+
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    const opts = { limit: 10, rerankStrategy: "rrf" };
+    const key = cacheKey("search", "malformed payload", { limit: 10, rerankStrategy: "rrf" });
+    const searchDir = join(cacheDir, "search");
+    mkdirSync(searchDir, { recursive: true });
+    writeFileSync(
+      join(searchDir, `${key}.json`),
+      JSON.stringify({
+        key,
+        payload: { bogus: true },
+        created_at: Date.now(),
+        ttl_seconds: 21600,
+      })
+    );
+
+    const result = await backend.search("malformed payload", opts);
+    assert.equal(counter.calls, 2, "malformed entry falls back to live providers");
+    assert.equal(result.results.length, 2);
   } finally {
     restore();
     rmSync(dir, { recursive: true, force: true });

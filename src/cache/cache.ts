@@ -101,7 +101,8 @@ export class CacheStore {
    */
   getEntry<T = unknown>(
     capability: string,
-    key: string
+    key: string,
+    isValid?: (payload: unknown) => payload is T
   ): { payload: T; meta: CacheEntryMeta } | null {
     if (!this.enabled) return null;
 
@@ -115,7 +116,8 @@ export class CacheStore {
       if (
         !entry ||
         typeof entry.created_at !== "number" ||
-        typeof entry.ttl_seconds !== "number"
+        typeof entry.ttl_seconds !== "number" ||
+        (isValid && !isValid(entry.payload))
       ) {
         return null;
       }

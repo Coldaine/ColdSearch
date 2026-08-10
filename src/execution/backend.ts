@@ -46,6 +46,16 @@ type CrawlOutcome = {
   warnings?: string[];
 };
 
+/** Shape guards so a malformed cache file is a miss, never a replay crash. */
+const isSearchCachePayload = (p: unknown): p is SearchResult =>
+  !!p &&
+  typeof p === "object" &&
+  Array.isArray((p as SearchResult).results) &&
+  Array.isArray((p as SearchResult).providersUsed);
+
+const isExtractCachePayload = (p: unknown): p is ExtractOutcome =>
+  !!p && typeof p === "object" && "result" in (p as Record<string, unknown>);
+
 export interface ExecutionBackend {
   search(query: string, options: FanoutOptions): Promise<SearchResult>;
   extract(url: string, options: FanoutOptions): Promise<ExtractOutcome>;
@@ -183,7 +193,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
       : null;
 
     if (key) {
-      const entry = this.cache.getEntry<SearchResult>("search", key);
+      const entry = this.cache.getEntry("search", key, isSearchCachePayload);
       if (entry && this.isFresh(entry.meta, ttl)) {
         // Exact cache hit: a new execution with zero provider calls, linked
         // to the originating execution when provenance is known.
@@ -248,11 +258,14 @@ export class LocalExecutionBackend implements ExecutionBackend {
       if (key && result.results.length > 0) {
         // Only cache non-empty results; drop transient per-provider errors from
         // the stored payload so a hit doesn't replay stale error messages.
+        // The entry always records the CONFIG TTL: --freshness decides only
+        // whether THIS invocation may read an entry; it must never shorten or
+        // extend the stored entry for later invocations.
         this.cache.set(
           "search",
           key,
           { results: result.results, providersUsed: result.providersUsed, errors: {} },
-          ttl,
+          this.searchTtl,
           { originExecutionId: id }
         );
       }
@@ -277,7 +290,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
     const key = useCache ? cacheKey("extract", url, {}) : null;
 
     if (key) {
-      const entry = this.cache.getEntry<ExtractOutcome>("extract", key);
+      const entry = this.cache.getEntry("extract", key, isExtractCachePayload);
       if (entry && this.isFresh(entry.meta, ttl)) {
         this.recordExecution(
           {
@@ -341,7 +354,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
           "extract",
           key,
           { result: result.result, provider: result.provider },
-          ttl,
+          this.extractTtl,
           { originExecutionId: id }
         );
       }

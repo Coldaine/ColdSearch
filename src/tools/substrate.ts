@@ -474,6 +474,15 @@ function isFreshEntry(meta: CacheEntryMeta, ttlSeconds: number): boolean {
   return Date.now() - meta.created_at <= ttlSeconds * 1000;
 }
 
+/** Shape guard so a malformed tool-cache file is a miss, never a replay crash. */
+const isToolCachePayload = (p: unknown): p is ToolCallResult =>
+  !!p &&
+  typeof p === "object" &&
+  typeof (p as ToolCallResult).ok === "boolean" &&
+  !!(p as ToolCallResult).meta &&
+  typeof (p as ToolCallResult).meta === "object" &&
+  Array.isArray((p as ToolCallResult).meta.warnings);
+
 /**
  * Execute a provider tool call with the PR 2 history/replay behavior:
  *
@@ -528,7 +537,7 @@ export async function executeToolCall(
 
   // Exact replay path — explicitly replay-safe tools only.
   if (cache && key) {
-    const entry = cache.getEntry<ToolCallResult>("tool", key);
+    const entry = cache.getEntry("tool", key, isToolCachePayload);
     if (entry && isFreshEntry(entry.meta, effectiveTtl)) {
       recordExecution({
         id: newExecutionId(),
@@ -618,8 +627,10 @@ export async function executeToolCall(
 
   // Store eligible exact results for replay, scrubbed of resolved credential
   // values — the replay cache must never become a local secret store either.
+  // The entry always records the CONFIG TTL: --freshness decides only whether
+  // THIS invocation may read an entry; it must never persist into the entry.
   if (cache && key && result.ok) {
-    cache.set("tool", key, redactSensitive(result, secrets), effectiveTtl, {
+    cache.set("tool", key, redactSensitive(result, secrets), toolTtl, {
       originExecutionId: executionId,
     });
   }

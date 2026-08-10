@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { executeToolCall } from "../dist/tools/substrate.js";
+import { cacheKey } from "../dist/cache/key.js";
 import { listToolProfiles, getToolProfile } from "../dist/registry/tool-profiles.js";
 
 // Helper to write config and create temp directory
@@ -362,4 +363,51 @@ test("raw provider payload and usage logging is preserved in tool calls", async 
       });
     });
   });
+});
+
+test("a malformed tool cache entry is a miss, and --freshness never persists into it", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-replay-"));
+  const cacheDir = path.join(dir, "cache");
+  const historyPath = path.join(dir, "history.jsonl");
+  const config = {
+    capabilities: {},
+    providers: { exa: { keyPool: { keys: ["env:EXA_API_KEY"] } } },
+    cache: { enabled: true, path: cacheDir },
+    history: { path: historyPath },
+  };
+  process.env.EXA_API_KEY = "test-exa-key";
+
+  const { server, counts } = makeToolServer();
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const originalFetch = global.fetch;
+  global.fetch = (input, init) => {
+    const u = input.toString().replace("https://api.exa.ai", `http://127.0.0.1:${server.address().port}`);
+    return originalFetch(u, init);
+  };
+
+  try {
+    const params = { query: "strix halo", numResults: 3 };
+    const key = cacheKey("tool", "exa.search", params);
+
+    // Seed a well-formed entry shell with a malformed payload.
+    const toolDir = path.join(cacheDir, "tool");
+    fs.mkdirSync(toolDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(toolDir, `${key}.json`),
+      JSON.stringify({ key, payload: { bogus: true }, created_at: Date.now(), ttl_seconds: 21600 })
+    );
+
+    const result = await executeToolCall("exa", "search", params, config, { freshness: "1h" });
+    assert.equal(result.ok, true, "malformed entry is bypassed with a live call");
+    assert.equal(counts.search, 1, "provider was called live");
+
+    // The --freshness override must not persist into the stored entry.
+    const stored = JSON.parse(fs.readFileSync(path.join(toolDir, `${key}.json`), "utf8"));
+    assert.equal(stored.ttl_seconds, 21600, "stored entry keeps the config TTL, not the override");
+  } finally {
+    global.fetch = originalFetch;
+    delete process.env.EXA_API_KEY;
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
