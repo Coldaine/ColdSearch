@@ -8,34 +8,78 @@
 
 ## Target: Research Memory
 
-Search history/research memory is the user-facing concept. The exact-response cache is an implementation mechanism with separate freshness and replay policy; it must not define the exploration surface.
+Search history/research memory is the user-facing concept. The exact-response cache is a separate implementation mechanism with freshness and replay policy; it must not define the exploration surface.
 
-The retrieval path should:
+**Core invariant:** history records what ColdSearch did; cache determines whether a prior exact result may be replayed. History retrieval may inform a new search, but an approximate history match never suppresses a live provider call automatically.
 
-1. Give every meaningful search/extract/crawl/tool execution an execution ID.
-2. Record the original request, native parameters, routing decision, normalized output, raw provider detail, result URLs/artifact references, failures, provider/tool, timings, safe key reference, live/cache status, run ID, and agent step where applicable.
-3. Preserve fanout results by provider as well as the merged result so recurring and unique URLs remain inspectable.
-4. Support recent/search/show/compare exploration and surface related prior work with provenance.
-5. Permit intentional reuse while clearly displaying age and source.
-6. Only replay an exact prior response when cache policy says it is fresh enough and replay is explicit and simple.
+### Execution records
+
+Create one top-level history execution for each `search`, `extract`, `crawl`, or provider-tool invocation. A multi-provider fanout is one execution with provider attempts/results beneath it, not several unrelated history items.
+
+A useful execution record should preserve information ColdSearch actually has, including:
+
+- stable execution ID and timestamp
+- command/capability and original query or URL
+- relevant ColdSearch request options and provider-specific parameters where available
+- routing strategy, requested provider scope, and providers actually attempted
+- source: live execution or exact-cache replay
+- originating execution ID when an exact cached result is replayed
+- provider attempts with provider/tool, success/error, timing, and safe key reference where available
+- normalized provider results where available
+- raw provider detail only where the existing execution path already preserves it
+- final normalized/merged result
+- result URLs or artifact references
+- overall errors and duration
+- optional run/agent correlation fields when later trace work supplies them; PR 2 must not implement PR 5 run-ID behavior
+
+A cache hit is still a new history execution because ColdSearch was invoked again. Record that zero provider calls occurred and link the execution to the execution that produced the cached result.
+
+History must survive cache expiry and `cache clear`. Expiring or clearing replay material must not erase the record that an execution occurred.
+
+### History exploration
+
+The initial history surface is:
+
+- `coldsearch history recent` — list recent top-level executions newest first. Show enough metadata to recognize the work: execution ID, time, command, abbreviated input, providers, live/cache source, outcome, and result count. Use a bounded default and support `--limit` and `--json`.
+- `coldsearch history search <query>` — local-only retrieval over prior executions. Search the original request most strongly, then result titles and URLs/domains, then snippets/content and provider/tool metadata. Return matching executions with the fields/results that caused the match. Do not search arbitrary raw provider JSON by default and do not call providers.
+- `coldsearch history show <execution-id>` — reconstruct one execution: request, routing, cache provenance, provider attempts, final normalized output, and errors. If raw provider detail was not preserved on that execution path, say it is unavailable rather than reconstructing it.
+- `coldsearch history show <execution-id> --by-provider` — for stored fanout work, show each provider's pre-merge results/errors and the final merged/reranked output. Simple URL overlap/unique counts may be computed from stored data; do not rank providers or make new calls.
+
+`history compare` is a useful follow-on once these records exist, but it is not required to deliver the initial history implementation.
+
+When fanout already occurs for real work, preserve the provider result partitions before reranking so they remain inspectable later. Do not call extra providers solely to create comparison data.
+
+### Cache remains separate
+
+Keep exact replay and cache maintenance as cache concerns:
+
+- exact-key replay obeys freshness policy
+- `cache stats` describes replay-cache storage
+- `cache clear` clears replay-cache material only, not history
+- atomic writes and restrictive permissions apply where supported
+- crawl executions belong in history, while exact crawl replay remains disabled until a deliberate cache policy is chosen
+
+History results can be explicitly inspected and reused by a caller or agent, but PR 2 should not add automatic fuzzy reuse or silently turn related-history matches into cache hits.
 
 Provider-effectiveness analysis should operate on accumulated records and must not initiate paid provider calls as part of normal validation.
 
-Build this by extending the execution detail already preserved by normalized paths, usage logging, and the generic provider-tool substrate. Do not create a second observability system or require annotations/scoring.
+Build this by extending execution detail already available from normalized paths, usage logging, and the generic provider-tool substrate. Do not create a second observability system, require annotations/scoring, mandate embeddings/vector infrastructure, or refactor every adapter solely to capture raw HTTP payloads.
 
-Observability should be rich enough to reconstruct how work flowed through the app:
+## Observability
 
-- command/run ID
+Observability should be rich enough to reconstruct observable application behavior:
+
+- execution ID and optional run ID when one exists
 - provider/tool selected
-- routing strategy and candidate providers
+- routing strategy and candidate/attempted providers
 - key reference used, never the key value
-- history retrieval, related-item selection, intentional reuse, and exact-cache hit/miss
-- request timings
-- retry attempts
+- exact-cache lookup/hit/miss and origin execution for replay
+- history query and selected history records when history is explicitly queried
+- request timings and retry attempts
 - normalized and provider-specific errors
-- agent tool calls and intermediate decisions
+- observable agent tool calls/actions, not private model reasoning
 - output artifact paths
 
 ## Non-Secret Rule
 
-Logs and cache metadata must not persist secret values. Key usage is recorded by safe reference only.
+Logs, cache metadata, and history records must not persist secret values. Key usage is recorded by safe reference only.
