@@ -76,7 +76,10 @@ function inputsFromParams(params: Record<string, any>, config: Config): unknown[
   else if (params.input && typeof params.input === "object") inputs = [params.input];
   else throw new Error("Bright Data scraper tool requires input or inputs");
 
-  const maxInputs = configuredPositiveInteger(config, "maxStructuredInputsPerCall", 25);
+  // Bright Data documents a maximum of 20 URLs/items for synchronous scraper
+  // requests. Keep the same conservative default for structured calls; an
+  // operator can raise it deliberately for async jobs after considering spend.
+  const maxInputs = configuredPositiveInteger(config, "maxStructuredInputsPerCall", 20);
   if (inputs.length === 0) {
     throw new Error("Bright Data scraper tool requires at least one input record");
   }
@@ -87,6 +90,19 @@ function inputsFromParams(params: Record<string, any>, config: Config): unknown[
     );
   }
   return inputs;
+}
+
+function appendNativeQueryParams(
+  requestUrl: URL,
+  params: Record<string, any>,
+  excluded: ReadonlySet<string>
+): void {
+  for (const [key, value] of Object.entries(params)) {
+    if (excluded.has(key) || value === undefined || value === null) continue;
+    if (["string", "number", "boolean"].includes(typeof value)) {
+      requestUrl.searchParams.set(key, String(value));
+    }
+  }
 }
 
 /** Build an authenticated provider-native Bright Data HTTP request. */
@@ -187,6 +203,11 @@ export function buildBrightDataToolRequest(
     const requestUrl = new URL(`${baseUrl}/datasets/v3/scrape`);
     requestUrl.searchParams.set("dataset_id", datasetId);
     requestUrl.searchParams.set("format", format);
+    appendNativeQueryParams(
+      requestUrl,
+      params,
+      new Set(["dataset_id", "datasetId", "input", "inputs", "format"])
+    );
 
     return {
       url: requestUrl.toString(),
@@ -201,12 +222,11 @@ export function buildBrightDataToolRequest(
     const datasetId = requireValue(params.dataset_id ?? params.datasetId, "dataset_id");
     const requestUrl = new URL(`${baseUrl}/datasets/v3/trigger`);
     requestUrl.searchParams.set("dataset_id", datasetId);
-    if (typeof params.include_errors !== "undefined") {
-      requestUrl.searchParams.set("include_errors", String(params.include_errors));
-    }
-    if (typeof params.custom_output_fields === "string") {
-      requestUrl.searchParams.set("custom_output_fields", params.custom_output_fields);
-    }
+    appendNativeQueryParams(
+      requestUrl,
+      params,
+      new Set(["dataset_id", "datasetId", "input", "inputs"])
+    );
 
     return {
       url: requestUrl.toString(),
@@ -227,6 +247,11 @@ export function buildBrightDataToolRequest(
       `${baseUrl}/datasets/snapshots/${encodeURIComponent(snapshotId)}/download`
     );
     requestUrl.searchParams.set("format", format);
+    appendNativeQueryParams(
+      requestUrl,
+      params,
+      new Set(["snapshot_id", "snapshotId", "id", "format"])
+    );
 
     return {
       url: requestUrl.toString(),
