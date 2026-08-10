@@ -33,6 +33,10 @@ Concrete consequences you must respect:
   *structured-LLM* tool and is **not** the known-URL page operation. Brave Web
   Search is SERP-style search; Brave LLM Context is search **plus** extracted
   context chunks for LLM grounding — a different thing.
+- Some provider-native tools should be **direct-callable without becoming a
+  normalized category backer**. For example, a site-specific product scraper can
+  return useful structured records while being semantically wrong as generic
+  `extract`.
 - A single provider tool may back **more than one** category (Exa `/contents`
   backs `extract` and a synthesized `crawl`).
 - Backing a category may be **partial or lossy**. That is acceptable, but it
@@ -43,12 +47,13 @@ Concrete consequences you must respect:
 | Registry | File | Holds | Read by |
 |----------|------|-------|---------|
 | Provider registry | `src/providers.ts` | which providers exist, their `displayName`, and the coarse `CapabilityName[]` they implement | config, fanout, dry-run, drift tests |
-| Provider-tool profile registry | `src/registry/tool-profiles.ts` | one `ProviderToolProfile` per provider-native tool: native params, common-view mappings, feature predicates, execution/output semantics | `tool list`/`tool info`, requirement-aware routing, drift tests |
+| Provider-tool profile registry | `src/registry/tool-profiles.ts` plus focused provider-specific registry modules when useful | one `ProviderToolProfile` per provider-native tool: native params, common-view mappings, feature predicates, execution/output semantics | `tool list`/`tool info`, requirement-aware routing, drift tests |
 
 The provider registry answers *"what coarse buckets exist."* The profile
 registry answers everything the bucket name cannot: which native operation backs
 it, which parameters exist, which common options map safely, which are lossy or
-unsupported, and whether the tool is sync, async-job, or streaming.
+unsupported, whether the tool is sync/async-job/streaming, and whether the tool
+is normalized (`wired`) or provider-native-only (`direct`).
 
 Config is data: adding or wiring a provider for an existing user **never requires
 a code change or rebuild** once the adapter and profile ship.
@@ -73,8 +78,8 @@ export interface SearchAdapter {
   `ExtractResult`, `CrawlResult`). Always set `source` to your `name`. Scores
   normalize to `0–1`. **Never lose raw provider detail that matters** — the
   common view is a convenience layer (`docs/NORTH_STAR.md` G4).
-- Use the shared `fetchJson` helper from `src/http.js` (timeouts, User-Agent,
-  error labeling) instead of raw `fetch`.
+- Use the shared HTTP helpers from `src/http.js` (timeouts, User-Agent, error
+  labeling) instead of raw `fetch`.
 - Throw on failure. Fanout isolates per-provider errors, so a throw fails only
   your provider, not the whole request.
 
@@ -82,8 +87,8 @@ export interface SearchAdapter {
 
 Do not treat `search`, `extract`, and `crawl` as apples-to-apples provider
 features. Every provider-native tool exposed (or documented as exposable)
-through ColdSearch must have a `ProviderToolProfile` in
-`src/registry/tool-profiles.ts`. The profile is the durable record of:
+through ColdSearch must have a `ProviderToolProfile` in the shared registry.
+The profile is the durable record of:
 
 - the provider-native tool name and docs URL;
 - required and optional native parameters;
@@ -97,12 +102,17 @@ through ColdSearch must have a `ProviderToolProfile` in
 - `execution` (sync / async-job / streaming, polling, job id field);
 - `output` (raw always preserved, summary support, result envelope);
 - `schemaSource` and `schemaLastVerified`;
-- `status`: `wired`, `available` (upstream exists, profile documented, not wired
-  yet), or `deferred` (niche/high-risk).
+- `status`:
+  - `wired` — adapter-backed normalized category tool;
+  - `direct` — implemented through `tool call` but intentionally not a normalized category backer;
+  - `available` — upstream exists and is documented, but not implemented yet;
+  - `deferred` — intentionally not built (niche/high-risk).
 
 A provider tool may back a category only partially. Partial support is fine, but
 it must be explicit. **Do not add a tool to a category merely because the
-provider uses a familiar name.**
+provider uses a familiar name.** Likewise, do not mark a direct site-specific
+scraper `wired` just because it is executable; `wired` participates in
+normalized routing.
 
 `coldsearch tool info <provider.tool>` renders the live profile, so the registry
 — not stale prose — is the source of truth for native parameters.
@@ -128,18 +138,28 @@ acme: {
 },
 ```
 
-For **self-hosted** providers needing runtime options (e.g. a base URL), set
-`selfHosted: true` and list `optionKeys` (see `searxng`). Those options arrive
-via `options.providerOptions`.
+For providers needing runtime options (e.g. a base URL, zone, or product
+setting), list `optionKeys`. Those options arrive via `options.providerOptions`.
+Use `selfHosted: true` where that distinction matters operationally.
 
-### 3. Add a profile per tool — `src/registry/tool-profiles.ts`
+### 3. Add a profile per tool
 
 For each provider-native tool you expose, add a `ProviderToolProfile` keyed
-`"<provider>.<tool>"`. Use `wired` for tools an adapter method actually backs and
-`available` for documented-but-unwired tools (recording them prevents the
-registry from lying by omission). Every category in the provider registry must
-be backed by at least one `wired` tool whose `adapterMethod` is set — a drift
-test enforces this.
+`"<provider>.<tool>"`. Core profiles live in `src/registry/tool-profiles.ts`;
+a provider with a large native tool family may keep them in a focused module as
+long as it installs into the same runtime registry.
+
+Use:
+
+- `wired` for tools an adapter method actually backs;
+- `direct` for implemented provider-native tools intentionally outside normalized routing;
+- `available` for documented-but-unimplemented tools;
+- `deferred` for intentionally excluded tools.
+
+Every category in the provider registry must be backed by at least one `wired`
+tool whose `adapterMethod` is set — a drift test enforces this. `direct` tools do
+not satisfy that requirement and do not enter `resolveEligibleTools()` category
+routing.
 
 ### 4. Export it — `src/adapters/index.ts`
 
@@ -157,15 +177,15 @@ strategy = "round-robin"          # or "random"
 ```
 
 The engine resolves a key and passes the literal string to your adapter's
-`apiKey` argument — the adapter never touches config or env directly. **Keyless**
-providers (like `jina`) accept any string and ignore it. See
-`docs/KEY_MANAGEMENT.md` and `docs/CONFIGURATION.md`.
+`apiKey` argument. **Keyless** tools declare that fact in their tool profile.
+See `docs/KEY_MANAGEMENT.md` and `docs/CONFIGURATION.md`.
 
 ### 6. Usage logging
 
-Free. `FanoutEngine` wraps each adapter call and writes a `UsageLogEntry`
-(`src/logging/usage.ts`) with masked key references via `safeKeyRef()`. **Never
-log raw keys** from inside an adapter. Just return normalized results or throw.
+`FanoutEngine` and the provider-tool substrate write safe `UsageLogEntry`
+records with masked key references. **Never log raw keys** from inside an
+adapter or tool mapper. Paid providers may add safe product/zone/cost metadata
+where the provider actually exposes it, but do not fabricate cost estimates.
 
 ### 7. Document it — `docs/PROVIDERS.md`
 
@@ -178,12 +198,14 @@ parameter-level detail in the profile registry, not the prose.
 
 See `docs/contributing/testing.md`. In short:
 
-- Extend the shared `search-normalize` contract test if your adapter implements
-  `search`.
-- Add a **provider-specific** test only for non-obvious behavior (multi-step
-  crawl, URL building, pagination/polling). Avoid tests that merely replay a mock.
-- The profile drift test (`test/provider-tool-profiles.test.mjs`) automatically
-  enforces structural completeness once your profile is added.
+- Extend the shared normalization contract test if your adapter implements a
+  normalized capability.
+- Add **provider-specific** tests for non-obvious behavior (multi-step jobs, URL
+  building, provider-native query/body separation, pagination/polling).
+- Direct provider-native tools must prove request shape and raw preservation
+  offline; do not spend provider credits merely to make routine tests realistic.
+- The profile drift test automatically enforces structural completeness once
+  profiles are installed.
 
 ## Requirement-aware routing
 
@@ -194,14 +216,15 @@ the category". Use feature predicates rather than broad category membership:
 // Bad: ignores whether the tool can actually honor the request.
 eligible = providers.filter((p) => p.capabilities.includes("search"));
 
-// Good: filter on feature predicates from the profile registry.
+// Good: filter on feature predicates from normalized `wired` backers.
 eligible = resolveEligibleTools("extract", { requireFeatures: ["browserActions"] });
 ```
 
 `resolveCapabilityProviders(config, capability, { requireFeatures })` narrows the
-configured providers to those whose wired tool for that category sets every
-requested feature, and fails visibly when none qualify
-(`docs/NORTH_STAR.md` "Fail Visible").
+configured providers to those whose **wired** tool for that category sets every
+requested feature, and fails visibly when none qualify. Provider-native
+`direct` tools are invoked deliberately with `tool call`; they do not become
+category routing candidates.
 
 ## Verifying without burning API quota
 
@@ -210,19 +233,22 @@ npm run build
 coldsearch tool list --json                         # inspect the profile registry, no network
 coldsearch tool info <provider>.<tool> --json       # one profile, no network
 coldsearch search --dry-run "test query"            # providers + masked key refs, no network
-coldsearch --providers acme --single-provider "x"   # exercise just your adapter
 npm test            # build + full suite
 npm run test:docs   # Dual Matrix ↔ registry ↔ adapter drift only
 ```
 
+Run a real provider request only when the integration change itself requires a
+scoped live proof. Paid provider calls are not normal PR validation.
+
 ## Definition of done
 
-- [ ] `src/adapters/<name>.ts` implements `SearchAdapter`, normalizes to the shared schema, preserves raw detail
+- [ ] `src/adapters/<name>.ts` implements the normalized capabilities claimed in the provider registry
 - [ ] Registered in `src/providers.ts` and exported from `src/adapters/index.ts`
-- [ ] A `ProviderToolProfile` exists for every provider-native tool exposed (`wired`) or documented (`available`)
+- [ ] A `ProviderToolProfile` exists for every provider-native tool exposed (`wired` or `direct`) or documented (`available`/`deferred`)
 - [ ] Required/optional native parameters enumerated in each profile
 - [ ] Common-view mappings document safe, unsupported, and lossy mappings, with `semanticFit`
 - [ ] Feature predicates added so routing does not rely only on broad capability names
-- [ ] `tool info <provider.tool>` shows native parameters, schema source, docs URL, and common-view notes
+- [ ] `tool info <provider.tool>` shows native parameters, schema source, docs URL, status, and common-view notes
 - [ ] Row added to `docs/PROVIDERS.md` Dual Matrix + vendor-tool section
+- [ ] Paid-provider safety boundaries are explicit before default-pool or recurring use
 - [ ] `npm test` and `npm run test:docs` green
