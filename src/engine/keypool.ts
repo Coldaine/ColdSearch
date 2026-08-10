@@ -221,6 +221,32 @@ export class KeyPoolManager {
     return value;
   }
 
+  /**
+   * Resolve every configured credential value, deduplicated, for persistence
+   * redaction. Mirrors how a real invocation resolves keys (env:/doppler:/
+   * literal refs), so anything a provider response could echo back is known.
+   * Best-effort: an unresolvable ref (missing env var, unauthenticated
+   * Doppler) has no value to scrub and is skipped. In-memory only.
+   */
+  async resolveAllSecrets(): Promise<string[]> {
+    const secrets: string[] = [];
+    const seen = new Set<string>();
+    for (const [provider, pool] of this.pools) {
+      for (const ref of this.getEffectiveKeyRefs(provider, pool)) {
+        try {
+          const value = await this.resolveKeyRef(ref);
+          if (value && !seen.has(value)) {
+            seen.add(value);
+            secrets.push(value);
+          }
+        } catch {
+          // No value to scrub from an unresolvable ref; keep going.
+        }
+      }
+    }
+    return secrets;
+  }
+
   getProviders(): string[] {
     return Array.from(this.pools.keys());
   }

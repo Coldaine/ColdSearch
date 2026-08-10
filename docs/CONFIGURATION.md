@@ -199,6 +199,44 @@ Records are scrubbed before persistence: resolved credential values, signed-URL
 tokens, and credential fields are redacted from inputs, options, results, and
 provider-supplied raw detail.
 
+## Batch execution
+
+`coldsearch batch` runs `search` / `extract` / `crawl` / provider-tool records
+from a JSONL input file, writing one JSONL output line per processed record.
+
+```bash
+coldsearch batch --input queries.jsonl --output results.jsonl --concurrency 4
+coldsearch batch --input queries.jsonl --output results.jsonl --concurrency 4 --retry-errors
+coldsearch batch --input queries.jsonl --output results.jsonl --dry-run --json
+```
+
+Flags:
+
+- `--input FILE` — input JSONL of batch records (required)
+- `--output FILE` — output JSONL, appended in completion order (required)
+- `--concurrency N` — maximum concurrent items (default: `1`)
+- `--retry-errors` — retry records that errored in a prior run
+- `--dry-run` — report the planned records without executing or writing
+- `--json` — print the run summary as JSON on stdout
+
+Behavior:
+
+- Every item executes through the same backend / tool substrate as the
+  standalone command, so routing, cache, and execution-history behavior are
+  identical; batch does not create a second history model.
+- The output file is append-only. Reruns resume by stable `id`: existing
+  success records are skipped, existing error records are retried only with
+  `--retry-errors`.
+- Resume is keyed on `id` only: if you change an item's input, give it a new
+  `id` or it will be skipped as already-succeeded.
+- Batch items are configured per-record; the global `--limit`, `--providers`,
+  `--no-cache`, and `--freshness` flags do not apply to `batch`.
+- Duplicate `id`s resolve to the first occurrence: identical later records are
+  skipped; later records with different input emit a visible
+  `DUPLICATE_ID_CONFLICT` error record that is never retried.
+- A failing item never aborts unrelated items; the run completes and exits
+  non-zero when any executed item failed.
+
 ## Agent LLM
 
 Agent mode (`--agent`) uses an OpenAI-compatible chat completions endpoint:
