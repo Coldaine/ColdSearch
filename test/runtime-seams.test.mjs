@@ -92,3 +92,32 @@ test("legacy-config refusal is classified as config", () => {
   );
   assert.equal(category, "config");
 });
+
+test("LLM provider errors classify as config", () => {
+  const messages = [
+    "Invalid LLM provider: foo. Supported: openai, groq, openrouter, cerebras, xai (Anthropic API is not used).",
+    'Unsupported LLM provider "foo". Supported: openai, groq, openrouter, cerebras, xai.',
+    "Unknown LLM provider 'foo'",
+  ];
+  for (const message of messages) {
+    assert.equal(classifyError(new Error(message)).category, "config", message);
+  }
+});
+
+test("missing execution id classifies as config", () => {
+  const { category, message } = classifyError(
+    new Error("No execution found with id 'abc-123'.")
+  );
+  assert.equal(category, "config");
+  assert.equal(message, "No execution found with id 'abc-123'.");
+});
+
+test("filesystem error codes classify as config", () => {
+  for (const code of ["EPERM", "ENOTDIR", "EACCES", "ENOENT"]) {
+    const err = new Error(
+      `${code}: no such file or directory, open 'D:\\data\\usage.jsonl'`
+    );
+    err.code = code;
+    assert.equal(classifyError(err).category, "config", code);
+  }
+});

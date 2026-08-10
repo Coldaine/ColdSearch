@@ -12,6 +12,8 @@ const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_RETRIES = 1;
 const DEFAULT_RETRY_DELAY_MS = 500;
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+/** Node filesystem error codes: operator-environment (config/local state) issues. */
+const FS_ERROR_CODES = new Set(["EPERM", "ENOTDIR", "EACCES", "ENOENT"]);
 
 export class HTTPRequestError extends Error {
   status?: number;
@@ -213,6 +215,15 @@ export function classifyError(error: unknown): ClassifiedError {
   if (name === "TypeError" && /fetch|network|dns|lookup/i.test(message)) {
     return { category: "network", message };
   }
+  if (
+    error instanceof Error &&
+    typeof (error as NodeJS.ErrnoException).code === "string" &&
+    FS_ERROR_CODES.has((error as NodeJS.ErrnoException).code as string)
+  ) {
+    // Missing/unreadable/unwritable files and bad paths are operator-local
+    // (config/state) problems, not provider problems.
+    return { category: "config", message };
+  }
 
   // Specific pairings first: a capability the provider cannot back, and a tool
   // the provider/registry does not expose.
@@ -229,7 +240,7 @@ export function classifyError(error: unknown): ClassifiedError {
     return { category: "provider", message };
   }
   if (
-    /unknown option|unknown '.*' subcommand|invalid limit|invalid rerank|invalid freshness|requires a .* argument|is only valid with|no configuration found for capability|not configured|config file|legacy config found|failed to parse config/i.test(
+    /unknown option|unknown '.*' subcommand|invalid limit|invalid rerank|invalid freshness|requires a .* argument|is only valid with|no configuration found for capability|not configured|config file|legacy config found|failed to parse config|invalid llm provider|unknown llm provider|unsupported llm provider|no execution found with id/i.test(
       message
     )
   ) {

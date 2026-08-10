@@ -10,6 +10,7 @@ import { UsageLogger } from "./logging/usage.js";
 import { CacheStore } from "./cache/cache.js";
 import {
   HARD_EXCLUDED_TOOLS,
+  isHardExcluded,
   listToolProfiles,
 } from "./registry/tool-profiles.js";
 // Side-effect: install Bright Data tool profiles so provider-tool coverage is
@@ -171,9 +172,17 @@ export function buildToolCoverage(): {
     status: ToolWiringStatus;
     categories: string[];
   }> = [];
+  // Hard-excluded = explicit HARD_EXCLUDED_TOOLS entries (including any whose
+  // profile is not registered) plus profiles whose status is `deferred` —
+  // same semantics as isHardExcluded. Seeded with the set so ids without a
+  // profile still count.
+  const hardExcluded = new Set<string>(HARD_EXCLUDED_TOOLS);
 
   for (const profile of listToolProfiles()) {
     counts[profile.status] += 1;
+    if (isHardExcluded(`${profile.provider}.${profile.tool}`)) {
+      hardExcluded.add(`${profile.provider}.${profile.tool}`);
+    }
     const perProvider = (byProvider[profile.provider] ??= {
       wired: 0,
       direct: 0,
@@ -194,7 +203,7 @@ export function buildToolCoverage(): {
   return {
     ...counts,
     total: tools.length,
-    hard_excluded: HARD_EXCLUDED_TOOLS.size,
+    hard_excluded: hardExcluded.size,
     by_provider: byProvider,
     tools,
   };
@@ -349,7 +358,12 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
   for (const [provider, cfg] of Object.entries(provs)) {
     const refs = Array.isArray(cfg?.keyPool?.keys) ? cfg.keyPool.keys : [];
     if (refs.length === 0) {
-      if (!isKeylessProvider(provider)) {
+      // defaultSecretName is a runtime-consumed fallback (src/engine/keypool.ts),
+      // so an empty keys array is not an operator gap when it is set.
+      const hasDefaultSecret =
+        typeof cfg?.keyPool?.defaultSecretName === "string" &&
+        cfg.keyPool.defaultSecretName.trim().length > 0;
+      if (!isKeylessProvider(provider) && !hasDefaultSecret) {
         warnings.push({
           category: "credentials",
           message: `Provider '${provider}' has no key references configured`,
@@ -420,9 +434,10 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
     } else {
       const candidate = configuredUrl ?? envUrl;
       if (!candidate || !isHttpUrl(candidate)) {
+        // Never echo the configured value — it may be a pasted secret.
         errors.push({
           category: "config",
-          message: `Provider 'searxng' baseUrl '${candidate}' is not a valid http(s) URL`,
+          message: `Provider 'searxng' baseUrl is not a valid http(s) URL`,
         });
       }
     }
