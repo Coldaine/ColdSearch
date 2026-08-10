@@ -58,11 +58,19 @@ test("Bright Data normalized backers are wired while structured scrapers stay di
   assert.equal(getToolProfile("brightdata.serp")?.adapterMethod, "search");
   assert.equal(getToolProfile("brightdata.unlocker")?.status, "wired");
   assert.equal(getToolProfile("brightdata.unlocker")?.adapterMethod, "extract");
-
-  const scrape = getToolProfile("brightdata.scrape");
-  assert.ok(scrape, "structured Bright Data scraper should be catalogued");
-  assert.equal(scrape.status, "direct");
-  assert.deepEqual(scrape.categories, []);
+  for (const id of [
+    "brightdata.datasetsList",
+    "brightdata.datasetMetadata",
+    "brightdata.scrape",
+    "brightdata.trigger",
+    "brightdata.progress",
+    "brightdata.snapshotMetadata",
+    "brightdata.cancel",
+    "brightdata.snapshot",
+  ]) {
+    assert.equal(getToolProfile(id)?.status, "direct", `${id} should be direct-callable`);
+    assert.deepEqual(getToolProfile(id)?.categories, []);
+  }
 });
 
 test("SERP adapter sends configured zone and normalizes organic results", async () => {
@@ -181,22 +189,46 @@ test("async trigger preserves snapshot lifecycle and native query controls", () 
   assert.equal(url.searchParams.get("type"), "discover_new");
   assert.deepEqual(JSON.parse(request.body), [{ keyword: "gpu" }]);
 
-  assert.equal(
-    buildBrightDataSummary("trigger", { snapshot_id: "s_123" }).snapshot_id,
-    "s_123"
-  );
+  assert.equal(buildBrightDataSummary("trigger", { snapshot_id: "s_123" }).snapshot_id, "s_123");
 });
 
-test("snapshot IDs are not confused with dataset IDs", () => {
-  const request = buildBrightDataToolRequest(
-    "snapshot",
-    { snapshot_id: "s_123", format: "json" },
+test("progress, metadata, cancellation, and download use snapshot IDs correctly", () => {
+  const progress = buildBrightDataToolRequest("progress", { snapshot_id: "s_123" }, "secret", config());
+  assert.equal(new URL(progress.url).pathname, "/datasets/v3/progress/s_123");
+
+  const metadata = buildBrightDataToolRequest(
+    "snapshotMetadata",
+    { snapshot_id: "s_123" },
     "secret",
     config()
   );
-  const url = new URL(request.url);
-  assert.equal(url.pathname, "/datasets/snapshots/s_123/download");
-  assert.equal(url.searchParams.get("format"), "json");
+  assert.equal(new URL(metadata.url).pathname, "/datasets/snapshots/s_123");
+  assert.equal(
+    buildBrightDataSummary("snapshotMetadata", {
+      id: "s_123",
+      dataset_id: "gd_product",
+      status: "ready",
+      cost: 1.25,
+      dataset_size: 12,
+    }).cost_usd,
+    1.25
+  );
+
+  const cancel = buildBrightDataToolRequest("cancel", { snapshot_id: "s_123" }, "secret", config());
+  assert.equal(cancel.method, "POST");
+  assert.equal(new URL(cancel.url).pathname, "/datasets/v3/snapshot/s_123/cancel");
+
+  const download = buildBrightDataToolRequest(
+    "snapshot",
+    { snapshot_id: "s_123", format: "json", part: 2, batch_size: 1000 },
+    "secret",
+    config()
+  );
+  const downloadUrl = new URL(download.url);
+  assert.equal(downloadUrl.pathname, "/datasets/v3/snapshot/s_123");
+  assert.equal(downloadUrl.searchParams.get("format"), "json");
+  assert.equal(downloadUrl.searchParams.get("part"), "2");
+  assert.equal(downloadUrl.searchParams.get("batch_size"), "1000");
 });
 
 test("structured request input count is capped before any paid request", () => {
