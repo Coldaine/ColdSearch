@@ -1,5 +1,8 @@
-import { fetchJson, fetchText, HTTPRequestError } from "../http.js";
+import { fetchJson, fetchText, HTTPRequestError, type RequestPolicy } from "../http.js";
 import { KeyPoolManager } from "../engine/keypool.js";
+// Side-effect: register Bright Data tool profiles so the dispatch path sees
+// them as catalogued without importing src/providers.ts.
+import "../registry/brightdata-tool-profiles.js";
 import { getToolProfile, isHardExcluded } from "../registry/tool-profiles.js";
 import { UsageLogger } from "../logging/usage.js";
 import { CacheStore, type CacheEntryMeta } from "../cache/cache.js";
@@ -10,6 +13,10 @@ import { newExecutionId, type ExecutionRecord } from "../history/types.js";
 import { isReplaySafeTool } from "./replay.js";
 import type { Config } from "../types.js";
 import { performance } from "node:perf_hooks";
+import {
+  buildBrightDataSummary,
+  buildBrightDataToolRequest,
+} from "./brightdata.js";
 
 export interface ToolCallResult {
   provider: string;
@@ -36,6 +43,10 @@ function buildToolSummary(provider: string, tool: string, raw: any): Record<stri
   if (!raw) return null;
 
   try {
+    if (provider === "brightdata") {
+      return buildBrightDataSummary(tool, raw);
+    }
+
     if (provider === "exa") {
       if (tool === "search" || tool === "findSimilar") {
         return {
@@ -161,6 +172,31 @@ function buildToolSummary(provider: string, tool: string, raw: any): Record<stri
 }
 
 /**
+ * Bright Data usage-log enrichment: masked zone suffix (never the full zone —
+ * zone names embed the customer ID), provider-reported cost, and result/record
+ * counts where the tool summary extracts them. Fields are emitted only when
+ * present, so non-Bright Data providers keep writing their existing shape.
+ */
+function brightDataUsageDetails(
+  summary: Record<string, any> | null,
+  maskedZone: string | undefined
+): Record<string, any> {
+  const details: Record<string, any> = {};
+  if (maskedZone) details.zone = maskedZone;
+  if (summary && typeof summary.cost_usd === "number") {
+    details.cost_usd = summary.cost_usd;
+  }
+  const count =
+    summary && typeof summary.records_count === "number"
+      ? summary.records_count
+      : summary && typeof summary.results_count === "number"
+        ? summary.results_count
+        : undefined;
+  if (typeof count === "number") details.result_count = count;
+  return details;
+}
+
+/**
  * Execute a generic provider tool call against the upstream API.
  * Handles key resolution, timeout/error logic, warn-but-forward, and usage
  * logging. Returns the result plus any resolved credential values (in-memory
@@ -177,7 +213,16 @@ async function dispatchToolCall(
   const warnings: string[] = [];
 
   // 1. Validate known/configured provider
-  const knownProviders = ["tavily", "brave", "exa", "serper", "jina", "firecrawl", "searxng"];
+  const knownProviders = [
+    "tavily",
+    "brave",
+    "brightdata",
+    "exa",
+    "serper",
+    "jina",
+    "firecrawl",
+    "searxng",
+  ];
   const isConfigured = config.providers[provider] !== undefined;
   if (!isConfigured && !knownProviders.includes(provider)) {
     return {
@@ -268,12 +313,39 @@ async function dispatchToolCall(
   const apiKey = keyResult.value;
   const safeKeyRefStr = keyResult.ref;
 
+  // Bright Data is explicit-config-only: never dispatch a real request with an
+  // empty bearer token. An unconfigured brightdata block has no key pool to
+  // resolve, so fail before any HTTP request (mirrors the preflight failures
+  // above; no provider attempt is recorded).
+  if (provider === "brightdata" && !apiKey) {
+    return {
+      result: {
+        provider,
+        tool,
+        ok: false,
+        catalogued,
+        summary: null,
+        raw: null,
+        error: {
+          code: "PROVIDER_NOT_CONFIGURED",
+          message:
+            "provider brightdata is not configured; add [providers.brightdata] with a keyPool " +
+            '(e.g. keys = ["doppler:BRIGHTDATA_API_KEY"])',
+        },
+        meta: { duration_ms: 0, safe_key_ref: null, warnings },
+      },
+      secrets: [],
+    };
+  }
+
   // 5. Fire HTTP Request depending on mapper
   let url = "";
   let method = "POST";
   let headers: Record<string, string> = { "Content-Type": "application/json" };
   let body: string | null = null;
   let useTextParser = false;
+  let requestTimeoutMs: number | undefined;
+  let requestMaskedZone: string | undefined;
 
   // Construct Provider Call
   try {
@@ -315,6 +387,15 @@ async function dispatchToolCall(
         urlObj.searchParams.set(k, String(v));
       }
       url = urlObj.toString();
+    } else if (provider === "brightdata") {
+      const request = buildBrightDataToolRequest(tool, params, apiKey, config);
+      url = request.url;
+      method = request.method;
+      headers = request.headers;
+      body = request.body;
+      useTextParser = request.useTextParser;
+      requestTimeoutMs = request.timeoutMs;
+      requestMaskedZone = request.maskedZone;
     } else if (provider === "serper") {
       url = `https://google.serper.dev/${tool}`;
       headers["X-API-KEY"] = apiKey;
@@ -365,14 +446,28 @@ async function dispatchToolCall(
     }
 
     // Fire HTTP call
+    const requestPolicy: RequestPolicy = {
+      label: `${provider}.${tool}`,
+      ...(requestTimeoutMs ? { timeoutMs: requestTimeoutMs } : {}),
+    };
     let rawResponse: any;
     if (useTextParser) {
-      rawResponse = await fetchText(url, { method, headers }, { label: `${provider}.${tool}` });
+      rawResponse = await fetchText(
+        url,
+        { method, headers, ...(body ? { body } : {}) },
+        requestPolicy
+      );
     } else {
-      rawResponse = await fetchJson(url, { method, headers, ...(body ? { body } : {}) }, { label: `${provider}.${tool}` });
+      rawResponse = await fetchJson(
+        url,
+        { method, headers, ...(body ? { body } : {}) },
+        requestPolicy
+      );
     }
 
     const duration = Math.round(performance.now() - startTime);
+
+    const summary = buildToolSummary(provider, tool, rawResponse);
 
     // Logging
     const logger = new UsageLogger({ path: config.logging?.usage?.path });
@@ -384,6 +479,7 @@ async function dispatchToolCall(
       key: safeKeyRefStr || "keyless",
       success: true,
       response_time_ms: duration,
+      ...brightDataUsageDetails(summary, requestMaskedZone),
     });
 
     return {
@@ -392,7 +488,7 @@ async function dispatchToolCall(
         tool,
         ok: true,
         catalogued,
-        summary: buildToolSummary(provider, tool, rawResponse),
+        summary,
         raw: rawResponse,
         meta: {
           duration_ms: duration,
@@ -427,6 +523,7 @@ async function dispatchToolCall(
       success: false,
       response_time_ms: duration,
       error: errorMsg,
+      ...brightDataUsageDetails(null, requestMaskedZone),
     });
 
     let parsedRawError: any = null;

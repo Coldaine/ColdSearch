@@ -1,13 +1,19 @@
 import { BraveAdapter } from "./adapters/brave.js";
+import { BrightDataAdapter } from "./adapters/brightdata.js";
 import { ExaAdapter } from "./adapters/exa.js";
 import { FirecrawlAdapter } from "./adapters/firecrawl.js";
 import { JinaAdapter } from "./adapters/jina.js";
 import { SearXNGAdapter } from "./adapters/searxng.js";
 import { SerperAdapter } from "./adapters/serper.js";
 import { TavilyAdapter } from "./adapters/tavily.js";
+import { installBrightDataToolProfiles } from "./registry/brightdata-tool-profiles.js";
 import { resolveEligibleTools } from "./registry/tool-profiles.js";
 import type { CapabilityName, Config } from "./types.js";
 import type { SearchAdapter } from "./types.js";
+
+// Keep the existing provider-tool registry as the shared runtime object while
+// Bright Data profiles live in a smaller provider-specific module.
+installBrightDataToolProfiles();
 
 export interface ProviderMetadata {
   displayName: string;
@@ -27,6 +33,20 @@ export const providerRegistry = {
     displayName: "Brave",
     capabilities: ["search"],
     createAdapter: () => new BraveAdapter(),
+  },
+  brightdata: {
+    displayName: "Bright Data",
+    capabilities: ["search", "extract"],
+    optionKeys: [
+      "serpZone",
+      "unlockerZone",
+      "searchEngine",
+      "searchCountry",
+      "maxStructuredInputsPerCall",
+      "unlockerTimeoutMs",
+      "maxDiscoveryResultsPerInput",
+    ],
+    createAdapter: () => new BrightDataAdapter(),
   },
   exa: {
     displayName: "Exa",

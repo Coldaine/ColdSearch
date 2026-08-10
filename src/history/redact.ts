@@ -29,9 +29,10 @@ const SENSITIVE_FIELD_PATTERN =
  * Exact field names that are credential material on their own — e.g. a
  * `token` or `key` field inside `tool call --json-input`. Kept separate from
  * the substring pattern above so ordinary fields like `monkey` or
- * `tokenizer` are not mangled.
+ * `tokenizer` are not mangled. `zone` is included because Bright Data zone
+ * names embed the customer ID (e.g. `brd-customer_<id>-zone-serp`).
  */
-const SENSITIVE_EXACT_FIELD_PATTERN = /^(token|key|jwt|sig|session(id)?)$/i;
+const SENSITIVE_EXACT_FIELD_PATTERN = /^(token|key|jwt|sig|session(id)?|zone)$/i;
 
 /**
  * URL query parameters whose values are signature/credential material.

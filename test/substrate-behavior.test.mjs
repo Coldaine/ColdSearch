@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { executeToolCall } from "../dist/tools/substrate.js";
-import { listToolProfiles } from "../dist/registry/tool-profiles.js";
+import { getToolProfile, listToolProfiles } from "../dist/registry/tool-profiles.js";
 
 // Provider base hosts the substrate dispatches to. Tests rewrite these to a
 // local mock so no real network call is made.
@@ -19,6 +19,7 @@ const PROVIDER_HOSTS = [
   "https://google.serper.dev",
   "https://api.jina.ai",
   "https://r.jina.ai",
+  "https://api.brightdata.com",
 ];
 
 /**
@@ -70,6 +71,7 @@ test("substrate builds a dispatchable request for every wired profile", async ()
     "BRAVE_API_KEY",
     "SERPER_API_KEY",
     "JINA_API_KEY",
+    "BRIGHTDATA_API_KEY",
   ]) {
     process.env[k] = `test-${k}`;
   }
@@ -90,6 +92,13 @@ test("substrate builds a dispatchable request for every wired profile", async ()
           serper: { keyPool: { keys: ["env:SERPER_API_KEY"] } },
           jina: { keyPool: { keys: ["env:JINA_API_KEY"] } },
           searxng: { keyPool: { keys: [] }, options: { baseUrl: base } },
+          brightdata: {
+            keyPool: { keys: ["env:BRIGHTDATA_API_KEY"] },
+            options: {
+              serpZone: "brd-customer_abc123-zone-serp",
+              unlockerZone: "brd-customer_abc123-zone-unlocker",
+            },
+          },
         },
         logging: { usage: { path: tmpUsagePath("matrix") } },
         history: { path: tmpUsagePath("matrix-history") },
@@ -111,6 +120,16 @@ test("substrate builds a dispatchable request for every wired profile", async ()
       }
     }
   );
+});
+
+test("brightdata profiles install via the substrate import alone (no providers.ts)", () => {
+  // This file imports ../dist/tools/substrate.js (which side-effect imports the
+  // brightdata profile registry) and never ../dist/providers.js — so this proves
+  // the dispatch path sees Bright Data tools as catalogued on its own.
+  assert.ok(getToolProfile("brightdata.serp"), "brightdata.serp must be catalogued");
+  assert.ok(getToolProfile("brightdata.unlocker"), "brightdata.unlocker must be catalogued");
+  assert.ok(getToolProfile("brightdata.scrape"), "brightdata.scrape must be catalogued");
+  assert.ok(getToolProfile("brightdata.discover"), "brightdata.discover must be catalogued");
 });
 
 test("firecrawl.scrape with read-only actions is forwarded, not hard-excluded", async () => {
