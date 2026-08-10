@@ -397,7 +397,11 @@ async function dispatchToolCall(
     };
     let rawResponse: any;
     if (useTextParser) {
-      rawResponse = await fetchText(url, { method, headers }, requestPolicy);
+      rawResponse = await fetchText(
+        url,
+        { method, headers, ...(body ? { body } : {}) },
+        requestPolicy
+      );
     } else {
       rawResponse = await fetchJson(
         url,

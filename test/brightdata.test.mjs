@@ -130,6 +130,21 @@ test("Unlocker adapter requests Markdown and returns extracted text", async () =
   assert.equal(requestBody.data_format, "markdown");
 });
 
+test("unlocker adapter rejects empty extracted content as a failed attempt", async () => {
+  const adapter = new BrightDataAdapter();
+  await withMockFetch(async () => new Response("   \n  ", {
+    status: 200,
+    headers: { "content-type": "text/plain" },
+  }), async () => {
+    await assert.rejects(
+      () => adapter.extract("https://example.com/page", "secret", {
+        providerOptions: config().providers.brightdata.options,
+      }),
+      /No content extracted/
+    );
+  });
+});
+
 test("adapter fails closed without configured zones", async () => {
   const adapter = new BrightDataAdapter();
   await assert.rejects(
@@ -411,6 +426,44 @@ test("direct dataset discovery is catalogued and logs only safe key reference", 
     const log = fs.readFileSync(usagePath, "utf8");
     assert.match(log, /env:BRIGHTDATA_TEST_KEY/);
     assert.doesNotMatch(log, /super-secret-bright-data-key/);
+  } finally {
+    delete process.env.BRIGHTDATA_TEST_KEY;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("substrate forwards the unlocker request body on the text-parser path", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-brightdata-"));
+  const usagePath = path.join(tmpDir, "usage.jsonl");
+  process.env.BRIGHTDATA_TEST_KEY = "super-secret-bright-data-key";
+  const cfg = config();
+  cfg.logging = { usage: { path: usagePath } };
+  cfg.history = { path: path.join(tmpDir, "history.jsonl") };
+  cfg.cache = { enabled: false };
+
+  try {
+    let receivedBody;
+    await withMockFetch(async (_url, init) => {
+      assert.equal(init.headers.Authorization, "Bearer super-secret-bright-data-key");
+      receivedBody = JSON.parse(init.body);
+      return new Response("# Extracted\nHello", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+    }, async () => {
+      const result = await executeToolCall(
+        "brightdata",
+        "unlocker",
+        { url: "https://example.com/page" },
+        cfg
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.raw, "# Extracted\nHello");
+    });
+    // The unlocker direct call uses the text parser (raw format); its POST body
+    // must still reach the upstream API, not be dropped in the substrate.
+    assert.equal(receivedBody.zone, "unlocker_test");
+    assert.equal(receivedBody.url, "https://example.com/page");
   } finally {
     delete process.env.BRIGHTDATA_TEST_KEY;
     fs.rmSync(tmpDir, { recursive: true, force: true });

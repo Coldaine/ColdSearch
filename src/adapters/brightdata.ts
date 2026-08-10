@@ -157,6 +157,13 @@ export class BrightDataAdapter implements SearchAdapter {
       }
     );
 
+    // An empty/whitespace-only body means the page yielded nothing; surface it
+    // as a failed attempt so the caller can fall back to another provider
+    // (matches the Jina adapter's empty-extract contract).
+    if (!content || content.trim().length === 0) {
+      throw new Error(`No content extracted from ${url}`);
+    }
+
     return {
       content,
       url: normalizedUrl,
