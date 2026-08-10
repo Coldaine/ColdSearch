@@ -75,9 +75,8 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     costNotes: "Paid Bright Data product; explicit/configured use initially, not default routing.",
   },
 
-  // These tools are implemented through the generic provider-tool substrate but
-  // deliberately do not back normalized categories. `direct` records that
-  // difference without pretending they are merely upstream ideas.
+  // Implemented through the generic provider-tool substrate, but deliberately
+  // not normalized category backers.
   "brightdata.datasetsList": {
     provider: "brightdata",
     tool: "datasetsList",
@@ -101,8 +100,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     tool: "datasetMetadata",
     nativeName: "GET /datasets/{dataset_id}/metadata",
     categories: [],
-    description:
-      "Inspect a Bright Data scraper/dataset schema before invoking structured collection.",
+    description: "Inspect a Bright Data scraper/dataset schema before invoking structured collection.",
     docsUrl: "https://docs.brightdata.com/api-reference/marketplace-dataset-api/get-dataset-metadata",
     requiredParams: ["dataset_id"],
     optionalParams: [],
@@ -120,10 +118,10 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     nativeName: "POST /datasets/v3/scrape",
     categories: [],
     description:
-      "Synchronous invocation of a Bright Data site-specific Web Scraper API. Returns native structured records (products, reviews, companies, repositories, listings, and other dataset schemas).",
-    docsUrl: "https://docs.brightdata.com/datasets/scrapers/scrapers-library/overview",
+      "Synchronous invocation of a Bright Data site-specific Web Scraper API. Returns native structured records such as products, reviews, companies, repositories, and listings.",
+    docsUrl: "https://docs.brightdata.com/api-reference/scrapers/synchronous-requests",
     requiredParams: ["dataset_id", "input"],
-    optionalParams: ["inputs", "format", "type", "discover_by", "limit_per_input"],
+    optionalParams: ["inputs", "format", "type", "discover_by", "limit_per_input", "custom_output_fields"],
     commonViews: [],
     features: { structuredJson: true, siteSpecificSchema: true, realTimeCollection: true, keyless: false },
     execution: { mode: "sync", supportsWait: true },
@@ -138,9 +136,8 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     tool: "trigger",
     nativeName: "POST /datasets/v3/trigger",
     categories: [],
-    description:
-      "Start an asynchronous Bright Data structured scraper/discovery job and return its snapshot identifier.",
-    docsUrl: "https://docs.brightdata.com/datasets/scrapers/trigger-a-collection",
+    description: "Start an asynchronous Bright Data scraper/discovery job and return its snapshot identifier.",
+    docsUrl: "https://docs.brightdata.com/api-reference/rest-api/scraper/asynchronous-requests",
     requiredParams: ["dataset_id", "input"],
     optionalParams: ["inputs", "include_errors", "custom_output_fields", "type", "discover_by"],
     commonViews: [],
@@ -151,15 +148,68 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     schemaLastVerified: VERIFIED,
     status: "direct",
   },
+  "brightdata.progress": {
+    provider: "brightdata",
+    tool: "progress",
+    nativeName: "GET /datasets/v3/progress/{snapshot_id}",
+    categories: [],
+    description: "Poll an async Bright Data scraper snapshot until it is ready or failed.",
+    docsUrl: "https://docs.brightdata.com/api-reference/web-scraper-api/management-apis/monitor-progress",
+    requiredParams: ["snapshot_id"],
+    optionalParams: [],
+    commonViews: [],
+    features: { asyncJobStatus: true, structuredJson: true, keyless: false },
+    execution: { mode: "sync", supportsWait: true },
+    output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
+    schemaSource: "official-docs",
+    schemaLastVerified: VERIFIED,
+    status: "direct",
+  },
+  "brightdata.snapshotMetadata": {
+    provider: "brightdata",
+    tool: "snapshotMetadata",
+    nativeName: "GET /datasets/snapshots/{id}",
+    categories: [],
+    description:
+      "Inspect Bright Data snapshot metadata, including status, dataset size and actual cost when reported by the provider.",
+    docsUrl: "https://docs.brightdata.com/api-reference/marketplace-dataset-api/get-snapshot-meta",
+    requiredParams: ["snapshot_id"],
+    optionalParams: [],
+    commonViews: [],
+    features: { asyncJobStatus: true, costMetadata: true, structuredJson: true, keyless: false },
+    execution: { mode: "sync", supportsWait: true },
+    output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
+    schemaSource: "official-docs",
+    schemaLastVerified: VERIFIED,
+    status: "direct",
+  },
+  "brightdata.cancel": {
+    provider: "brightdata",
+    tool: "cancel",
+    nativeName: "POST /datasets/v3/snapshot/{snapshot_id}/cancel",
+    categories: [],
+    description: "Cancel a running Bright Data scraper snapshot/job.",
+    docsUrl: "https://docs.brightdata.com/datasets/scrapers/scrapers-library/faqs",
+    requiredParams: ["snapshot_id"],
+    optionalParams: [],
+    commonViews: [],
+    features: { asyncJobCancellation: true, keyless: false },
+    execution: { mode: "sync", supportsWait: true },
+    output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
+    schemaSource: "official-docs",
+    schemaLastVerified: VERIFIED,
+    status: "direct",
+    costNotes: "Use to stop unwanted/running paid collection jobs when cancellation is still accepted upstream.",
+  },
   "brightdata.snapshot": {
     provider: "brightdata",
     tool: "snapshot",
-    nativeName: "GET /datasets/snapshots/{snapshot_id}/download",
+    nativeName: "GET /datasets/v3/snapshot/{snapshot_id}",
     categories: [],
-    description: "Download structured results for a completed Bright Data snapshot/job.",
-    docsUrl: "https://docs.brightdata.com/api-reference/marketplace-dataset-api/download-snapshot",
+    description: "Download structured results for a completed Bright Data Web Scraper snapshot/job.",
+    docsUrl: "https://docs.brightdata.com/api-reference/scrapers/delivery-apis/download-snapshot",
     requiredParams: ["snapshot_id"],
-    optionalParams: ["format"],
+    optionalParams: ["format", "compress", "batch_size", "part"],
     commonViews: [],
     features: { structuredJson: true, asyncJobResult: true, keyless: false },
     execution: { mode: "sync", supportsWait: true },
@@ -174,8 +224,8 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     nativeName: "POST /datasets/v3/trigger (Crawl API dataset)",
     categories: [],
     description:
-      "Bright Data Crawl API job trigger. Direct provider-native surface; not a normalized ColdSearch crawl backer until polling/output/cost semantics are characterized.",
-    docsUrl: "https://docs.brightdata.com/scraping-automation/crawl-api/overview",
+      "Bright Data Crawl API job trigger. Direct provider-native surface; not a normalized ColdSearch crawl backer until output and spend semantics are characterized.",
+    docsUrl: "https://docs.brightdata.com/api-reference/rest-api/scraper/crawl-api",
     requiredParams: ["dataset_id", "input"],
     optionalParams: ["inputs", "include_errors", "custom_output_fields"],
     commonViews: [],
@@ -208,10 +258,7 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
 
 let installed = false;
 
-/**
- * Extend the existing mutable provider-tool profile registry without forcing
- * Bright Data's provider-native structured tools into normalized categories.
- */
+/** Extend the shared profile registry without forcing structured tools into categories. */
 export function installBrightDataToolProfiles(): void {
   if (installed) return;
   Object.assign(providerToolProfiles, brightDataToolProfiles);
