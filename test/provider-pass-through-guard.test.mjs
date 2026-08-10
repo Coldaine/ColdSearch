@@ -66,6 +66,21 @@ test("scoped run with --overwrite-baseline still refuses without --all", () => {
   );
 });
 
+test("out-dir nested inside the baseline is refused", () => {
+  const nested = path.join(baselineDir, "tmp-nested-guard-test");
+
+  const result = runScript(["--provider", "brave", "--out-dir", nested]);
+
+  assert.notEqual(result.status, 0, "expected a non-zero exit code");
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.match(output, /baseline/i, "expected the refusal to mention the baseline");
+  assert.equal(
+    fs.existsSync(nested),
+    false,
+    "no nested directory may be created inside the baseline"
+  );
+});
+
 test("--overwrite-baseline flag parses without network in --list mode", () => {
   const result = runScript(["--list", "--overwrite-baseline"]);
 

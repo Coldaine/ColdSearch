@@ -1078,10 +1078,14 @@ async function main() {
     ? selectTargets()
     : selectTargets({ provider: options.provider, path: options.path });
 
-  if (
-    path.resolve(options.outDir) === path.resolve(defaultOutDir) &&
-    !(options.overwriteBaseline && options.all)
-  ) {
+  const relToBaseline = path.relative(
+    path.resolve(defaultOutDir),
+    path.resolve(options.outDir)
+  );
+  const isWithinBaseline =
+    relToBaseline === "" ||
+    (!relToBaseline.startsWith("..") && !path.isAbsolute(relToBaseline));
+  if (isWithinBaseline && !(options.overwriteBaseline && options.all)) {
     throw new Error(
       `Refusing to write to ${path.relative(repoRoot, defaultOutDir).replaceAll("\\", "/")}: ` +
         "this is the committed Gate 0 baseline evidence directory and the harness clears its output directory before writing. " +
