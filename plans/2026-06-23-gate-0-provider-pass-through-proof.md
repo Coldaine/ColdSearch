@@ -162,13 +162,13 @@ Run only commands that prove the Gate 0 contract:
 
 ```bash
 npm run build
-node scripts/provider-pass-through.mjs --all
+node scripts/provider-pass-through.mjs --all --overwrite-baseline
 ```
 
 What these prove:
 
 - `npm run build` proves the checked source compiles into the CLI that the harness will execute.
-- `node scripts/provider-pass-through.mjs --all` proves provider-native responses and equivalent ColdSearch responses were both collected, compared, and recorded for every required provider path.
+- `node scripts/provider-pass-through.mjs --all --overwrite-baseline` proves provider-native responses and equivalent ColdSearch responses were both collected, compared, and recorded for every required provider path. `--overwrite-baseline` is required because the command regenerates the committed baseline evidence in place; scoped runs must use `--out-dir` instead.
 
 What is not Gate 0 evidence:
 

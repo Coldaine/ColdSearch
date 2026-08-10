@@ -96,6 +96,7 @@ function parseArgs(argv) {
     waivers: new Set(),
     list: false,
     help: false,
+    overwriteBaseline: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -118,6 +119,9 @@ function parseArgs(argv) {
         break;
       case "--list":
         options.list = true;
+        break;
+      case "--overwrite-baseline":
+        options.overwriteBaseline = true;
         break;
       case "--help":
       case "-h":
@@ -151,17 +155,22 @@ function printHelp() {
   console.log(`Gate 0 provider pass-through proof harness
 
 Usage:
-  node scripts/provider-pass-through.mjs --all
-  node scripts/provider-pass-through.mjs --provider firecrawl --path search
-  node scripts/provider-pass-through.mjs --provider jina --path extract
+  node scripts/provider-pass-through.mjs --all --overwrite-baseline
+  node scripts/provider-pass-through.mjs --provider firecrawl --path search --out-dir <dir>
+  node scripts/provider-pass-through.mjs --provider jina --path extract --out-dir <dir>
 
 Options:
   --all                 Run every required provider/path row
   --provider NAME       Run one provider, or combine with --path
   --path NAME           Run one capability path: search, extract, crawl
-  --out-dir DIR         Evidence output directory
+  --out-dir DIR         Evidence output directory (scoped/live runs must use a
+                        non-baseline directory; the committed Gate 0 baseline
+                        evidence directory is protected)
   --waive provider:path Mark a row waived_by_user without running it
   --list                Print the required provider/path matrix as JSON
+  --overwrite-baseline  Allow writing to the committed Gate 0 baseline evidence
+                        directory (requires --all; only for deliberately
+                        regenerating the full baseline)
 `);
 }
 
@@ -1004,7 +1013,7 @@ Generated: ${generatedAt}
 
 ## Commands
 
-- Baseline command for this evidence: \`node scripts/provider-pass-through.mjs --all\`
+- Baseline command for this evidence: \`node scripts/provider-pass-through.mjs --all --overwrite-baseline\`
 - Native provider calls use direct HTTP requests.
 - ColdSearch calls use \`node dist/cli.js <path> --providers <provider> --single-provider --json\`.
 - Agent mode is not executed by this gate.
@@ -1068,6 +1077,22 @@ async function main() {
   const targets = options.all
     ? selectTargets()
     : selectTargets({ provider: options.provider, path: options.path });
+
+  const relToBaseline = path.relative(
+    path.resolve(defaultOutDir),
+    path.resolve(options.outDir)
+  );
+  const isWithinBaseline =
+    relToBaseline === "" ||
+    (!relToBaseline.startsWith("..") && !path.isAbsolute(relToBaseline));
+  if (isWithinBaseline && !(options.overwriteBaseline && options.all)) {
+    throw new Error(
+      `Refusing to write to ${path.relative(repoRoot, defaultOutDir).replaceAll("\\", "/")}: ` +
+        "this is the committed Gate 0 baseline evidence directory and the harness clears its output directory before writing. " +
+        "Scoped/live runs must pass --out-dir <dir> pointing outside the baseline. " +
+        "Regenerating the baseline in place requires both --all and --overwrite-baseline, so a scoped selection can never replace the full baseline matrix."
+    );
+  }
 
   const samplesDir = ensureEvidenceDir(options.outDir);
   const rows = [];

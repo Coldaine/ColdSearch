@@ -4,7 +4,7 @@
 
 **Goal:** Add `coldsearch batch` as a resumable JSONL runner for `search`, `extract`, `crawl`, and provider-tool calls.
 
-**Architecture:** Build batch as a thin orchestration layer over `LocalExecutionBackend`. Do not bypass backend exact-cache behavior or searchable recent-result memory. Keep output append-only so interrupted runs can resume from completed IDs.
+**Architecture:** Build batch as a thin orchestration layer over `LocalExecutionBackend`. Do not bypass backend exact-cache behavior or searchable recent-result memory; both are PR 2 deliverables, so PR 3 implementation starts only after PR 2 merges and batch relies on PR 2's merged behavior rather than anything that exists today. Every batch item executes through the same `LocalExecutionBackend`/tool substrate as an equivalent standalone invocation and therefore creates the same normal execution-history record (once PR 2 history exists). `coldsearch batch` does not create a second parallel history model; the batch output JSONL file is the batch's own artifact. Keep output append-only so interrupted runs can resume from completed IDs.
 
 **Tech Stack:** TypeScript, Node.js filesystem/readline APIs, built-in `node:test`, existing provider mocks.
 
@@ -22,7 +22,7 @@ Implement:
 - Duplicate handling
 - Per-item success/error output
 - `search`, `extract`, `crawl`, and provider-tool support
-- Cache reuse for batch `search`, `extract`, and eligible provider-tool calls
+- Cache reuse for batch `search`, `extract`, and eligible provider-tool calls, relying on PR 2's merged cache behavior (PR 3 implementation starts only after PR 2 merges)
 
 Do not implement:
 
@@ -89,8 +89,11 @@ Rules:
 - Every output record includes `id` and either `capability` or `tool`.
 - Existing successful output records are skipped on resume.
 - Existing error output records are retried only with `--retry-errors`.
-- Duplicate input IDs are deterministic: the first valid record wins.
-- Conflicting duplicate IDs create a duplicate-id error record.
+- With concurrency and append-only resumability, output records are appended in completion order, not input order. `id` is the stable identity and resume key; no input-order buffering is performed.
+- Duplicate ID semantics are explicit and deterministic:
+  - Identical repeated `id` with identical input: execute the first record only; later identical duplicates are skipped.
+  - Repeated `id` with different input: emit a visible duplicate/conflict error record and do not execute the later record.
+  - Duplicate/conflict error records are not retried by `--retry-errors`, keeping reruns deterministic.
 
 ## CLI Contract
 
