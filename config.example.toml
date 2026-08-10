@@ -8,14 +8,18 @@
 # Each capability maps to one or more providers.
 # strategy = "random"  → Pick one random provider per request
 # strategy = "all"     → Fan out to all providers (for search with reranking)
+#
+# Bright Data is intentionally NOT in these default pools yet. Configure it
+# below, then select it explicitly with --providers brightdata until measured
+# quality/cost justify broader routing.
 
 [capabilities.search]
-# Search across the web - 5 providers with random selection
+# Search across the web - 5 default providers with random selection
 providers = ["searxng", "tavily", "exa", "brave", "serper"]
 strategy = "random"
 
 [capabilities.extract]
-# Extract content from URLs - 3 providers with random selection
+# Extract content from URLs - 3 default providers with random selection
 providers = ["tavily", "exa", "jina"]
 strategy = "random"
 
@@ -71,6 +75,27 @@ keys = ["doppler:EXA_API_KEY"]
 [providers.brave.keyPool]
 keys = ["doppler:BRAVE_API_KEY"]
 
+# Bright Data is implemented but remains explicit-only initially. Add the key
+# reference and zone names, then use `--providers brightdata` deliberately.
+# Structured Web Scraper API tools use dataset IDs and do not require a zone.
+[providers.brightdata]
+[providers.brightdata.keyPool]
+keys = ["doppler:BRIGHTDATA_API_KEY"]
+strategy = "round-robin"
+
+[providers.brightdata.options]
+# Required for normalized Bright Data SERP search unless BRIGHTDATA_SERP_ZONE is set.
+serpZone = "your_serp_zone"
+# Required for normalized Bright Data Web Unlocker extraction unless
+# BRIGHTDATA_UNLOCKER_ZONE is set.
+unlockerZone = "your_unlocker_zone"
+searchEngine = "google"
+searchCountry = "us"
+# Hard safety bound for site-specific structured scraper input arrays. Increase
+# deliberately for larger paid runs; there is no universal cross-product dollar
+# estimator that would be safe to fake here.
+maxStructuredInputsPerCall = 25
+
 [providers.serper]
 [providers.serper.keyPool]
 keys = ["doppler:SERPER_API_KEY"]
@@ -111,14 +136,25 @@ keys = ["doppler:FIRECRAWL_API_KEY"]
 # ============================================
 # USAGE EXAMPLES
 # ============================================
-# 
-# Search (random provider from 4, random key):
+#
+# Search (random provider from default pool):
 #   coldsearch search "machine learning"
 #
-# Extract (random provider from 3):
+# Explicit Bright Data SERP search (paid/configured provider):
+#   coldsearch search --providers brightdata "machine learning"
+#
+# Extract (random provider from default pool):
 #   coldsearch extract "https://example.com/article"
 #
-# Crawl (random provider from 2):
+# Explicit Bright Data Web Unlocker extraction:
+#   coldsearch extract --providers brightdata "https://example.com/article"
+#
+# Discover Bright Data structured scrapers, then invoke one deliberately:
+#   coldsearch tool call brightdata.datasetsList --json-input '{}'
+#   coldsearch tool call brightdata.datasetMetadata --json-input '{"dataset_id":"gd_..."}'
+#   coldsearch tool call brightdata.scrape --json-input '{"dataset_id":"gd_...","input":{"url":"https://..."}}'
+#
+# Crawl (random provider from default pool):
 #   coldsearch crawl "https://docs.example.com"
 #
 # Force specific provider:
