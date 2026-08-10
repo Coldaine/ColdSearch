@@ -1,30 +1,24 @@
 # Bright Data Provider Surface Implementation Plan
 
-> **For agentic workers:** implement this plan against the current ColdSearch provider/tool substrate. Do not collapse Bright Data's different products into one fake generic operation merely because they share an API key.
+> **For agentic workers:** implement and review this plan against the current ColdSearch provider/tool substrate. Do not collapse Bright Data's different products into one fake generic operation merely because they share an API key.
 
-**Goal:** Add Bright Data as a first-class ColdSearch provider for ordinary web search and blocked-page retrieval, while exposing Bright Data's structured Web Scraper APIs as a discoverable provider-native data collection surface for products, reviews, companies, repositories, maps/listings, and the other scraper datasets available to the account.
+**Goal:** Add Bright Data as a first-class ColdSearch provider for ordinary web search and blocked-page retrieval, while exposing Bright Data's structured Web Scraper APIs as a discoverable provider-native data collection surface for products, reviews, companies, repositories, maps/listings, and other scraper datasets available to the account.
 
-**Product intent:** ColdSearch remains easy for a calling agent. Ordinary web lookup stays `coldsearch search`. Bright Data's site-specific structured scrapers are provider-native tools used when the caller wants structured records rather than generic web pages. Do not require a saved pipeline or new workflow engine for normal use.
+**Product intent:** ColdSearch remains easy for a calling agent. Ordinary web lookup stays `coldsearch search`. Bright Data's site-specific structured scrapers are direct provider-native tools used when the caller wants structured records rather than generic web pages. Do not require a saved pipeline or new workflow engine for normal use.
 
-**Official Bright Data surfaces reviewed 2026-08-10:**
+**Adoption boundary:** Bright Data is a paid provider and remains **explicit/configured-only** in this first implementation. Do not add it to default search/extract pools, routine PR CI, benchmark loops, or automatic broad fanout until real usage establishes cost/quality behavior.
 
-- SERP API: `POST https://api.brightdata.com/request` with a SERP zone; structured results across Google/Bing/etc.
-- Web Unlocker API: `POST https://api.brightdata.com/request` with an Unlocker zone; retrieves blocked/dynamic pages and can return raw/JSON/Markdown.
-- Web Scraper APIs: 660+ pre-built scrapers using dataset IDs, with synchronous `/datasets/v3/scrape` and asynchronous `/datasets/v3/trigger` execution.
-- Dataset discovery: `GET /datasets/list` enumerates dataset IDs available to the account; `GET /datasets/{dataset_id}/metadata` exposes fields/schema.
-- Snapshot retrieval: asynchronous scraper/crawl jobs return snapshot IDs whose results can be downloaded later.
-- Crawl API and Discover API exist, but should not be forced into normalized ColdSearch capabilities until their execution/semantic fit is proven.
+## Official Bright Data surfaces reviewed 2026-08-10
 
-Official docs:
+- SERP API: `POST https://api.brightdata.com/request` with a SERP zone.
+- Web Unlocker API: `POST https://api.brightdata.com/request` with an Unlocker zone.
+- Web Scraper APIs: hundreds of pre-built scraper datasets using dataset IDs, with synchronous `/datasets/v3/scrape` and asynchronous `/datasets/v3/trigger` execution.
+- Dataset discovery: `GET /datasets/list`; dataset schema/metadata: `GET /datasets/{dataset_id}/metadata`.
+- Async lifecycle: trigger → `/datasets/v3/progress/{snapshot_id}` → `/datasets/v3/snapshot/{snapshot_id}`; cancellation is explicit.
+- Snapshot metadata can expose provider-reported status, size and actual cost.
+- Crawl API and Discover API exist, but should not be forced into normalized ColdSearch capabilities merely because their names resemble `crawl` or `search`.
 
-- https://docs.brightdata.com/scraping-automation/serp-api/introduction
-- https://docs.brightdata.com/scraping-automation/web-unlocker/introduction
-- https://docs.brightdata.com/datasets/scrapers/overview
-- https://docs.brightdata.com/datasets/scrapers/scrapers-library/overview
-- https://docs.brightdata.com/api-reference/marketplace-dataset-api/get-dataset-list
-- https://docs.brightdata.com/api-reference/marketplace-dataset-api/get-dataset-metadata
-- https://docs.brightdata.com/scraping-automation/crawl-api/overview
-- https://docs.brightdata.com/api-reference/discover/overview
+Official docs are linked from the live provider-tool profiles; `tool info` is the parameter-level source of truth.
 
 ---
 
@@ -34,85 +28,91 @@ Treat Bright Data as several distinct tools behind one provider identity.
 
 ### A. `brightdata.serp` — ordinary web/search-engine search
 
-**ColdSearch role:** backs normalized `search` and is also reachable through `tool call`.
+**ColdSearch role:** `wired`; backs normalized `search` and is also reachable through `tool call`.
 
-- Normalized `coldsearch search` should turn a query into a configured search-engine URL and send it through the Bright Data SERP API.
+- Normalized `coldsearch search --providers brightdata` turns a query into a configured search-engine URL and sends it through the Bright Data SERP API.
 - Preserve the native SERP payload on direct tool calls.
-- Do not expose search-engine selection as a mandatory ColdSearch common option. Use provider options/defaults for normal search and native params for deliberate direct access.
-- Initial normalized output should map organic result title/link/description or snippet into `NormalizedResult` without pretending paid/local/shopping SERP blocks are ordinary organic results.
+- Search-engine/country/zone selection is provider configuration/native parameters, not mandatory common ColdSearch options.
+- Normalize organic title/link/description or snippet into `NormalizedResult`; do not flatten shopping/local/other provider-native SERP blocks into fake organic results.
 
 ### B. `brightdata.unlocker` — known-URL page retrieval
 
-**ColdSearch role:** direct provider-native tool and a valid normalized `extract` backer once the adapter contract is implemented.
+**ColdSearch role:** `wired`; backs normalized `extract` and is also a direct tool.
 
-- Input is a public URL.
-- Prefer Markdown/text output for normalized `extract` when configured; preserve provider-native raw/JSON on direct tool calls.
-- This is not the same thing as a structured Web Scraper API. Unlocker retrieves a page; the scraper library returns site-specific structured records.
-- Do not route every agent page read through Bright Data automatically. It is another configured `extract` provider, subject to normal routing.
+- Input is a known public URL.
+- Normalized extraction uses Markdown/text output.
+- Direct calls preserve the provider-native response.
+- Unlocker is page retrieval, not the structured Web Scraper library.
+- Do not silently route every agent page read through Bright Data. It is another configured extract provider and remains outside default pools initially.
 
 ### C. Bright Data Web Scraper APIs — structured records
 
-**ColdSearch role:** provider-native structured collection surface. Do **not** flatten this into generic `extract`.
+**ColdSearch role:** `direct` provider-native tools. Do **not** flatten them into generic `extract`.
 
-The caller/agent must be able to discover the correct Bright Data dataset/scraper and invoke it without hard-coded dataset IDs in ColdSearch source.
+An agent must be able to discover the right scraper/dataset at runtime instead of relying on dataset IDs hard-coded in ColdSearch source.
 
-Implement these curated tools:
+Implemented direct tools:
 
 - `brightdata.datasetsList`
   - `GET /datasets/list`
-  - returns dataset IDs/names available to the account
-  - purpose: scraper discovery
+  - discover dataset/scraper IDs available to the authenticated account.
 - `brightdata.datasetMetadata`
   - `GET /datasets/{dataset_id}/metadata`
-  - returns available fields/types/descriptions
-  - purpose: understand the structured result before use
+  - inspect fields/schema before using a structured collector.
 - `brightdata.scrape`
-  - synchronous `POST /datasets/v3/scrape?dataset_id=...&format=json`
-  - takes `dataset_id` plus one or more supported input records
-  - purpose: real-time structured collection (e.g. Amazon product URL -> product JSON)
+  - synchronous `POST /datasets/v3/scrape?dataset_id=...`
+  - small/real-time structured collection.
+  - preserve provider-native scalar query controls such as discovery mode/filter controls rather than narrowing every scraper to `{url}`.
 - `brightdata.trigger`
   - asynchronous `POST /datasets/v3/trigger?dataset_id=...`
-  - purpose: batch/discovery/longer structured jobs
+  - longer/batch/discovery structured collection.
+- `brightdata.progress`
+  - `GET /datasets/v3/progress/{snapshot_id}`
+  - explicit job state inspection.
+- `brightdata.snapshotMetadata`
+  - inspect snapshot status/size and provider-reported actual cost where available.
+- `brightdata.cancel`
+  - cancel a running scraper snapshot/job.
 - `brightdata.snapshot`
-  - retrieve/download results for a Bright Data snapshot ID
-  - purpose: complete async scraper jobs without hiding their lifecycle
+  - download completed scraper results using the v3 snapshot delivery API.
 
-The generic sequence for an agent should therefore be simple and explicit:
+The normal agent sequence is intentionally small:
 
 ```text
 Need structured product/company/repository/etc. data
-  -> tool call brightdata.datasetsList
-  -> select relevant dataset_id
-  -> tool call brightdata.datasetMetadata (when schema matters)
-  -> tool call brightdata.scrape for quick/small inputs
+  -> brightdata.datasetsList (if dataset ID is not already known)
+  -> brightdata.datasetMetadata (when schema matters)
+  -> brightdata.scrape for small synchronous work
      OR brightdata.trigger for async/discovery/batch
-  -> tool call brightdata.snapshot for async results
+        -> brightdata.progress
+        -> brightdata.snapshotMetadata when status/cost matters
+        -> brightdata.snapshot when ready
+        -> brightdata.cancel if the run should be stopped
 ```
 
-This is **not** a ColdSearch pipeline feature. The calling agent owns the few-step orchestration.
+This is **not** a ColdSearch pipeline feature. The calling agent owns this few-step orchestration.
 
 ### D. `brightdata.crawl` and `brightdata.discover`
 
-Catalogue these as provider-native tools/candidates, but do not make them normalized backers in the first implementation solely because similarly named ColdSearch categories exist.
+These are implemented as `direct` provider-native request mappings but deliberately do not back normalized categories in this first pass.
 
-- Bright Data Crawl is snapshot/job based and tied to dataset/output configuration. Prove how it maps to ColdSearch `crawl` before routing generic crawl traffic to it.
-- Bright Data Discover is an AI-ranked discovery/search product. Expose it deliberately through direct tool access if useful; do not silently substitute it for ordinary `search`.
+- Bright Data Crawl is snapshot/job based and dataset/output-specific. Do not route generic `coldsearch crawl` traffic to it until the common-view semantics are deliberately characterized.
+- Bright Data Discover is a separate discovery product. Keep it distinct from ordinary normalized `search` until a concrete workflow justifies a common mapping.
 
-### E. Browser API and Marketplace bulk dataset purchasing
+### E. Browser API, proxy products and Marketplace purchase/subscription flows
 
 Do not put these in the initial implementation.
 
 - Browser API is interactive/stateful browser automation, not ordinary search/extract.
-- Marketplace bulk dataset purchasing/subscription workflows are separate from on-demand scraper invocation and may have commercial/state-changing semantics.
-- Keep them documented as Bright Data capabilities worth revisiting if a concrete ColdSearch workflow requires them.
+- Proxy products are lower-level transport infrastructure, not a ColdSearch category by themselves.
+- Marketplace purchasing/subscription operations can have commercial/state-changing semantics.
+- Revisit only when a concrete ColdSearch workflow needs them.
 
 ---
 
-## 2. Configuration
+## 2. Configuration and paid-use safety
 
-Add Bright Data as one provider with one API-key pool and product-specific options.
-
-Suggested shape:
+Bright Data uses the existing key-pool/secret mechanism and product-specific options.
 
 ```toml
 [providers.brightdata]
@@ -124,144 +124,173 @@ serpZone = "..."
 unlockerZone = "..."
 searchEngine = "google"
 searchCountry = "us"
+maxStructuredInputsPerCall = 20
 ```
 
 Rules:
 
-- API key is resolved through the existing key-pool/secret mechanism.
+- Never commit the API key or scraped account data.
 - Zone names are configuration, not secrets.
-- `serpZone` is required only to use normalized SERP search / direct SERP requests.
-- `unlockerZone` is required only to use Unlocker / normalized extract.
-- Web Scraper API dataset tools use `dataset_id` and do not require a SERP/Unlocker zone.
-- Never commit the user's API key or account-specific paid dataset data.
+- `serpZone` is required only for SERP use.
+- `unlockerZone` is required only for Unlocker use.
+- Structured scraper tools use `dataset_id` and do not require SERP/Unlocker zones.
+- Bright Data remains absent from default provider pools.
+- Structured calls have a hard configurable input-count ceiling before any request is made. Default to 20, matching the documented synchronous request ceiling and providing a conservative default for direct structured work.
+- Larger async use requires an intentional config increase; do not silently turn one agent action into an unbounded paid batch.
+- There is no trustworthy single universal pre-call dollar estimator across Bright Data products/datasets. Do not fabricate one. Surface actual cost when the provider returns it (notably snapshot metadata) and keep recurring/broad use blocked from default routing until cost behavior is characterized.
 
 ---
 
-## 3. Adapter and registry work
+## 3. Adapter and registry contract
 
-Implement a `BrightDataAdapter` for normalized capability routing:
+Implemented adapter behavior:
 
-- `search(query, key, options)` -> Bright Data SERP API -> `NormalizedResult[]`
-- `extract(url, key, options)` -> Bright Data Web Unlocker -> `ExtractResult`
-- do not implement normalized `crawl` in this first pass unless the live/provider-native proof establishes a direct, stable semantic mapping
+- `BrightDataAdapter.search()` → SERP API → `NormalizedResult[]`.
+- `BrightDataAdapter.extract()` → Web Unlocker → `ExtractResult`.
+- No normalized Bright Data crawl in this PR.
 
-Register provider metadata:
+Provider registration:
 
-- provider key: `brightdata`
+- key: `brightdata`
 - display name: `Bright Data`
-- normalized capabilities initially: `search`, `extract`
-- provider option keys should include SERP/Unlocker zone and normal-search defaults
+- normalized capabilities: `search`, `extract`
+- provider options: SERP zone, Unlocker zone, normal-search defaults, structured input ceiling.
 
-Add provider-tool profiles for at least:
+Tool status semantics:
 
-- `brightdata.serp` — wired; category `search`
-- `brightdata.unlocker` — wired; category `extract`
-- `brightdata.datasetsList` — wired direct tool; structured discovery
-- `brightdata.datasetMetadata` — wired direct tool; structured schema discovery
-- `brightdata.scrape` — wired direct tool; structured synchronous collection
-- `brightdata.trigger` — wired direct tool; async structured collection
-- `brightdata.snapshot` — wired direct tool; async result retrieval
-- `brightdata.crawl` — available/candidate until normalized/live semantics are proven
-- `brightdata.discover` — available/candidate direct tool
+- `wired` = adapter-backed normalized category backer.
+- `direct` = implemented/callable via `tool call`, deliberately not a normalized category backer.
+- `available` = upstream documented but not implemented.
+- `deferred` = intentionally not built.
 
-Do not invent a new global ColdSearch `structured`/`products` capability in this PR. The provider-tool surface already exists for vendor-native semantics. Revisit a common category only if multiple providers later need the same structured-collection abstraction.
+Bright Data profiles:
+
+- `brightdata.serp` — `wired`, category `search`.
+- `brightdata.unlocker` — `wired`, category `extract`.
+- `datasetsList`, `datasetMetadata`, `scrape`, `trigger`, `progress`, `snapshotMetadata`, `cancel`, `snapshot`, `crawl`, `discover` — `direct`, with no normalized category membership.
+
+Do not invent a global `structured` or `products` capability in this PR. Revisit a shared category only if multiple providers later need the same portable structured-data abstraction.
 
 ---
 
-## 4. Tool-call substrate
+## 4. Tool-call substrate requirements
 
-Extend `executeToolCall()` with a Bright Data mapper instead of special-casing scraper IDs in the CLI.
+Bright Data direct calls use the existing `executeToolCall()` envelope and key handling.
 
 Requirements:
 
 - Bearer authentication.
-- Exact Bright Data endpoint construction per curated tool.
-- `datasetsList` is GET with no body.
-- `datasetMetadata` is GET with dataset ID in path.
-- `scrape` and `trigger` take `dataset_id` separately from the actual Bright Data input record array and place it in the query string.
-- `snapshot` takes a snapshot ID and output format.
-- `serp` and `unlocker` use `/request` but require the appropriate configured zone when the caller does not provide one explicitly.
-- Preserve raw provider output for every direct tool call.
-- Add compact summaries only as non-lossy convenience metadata; never replace raw structured records.
-- Do not log API keys, bearer headers, signed URLs, or scraped data bodies into usage logs.
+- Exact endpoint/method construction per curated tool.
+- Dataset IDs and snapshot IDs are distinct and must never be conflated.
+- `scrape`/`trigger` move `dataset_id` into the query string and send only input records in the body.
+- Preserve scalar provider-native scraper query controls rather than throwing them away.
+- Preserve raw provider output for every direct call.
+- Compact summaries are convenience metadata only; never replace native structured records.
+- Do not log API keys, bearer headers, signed URLs, or scraped record bodies.
+- Summaries may expose provider-reported `cost_usd` when it actually exists. Snapshot metadata is the preferred cost-inspection surface for async scraper work.
 
 ---
 
 ## 5. Agent usability
 
-The intended external-agent experience is:
+Ordinary research remains:
 
 ```bash
 coldsearch search "current information"
 ```
 
-for ordinary web research.
+Bright Data is selected explicitly while it remains outside default pools:
 
-When structured site-specific data is required, an agent can deliberately use:
+```bash
+coldsearch search --providers brightdata "current information"
+coldsearch extract --providers brightdata "https://example.com"
+```
+
+Structured site-specific data is deliberate:
 
 ```bash
 coldsearch tool call brightdata.datasetsList --json-input '{}'
 coldsearch tool call brightdata.datasetMetadata --json-input '{"dataset_id":"gd_..."}'
-coldsearch tool call brightdata.scrape --json-input '{"dataset_id":"gd_...","inputs":[{"url":"https://..."}]}'
+coldsearch tool call brightdata.scrape --json-input '{"dataset_id":"gd_...","input":{"url":"https://..."}}'
 ```
 
-Do not introduce a routine/pipeline requirement. Discovery + scrape is a small provider-tool sequence that an agent can orchestrate itself.
+Async:
+
+```bash
+coldsearch tool call brightdata.trigger --json-input '{"dataset_id":"gd_...","input":{"url":"https://..."}}'
+coldsearch tool call brightdata.progress --json-input '{"snapshot_id":"s_..."}'
+coldsearch tool call brightdata.snapshotMetadata --json-input '{"snapshot_id":"s_..."}'
+coldsearch tool call brightdata.snapshot --json-input '{"snapshot_id":"s_...","format":"json"}'
+```
+
+No routine/pipeline engine is required for these sequences.
 
 ---
 
-## 6. Tests
+## 6. Validation
 
-### Offline tests
+### Offline validation — required
 
-Add focused tests that prove:
+The PR must prove without provider spend:
 
-- Bright Data is a registered known provider.
-- normalized `search` maps Bright Data organic SERP results correctly.
-- normalized `extract` maps Unlocker Markdown/text correctly.
-- tool profiles describe the required Bright Data tools and preserve raw results.
-- `datasetsList` builds the correct GET request.
-- `datasetMetadata` inserts the dataset ID into the endpoint path.
-- `scrape` moves `dataset_id` into the query string and sends only input records as the request body.
-- `trigger` preserves the async snapshot/job response.
-- `snapshot` retrieves the requested snapshot without confusing snapshot IDs and dataset IDs.
-- missing API key is a visible key-resolution error.
-- missing `serpZone`/`unlockerZone` affects only tools needing that zone.
-- no secret value is persisted/logged.
-- no test makes a paid Bright Data call.
+- Bright Data registration and normalized capabilities.
+- SERP request shape and organic normalization.
+- Unlocker request shape and Markdown extraction.
+- `wired` vs `direct` profile semantics.
+- dataset-list and metadata endpoint construction.
+- sync scraper dataset/query/body separation.
+- preservation of provider-native scalar query controls.
+- async trigger/progress/metadata/cancel/download lifecycle.
+- structured input cap occurs before network execution.
+- direct results remain raw-preserved.
+- safe key reference is logged while the literal key is absent.
+- no test contacts Bright Data.
 
-### Live scoped proof
+Run:
 
-Do **not** add Bright Data to routine PR CI.
+```bash
+npm run typecheck
+npm run test:docs
+npm test
+```
 
-When account config is available, run a deliberate scoped proof for:
+### Live scoped proof — deliberate only
 
-1. SERP: one low-cost query through Bright Data native API and one equivalent ColdSearch Bright Data search.
-2. Unlocker: one safe public URL through native API and ColdSearch extract.
+Do **not** add Bright Data live calls to routine PR CI.
+
+When the account API key/zones are intentionally configured, make a very small scoped proof:
+
+1. SERP: one low-cost query native vs ColdSearch normalized/direct path.
+2. Unlocker: one safe public URL native vs ColdSearch extract/direct path.
 3. Dataset discovery: `datasetsList` and one `datasetMetadata` request.
-4. Structured scrape: choose one account-available, low-cost scraper and make one small synchronous request; compare native vs `tool call` raw output.
+4. Structured scrape: one small account-available scraper request, comparing native result with `tool call` raw output.
+5. If async lifecycle itself changed, one minimal trigger/progress/metadata/result sequence; otherwise do not manufacture a batch merely for validation.
 
-Do not run broad scraper batches merely to prove the adapter.
+Record live status separately from offline implementation. Missing Bright Data configuration means **not live-verified**, not failed and not implicitly waived.
 
 ---
 
 ## 7. Success criteria
 
-- Ordinary `coldsearch search` can use Bright Data SERP like another configured search provider.
-- Ordinary `coldsearch extract` can use Bright Data Unlocker like another configured known-URL retrieval provider.
-- A calling agent can discover available Bright Data structured scrapers at runtime instead of relying on dataset IDs hard-coded in ColdSearch.
-- A calling agent can inspect scraper metadata/schema and request structured records for products or other supported domains.
-- Sync and async scraper lifecycles remain explicit and inspectable.
-- Bright Data raw responses remain available on direct tool calls.
+- Ordinary ColdSearch search can deliberately use Bright Data SERP without changing the agent-facing search abstraction.
+- Ordinary extract can deliberately use Web Unlocker.
+- An agent can discover account-available structured scrapers rather than hard-code dataset IDs.
+- An agent can inspect scraper metadata/schema and retrieve structured products or other records.
+- Sync and async scraper lifecycles are explicit, inspectable and cancellable.
+- Provider-reported async cost can be inspected when available.
+- Structured tools are marked `direct` and cannot accidentally enter normalized routing.
+- Bright Data remains outside default pools initially.
+- Raw provider responses remain available on direct calls.
 - No new workflow/pipeline engine is introduced.
 - No paid Bright Data comparison/benchmark is added to routine validation.
-- Crawl/Discover/Browser/Marketplace expansion is not silently treated as completed merely because Bright Data offers those products.
+- Browser/proxy/Marketplace expansion is not silently treated as complete.
 
 ## PR Review Pause
 
 After implementation:
 
-- [ ] Run the normal offline test suite and docs/registry validation.
-- [ ] Run only the scoped Bright Data live checks intentionally authorized/configured for this integration.
-- [ ] Open the implementation PR and read all required/advisory review surfaces.
-- [ ] Address valid findings and rerun only the validation affected by follow-up changes.
-- [ ] Do not merge while #50 is still an unresolved stacked dependency; retarget/rebase to `main` after #50 lands.
+- [ ] Run typecheck, normal offline tests, and docs/registry validation.
+- [ ] Read all review surfaces and address valid findings.
+- [ ] Rerun only validation affected by follow-up changes.
+- [ ] Keep the PR draft until the implementation is internally green and the remaining live-verification status is described accurately.
+- [ ] Do not run paid live Bright Data checks unless account configuration is intentionally supplied for that scoped proof.
