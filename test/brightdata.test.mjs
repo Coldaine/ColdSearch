@@ -382,6 +382,72 @@ test("bodyless GET tools do not claim a JSON request body", () => {
   assert.equal(serp.headers["Content-Type"], "application/json");
 });
 
+test("serp direct tool uses the text parser for non-JSON formats", () => {
+  const raw = buildBrightDataToolRequest("serp", { query: "x", format: "raw" }, "secret", config());
+  assert.equal(raw.useTextParser, true, "serp format=raw returns HTML and must not be JSON-parsed");
+  const json = buildBrightDataToolRequest("serp", { query: "x", format: "json" }, "secret", config());
+  assert.equal(json.useTextParser, false);
+  const defaulted = buildBrightDataToolRequest("serp", { query: "x" }, "secret", config());
+  assert.equal(defaulted.useTextParser, false, "json is the serp default format");
+});
+
+test("snapshot rejects compressed binary downloads", () => {
+  assert.throws(
+    () => buildBrightDataToolRequest(
+      "snapshot",
+      { snapshot_id: "s_1", compress: true },
+      "secret",
+      config()
+    ),
+    /compress/
+  );
+  assert.throws(
+    () => buildBrightDataToolRequest(
+      "snapshot",
+      { snapshot_id: "s_1", compress: "true" },
+      "secret",
+      config()
+    ),
+    /compress/
+  );
+  const plain = buildBrightDataToolRequest("snapshot", { snapshot_id: "s_1" }, "secret", config());
+  assert.equal(plain.method, "GET");
+  assert.equal(plain.useTextParser, false);
+});
+
+test("trigger/crawl discovery limits are capped before any paid request", () => {
+  assert.throws(
+    () => buildBrightDataToolRequest(
+      "trigger",
+      { dataset_id: "gd_search", input: { keyword: "gpu" }, limit_per_input: 500 },
+      "secret",
+      config({ maxDiscoveryResultsPerInput: 20 })
+    ),
+    /limit_per_input 500 exceeds configured maximum 20/
+  );
+  const allowed = buildBrightDataToolRequest(
+    "trigger",
+    { dataset_id: "gd_search", input: { keyword: "gpu" }, limit_per_input: 20 },
+    "secret",
+    config({ maxDiscoveryResultsPerInput: 20 })
+  );
+  assert.equal(new URL(allowed.url).searchParams.get("limit_per_input"), "20");
+});
+
+test("string summary payloads report content length instead of a bogus record count", () => {
+  const scrapeText = buildBrightDataSummary("scrape", "col1,col2\n1,2");
+  assert.equal(scrapeText.content_length, "col1,col2\n1,2".length);
+  assert.equal("records_count" in scrapeText, false);
+  const scrapeList = buildBrightDataSummary("scrape", [{ url: "a" }, { url: "b" }]);
+  assert.equal(scrapeList.records_count, 2);
+
+  const snapshotText = buildBrightDataSummary("snapshot", "<html>page</html>");
+  assert.equal(snapshotText.content_length, "<html>page</html>".length);
+  assert.equal("records_count" in snapshotText, false);
+  const snapshotList = buildBrightDataSummary("snapshot", [{ id: 1 }]);
+  assert.equal(snapshotList.records_count, 1);
+});
+
 test("structured request input count is capped before any paid request", () => {
   assert.throws(
     () => buildBrightDataToolRequest(
@@ -464,6 +530,81 @@ test("substrate forwards the unlocker request body on the text-parser path", asy
     // must still reach the upstream API, not be dropped in the substrate.
     assert.equal(receivedBody.zone, "unlocker_test");
     assert.equal(receivedBody.url, "https://example.com/page");
+  } finally {
+    delete process.env.BRIGHTDATA_TEST_KEY;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("unconfigured brightdata fails before any HTTP request", async () => {
+  const cfg = config();
+  delete cfg.providers.brightdata;
+  let fetchCalled = false;
+  await withMockFetch(async () => {
+    fetchCalled = true;
+    return new Response("{}", { status: 200 });
+  }, async () => {
+    const result = await executeToolCall("brightdata", "serp", { query: "x" }, cfg);
+    assert.equal(result.ok, false);
+    assert.equal(result.error?.code, "PROVIDER_NOT_CONFIGURED");
+    assert.match(result.error?.message, /add \[providers\.brightdata\]/);
+  });
+  assert.equal(fetchCalled, false, "no HTTP request may fire without a configured brightdata block");
+});
+
+test("usage log records masked zone and summary cost/counts, never the raw zone or key", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-brightdata-"));
+  const usagePath = path.join(tmpDir, "usage.jsonl");
+  process.env.BRIGHTDATA_TEST_KEY = "super-secret-bright-data-key";
+  const cfg = config();
+  cfg.logging = { usage: { path: usagePath } };
+  cfg.history = { path: path.join(tmpDir, "history.jsonl") };
+  cfg.cache = { enabled: false };
+
+  try {
+    // serp call: masked zone + result count.
+    await withMockFetch(async () => new Response(JSON.stringify({
+      organic: [{ link: "https://example.com" }],
+      general: { query: "pizza", search_type: "text", country: "us" },
+    }), { status: 200, headers: { "content-type": "application/json" } }), async () => {
+      const result = await executeToolCall(
+        "brightdata",
+        "serp",
+        { query: "pizza", zone: "brd-customer_abc123-zone-serp" },
+        cfg
+      );
+      assert.equal(result.ok, true, result.error?.message);
+    });
+
+    // snapshotMetadata call: provider-reported cost + dataset size.
+    await withMockFetch(async () => new Response(JSON.stringify({
+      id: "s_1",
+      dataset_id: "gd_product",
+      status: "ready",
+      cost: 1.25,
+      dataset_size: 12,
+    }), { status: 200, headers: { "content-type": "application/json" } }), async () => {
+      const result = await executeToolCall(
+        "brightdata",
+        "snapshotMetadata",
+        { snapshot_id: "s_1" },
+        cfg
+      );
+      assert.equal(result.ok, true, result.error?.message);
+    });
+
+    const log = fs.readFileSync(usagePath, "utf8");
+    assert.ok(!log.includes("brd-customer_abc123"), "raw zone leaked into the usage log");
+    assert.ok(!log.includes("super-secret-bright-data-key"), "API key leaked into the usage log");
+    const entries = log.trim().split("\n").map((line) => JSON.parse(line));
+    const serpEntry = entries.find((e) => e.tool === "serp");
+    assert.equal(serpEntry.zone, "serp", "usage log should carry the masked zone suffix");
+    assert.equal(serpEntry.result_count, 1);
+    assert.equal(serpEntry.cost_usd, undefined);
+    const metaEntry = entries.find((e) => e.tool === "snapshotMetadata");
+    assert.equal(metaEntry.cost_usd, 1.25);
+    assert.equal(metaEntry.result_count, 12);
+    assert.equal(metaEntry.zone, undefined, "dataset tools have no zone to attribute");
   } finally {
     delete process.env.BRIGHTDATA_TEST_KEY;
     fs.rmSync(tmpDir, { recursive: true, force: true });

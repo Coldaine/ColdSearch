@@ -228,13 +228,13 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     nativeName: "POST /datasets/v3/trigger (Crawl API dataset)",
     categories: [],
     description:
-      "Bright Data Crawl API job trigger. Direct provider-native surface; not a normalized ColdSearch crawl backer until output and spend semantics are characterized.",
+      "Bright Data Crawl API job trigger. One-shot request mapping: the response's snapshot_id is returned in raw for follow-up via the trigger/progress/snapshot tool family. Direct provider-native surface; not a normalized ColdSearch crawl backer until output and spend semantics are characterized.",
     docsUrl: "https://docs.brightdata.com/api-reference/rest-api/scraper/crawl-api",
     requiredParams: ["dataset_id", "input"],
     optionalParams: ["inputs", "include_errors", "custom_output_fields"],
     commonViews: [],
-    features: { asyncJob: true, crawlJob: true, structuredJson: true, keyless: false },
-    execution: { mode: "async-job", supportsPolling: true, jobIdField: "snapshot_id" },
+    features: { crawlJob: true, structuredJson: true, keyless: false },
+    execution: { mode: "sync" },
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
@@ -246,13 +246,13 @@ const brightDataToolProfiles: Record<string, ProviderToolProfile> = {
     nativeName: "POST /discover",
     categories: [],
     description:
-      "Bright Data Discover API direct tool. Kept provider-native rather than silently substituted for ordinary web search.",
+      "Bright Data Discover API direct tool. One-shot request mapping: the response's task_id is returned in raw for follow-up via other tools. Kept provider-native rather than silently substituted for ordinary web search.",
     docsUrl: "https://docs.brightdata.com/api-reference/discover/overview",
     requiredParams: ["query"],
     optionalParams: [],
     commonViews: [],
     features: { discovery: true, structuredJson: true, keyless: false },
-    execution: { mode: "async-job", supportsPolling: true, jobIdField: "task_id" },
+    execution: { mode: "sync" },
     output: { rawPreserved: true, summarySupported: true, resultEnvelope: "job" },
     schemaSource: "official-docs",
     schemaLastVerified: VERIFIED,
@@ -268,5 +268,11 @@ export function installBrightDataToolProfiles(): void {
   Object.assign(providerToolProfiles, brightDataToolProfiles);
   installed = true;
 }
+
+// Self-install: importing this module registers the profiles, so the substrate
+// dispatch path (which imports this module for its side effect) sees Bright
+// Data tools as catalogued even when src/providers.ts is not imported. The
+// idempotent guard keeps the explicit install call in src/providers.ts a no-op.
+installBrightDataToolProfiles();
 
 export { brightDataToolProfiles };

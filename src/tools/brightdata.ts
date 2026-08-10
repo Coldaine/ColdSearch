@@ -8,6 +8,11 @@ export interface BrightDataToolRequest {
   useTextParser: boolean;
   /** Per-request HTTP timeout in ms; omitted means the substrate default. */
   timeoutMs?: number;
+  /**
+   * Masked zone suffix (after the last `-`) for usage-log attribution. Never
+   * the full zone — zone names embed the Bright Data customer ID.
+   */
+  maskedZone?: string;
 }
 
 function configuredString(
@@ -61,6 +66,17 @@ function requireZone(
   );
 }
 
+/**
+ * Safe zone label for usage logs: zone names embed the Bright Data customer ID
+ * (`brd-customer_<id>-zone-serp`), so only the suffix after the last `-` is
+ * ever exposed. A zone without a `-` gets a constant placeholder.
+ */
+function maskZone(zone: string): string {
+  const lastDash = zone.lastIndexOf("-");
+  if (lastDash > 0 && lastDash < zone.length - 1) return zone.slice(lastDash + 1);
+  return "configured";
+}
+
 /** Shared search-engine URL builder (used by the adapter and the serp mapper). */
 export function searchUrlFromQuery(query: string, engine: string): string {
   const q = encodeURIComponent(query);
@@ -112,6 +128,32 @@ function appendNativeQueryParams(
   }
 }
 
+/**
+ * Async trigger/crawl discovery jobs multiply `limit_per_input` across every
+ * input record, so one request can launch a large paid run that defeats the
+ * input cap. Reject a `limit_per_input` above the configured ceiling before
+ * any request is built; the default matches the conservative style of
+ * `maxStructuredInputsPerCall`.
+ */
+function assertDiscoveryLimit(params: Record<string, any>, config: Config): void {
+  const rawLimit = params.limit_per_input;
+  if (rawLimit === undefined || rawLimit === null) return;
+  const limit =
+    typeof rawLimit === "number" && Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.floor(rawLimit)
+      : typeof rawLimit === "string" && /^\d+$/.test(rawLimit)
+        ? Number(rawLimit)
+        : 0;
+  if (limit === 0) return;
+  const maxDiscovery = configuredPositiveInteger(config, "maxDiscoveryResultsPerInput", 20);
+  if (limit > maxDiscovery) {
+    throw new Error(
+      `Bright Data limit_per_input ${limit} exceeds configured maximum ${maxDiscovery}. ` +
+        "Increase providers.brightdata.options.maxDiscoveryResultsPerInput deliberately for larger paid runs."
+    );
+  }
+}
+
 /** Build an authenticated provider-native Bright Data HTTP request. */
 export function buildBrightDataToolRequest(
   tool: string,
@@ -145,12 +187,13 @@ export function buildBrightDataToolRequest(
       typeof params.country === "string"
         ? params.country
         : configuredString(config, "searchCountry") || "us";
+    const format = params.format || "json";
 
     const payload: Record<string, any> = {
       ...params,
       zone,
       url,
-      format: params.format || "json",
+      format,
       method: params.method || "GET",
       country,
     };
@@ -163,7 +206,10 @@ export function buildBrightDataToolRequest(
       method: "POST",
       headers: jsonHeaders,
       body: JSON.stringify(payload),
-      useTextParser: false,
+      // `format: "raw"` asks the API for HTML, not JSON; route any non-JSON
+      // format through the text parser (mirrors the unlocker mapper).
+      useTextParser: format !== "json",
+      maskedZone: maskZone(zone),
     };
   }
 
@@ -200,6 +246,7 @@ export function buildBrightDataToolRequest(
       body: JSON.stringify(payload),
       useTextParser: format !== "json",
       ...(timeoutMs > 0 ? { timeoutMs } : {}),
+      maskedZone: maskZone(zone),
     };
   }
 
@@ -249,6 +296,7 @@ export function buildBrightDataToolRequest(
 
   if (tool === "trigger" || tool === "crawl") {
     const datasetId = requireValue(params.dataset_id ?? params.datasetId, "dataset_id");
+    assertDiscoveryLimit(params, config);
     const requestUrl = new URL(`${baseUrl}/datasets/v3/trigger`);
     requestUrl.searchParams.set("dataset_id", datasetId);
     appendNativeQueryParams(
@@ -297,6 +345,15 @@ export function buildBrightDataToolRequest(
   }
 
   if (tool === "snapshot") {
+    // Compressed downloads are binary and no parser can handle them; reject
+    // up front so binary output never reaches history/replay (same pattern as
+    // the unlocker screenshot rejection).
+    if (params.compress === true || params.compress === "true") {
+      throw new Error(
+        "Bright Data snapshot compress produces binary output that cannot be recorded safely; " +
+          "download uncompressed JSON instead"
+      );
+    }
     const format = typeof params.format === "string" ? params.format : "json";
     const requestUrl = new URL(
       `${baseUrl}/datasets/v3/snapshot/${encodeURIComponent(snapshotId(params))}`
@@ -363,8 +420,12 @@ export function buildBrightDataSummary(
 
   if (tool === "scrape") {
     return {
-      records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0,
-      snapshot_id: raw?.snapshot_id ?? null,
+      // Text-parser payloads (csv/ndjson-as-text) carry no record array; report
+      // content length instead of a misleading records_count of 1.
+      ...(typeof raw === "string"
+        ? { content_length: raw.length }
+        : { records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0 }),
+      snapshot_id: typeof raw === "object" && raw !== null ? (raw.snapshot_id ?? null) : null,
       cost_usd: typeof raw?.cost === "number" ? raw.cost : null,
     };
   }
@@ -402,7 +463,9 @@ export function buildBrightDataSummary(
   }
 
   if (tool === "snapshot") {
-    return { records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0 };
+    return typeof raw === "string"
+      ? { content_length: raw.length }
+      : { records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0 };
   }
 
   if (tool === "discover") {

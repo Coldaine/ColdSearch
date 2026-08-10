@@ -44,6 +44,7 @@ export const providerRegistry = {
       "searchCountry",
       "maxStructuredInputsPerCall",
       "unlockerTimeoutMs",
+      "maxDiscoveryResultsPerInput",
     ],
     createAdapter: () => new BrightDataAdapter(),
   },

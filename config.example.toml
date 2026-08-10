@@ -99,6 +99,11 @@ maxStructuredInputsPerCall = 20
 # Web Unlocker timeout in milliseconds. JS-rendered pages routinely exceed the
 # default 10s fetch timeout; raise this for slower pages.
 # unlockerTimeoutMs = 30000
+# Hard safety bound for async discovery jobs: `limit_per_input` multiplies every
+# input record into a large paid run, so one trigger/crawl request could defeat
+# the input cap above. Same conservative default as maxStructuredInputsPerCall;
+# raise deliberately for larger paid runs.
+maxDiscoveryResultsPerInput = 20
 
 [providers.serper]
 [providers.serper.keyPool]
