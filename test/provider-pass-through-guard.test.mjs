@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -85,4 +86,39 @@ test("--overwrite-baseline flag parses without network in --list mode", () => {
   const result = runScript(["--list", "--overwrite-baseline"]);
 
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("--out-dir through a symlink/junction at the baseline is refused", (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "guard-symlink-"));
+  const link = path.join(tmp, "baseline-link");
+  try {
+    fs.symlinkSync(baselineDir, link, "junction");
+  } catch (error) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    t.skip(`cannot create a symlink/junction here: ${error.message}`);
+    return;
+  }
+
+  try {
+    const before = Object.fromEntries(
+      protectedFiles.map((file) => [
+        file,
+        fs.readFileSync(path.join(baselineDir, file), "utf8"),
+      ])
+    );
+
+    const result = runScript(["--provider", "brave", "--out-dir", link]);
+
+    assert.notEqual(result.status, 0, "expected a non-zero exit code");
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.match(output, /baseline/i, "expected the refusal to mention the baseline");
+    assert.match(output, /--out-dir/, "expected the refusal to mention --out-dir");
+
+    for (const file of protectedFiles) {
+      const after = fs.readFileSync(path.join(baselineDir, file), "utf8");
+      assert.equal(after, before[file], `${file} must be untouched`);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });

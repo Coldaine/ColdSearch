@@ -15,7 +15,8 @@ import { executeToolCall } from "./tools/substrate.js";
 import { getKeyReference } from "./logging/usage.js";
 import { HistoryStore } from "./history/store.js";
 import { searchHistory } from "./history/search.js";
-import type { ExecutionRecord } from "./history/types.js";
+import { newExecutionId, type ExecutionRecord } from "./history/types.js";
+import { redactSensitive } from "./history/redact.js";
 import { CacheStore } from "./cache/cache.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -840,6 +841,12 @@ async function runToolCall(options: ExtendedCLIOptions): Promise<void> {
       meta: { duration_ms: 0, safe_key_ref: null, warnings: [] },
     };
     console.log(formatOutput(failureResult, options));
+    recordToolPreDispatchFailure(
+      options,
+      target,
+      "INVALID_TOOL_ID",
+      `Invalid tool ID: '${target}'. Tool ID must follow the '<provider>.<tool>' format, e.g. exa.search`
+    );
     process.exit(1);
     return;
   }
@@ -873,6 +880,12 @@ async function runToolCall(options: ExtendedCLIOptions): Promise<void> {
           meta: { duration_ms: 0, safe_key_ref: null, warnings: [] },
         };
         console.log(formatOutput(failureResult, options));
+        recordToolPreDispatchFailure(
+          options,
+          target,
+          "FILE_NOT_FOUND",
+          `JSON input file not found: ${options.jsonInput}`
+        );
         process.exit(1);
         return;
       }
@@ -898,6 +911,14 @@ async function runToolCall(options: ExtendedCLIOptions): Promise<void> {
         meta: { duration_ms: 0, safe_key_ref: null, warnings: [] },
       };
       console.log(formatOutput(failureResult, options));
+      recordToolPreDispatchFailure(
+        options,
+        target,
+        "INVALID_JSON",
+        // Do not persist err.message: modern Node includes an excerpt of the
+        // offending input in JSON.parse errors, which may carry secrets.
+        `Failed to parse JSON input: ${err.name ?? "SyntaxError"}`
+      );
       process.exit(1);
       return;
     }
@@ -931,6 +952,49 @@ async function runToolCall(options: ExtendedCLIOptions): Promise<void> {
 function createHistoryStore(options: ExtendedCLIOptions): HistoryStore {
   const config = loadConfig(options.config);
   return new HistoryStore({ path: config.history?.path });
+}
+
+/**
+ * Record a pre-dispatch tool-call failure (malformed tool ID, missing input
+ * file, unparseable JSON params) that never reached the substrate, so history
+ * still holds one failed record per `tool call` invocation. Best-effort: on
+ * failure only a non-secret warning is printed — the original error and exit
+ * are never masked.
+ */
+function recordToolPreDispatchFailure(
+  options: ExtendedCLIOptions,
+  target: string,
+  code: string,
+  message: string
+): void {
+  try {
+    // Redact once and reuse for both `input` and the errors map key so the two
+    // stay consistent — a malformed target can itself carry credential data.
+    const safeTarget = redactSensitive(target);
+    const record: ExecutionRecord = {
+      id: newExecutionId(),
+      timestamp: new Date().toISOString(),
+      command: "tool",
+      input: safeTarget,
+      routing: { providers_attempted: [] },
+      source: "live",
+      attempts: [],
+      // Persisted error text is redacted like any other history field —
+      // defense in depth, since callers must already avoid passing messages
+      // that echo secret-bearing input.
+      errors: { [safeTarget]: redactSensitive(message) },
+      raw_available: false,
+      duration_ms: 0,
+      outcome: "failed",
+    };
+    createHistoryStore(options).append(record);
+  } catch (error) {
+    console.error(
+      `Warning: pre-dispatch tool failure (${code}) was not recorded in history: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 function createCacheStore(options: ExtendedCLIOptions): CacheStore {

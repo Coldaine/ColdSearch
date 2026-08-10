@@ -164,7 +164,7 @@ npm test
 npm run test:docs
 node dist/cli.js tool list --json
 echo '{"query":"coldsearch"}' | node dist/cli.js tool call tavily.answer --json-input - --json
-node scripts/provider-pass-through.mjs --provider <provider> --path <new-tool-or-path>
+node scripts/provider-pass-through.mjs --provider <provider> --path <new-tool-or-path> --out-dir /tmp/coldsearch-conformance-<provider>-<path>
 ```
 
 What these prove:

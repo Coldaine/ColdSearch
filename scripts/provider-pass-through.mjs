@@ -954,6 +954,25 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Resolve symlinks/junctions by realpath-ing the nearest existing ancestor and
+// re-appending any non-existing trailing segments. path.resolve alone is purely
+// lexical, so a symlink/junction in the out-dir path could otherwise dodge the
+// baseline guard and redirect the evidence-clearing writes at the committed dir.
+function canonicalize(p) {
+  const resolved = path.resolve(p);
+  let existing = resolved;
+  const trailing = [];
+  while (!fs.existsSync(existing)) {
+    const parent = path.dirname(existing);
+    // No existing ancestor at all (e.g. a non-existent Windows drive like
+    // Z:\foo): realpathSync would throw, so fall back to the lexical path.
+    if (parent === existing) return resolved;
+    trailing.unshift(path.basename(existing));
+    existing = parent;
+  }
+  return path.join(fs.realpathSync(existing), ...trailing);
+}
+
 function ensureEvidenceDir(outDir) {
   fs.mkdirSync(outDir, { recursive: true });
   const samplesDir = path.join(outDir, "samples");
@@ -1078,10 +1097,9 @@ async function main() {
     ? selectTargets()
     : selectTargets({ provider: options.provider, path: options.path });
 
-  const relToBaseline = path.relative(
-    path.resolve(defaultOutDir),
-    path.resolve(options.outDir)
-  );
+  const canonicalBaseline = canonicalize(defaultOutDir);
+  const canonicalOutDir = canonicalize(options.outDir);
+  const relToBaseline = path.relative(canonicalBaseline, canonicalOutDir);
   const isWithinBaseline =
     relToBaseline === "" ||
     (!relToBaseline.startsWith("..") && !path.isAbsolute(relToBaseline));
