@@ -36,6 +36,8 @@ Every supported provider/path must be visible in the scheduled/manual report as 
 
 A workflow may complete successfully while some rows are blocked or not run, but its summary must show those rows and totals. “Workflow succeeded” must never imply “all supported provider integrations passed.” Reuse the Gate 0 status semantics and provider/path inventory rather than creating a second harness or status model.
 
+The shared inventory must also cover provider-tool dispatch: add provider-tool rows (for example `tavily.map` or `brave.newsSearch`) with native runners for catalogued provider tools, using the same status vocabulary. Otherwise a scoped check triggered by a generic provider-tool change has no row to run, and the outstanding provider-tool parity evidence from PR 1 cannot be produced.
+
 ## Evidence Isolation
 
 The committed Gate 0 directory under `plans/evidence/2026-06-23-provider-pass-through/` is the historical full-matrix baseline. Ongoing scoped checks must **not** write there because the harness clears its selected output directory before writing new evidence.
@@ -45,6 +47,7 @@ For manual scoped checks, always provide a separate temporary/output directory. 
 ## Tasks
 
 - [ ] Extend/reuse `scripts/provider-pass-through.mjs` scoped provider/path selection while preserving `--all` for the deliberate Gate 0 baseline.
+- [ ] Extend the shared provider/path inventory with provider-tool rows (provider.tool IDs and native runners) so scoped checks cover catalogued provider tools.
 - [ ] Make the harness emit one machine-readable row per provider/path in scope.
 - [ ] Make omitted supported paths explicit as `not_run` in coverage summaries.
 - [ ] Reuse `pass`, `fail`, `blocked_missing_secret`, `blocked_provider`, and `waived_by_user` semantics from Gate 0.
@@ -54,6 +57,7 @@ For manual scoped checks, always provide a separate temporary/output directory. 
 - [ ] Document the scoped manual command in contributor testing guidance.
 - [ ] Ensure missing credentials remain visible rather than being treated as tested passes.
 - [ ] Ensure scoped/manual runs use an output directory separate from the committed Gate 0 baseline.
+- [ ] Publish scoped/manual coverage summaries where reviewers can inspect them (PR comment/summary or workflow artifact) without writing to the committed baseline.
 
 ## Required Tests
 
@@ -76,6 +80,8 @@ node scripts/provider-pass-through.mjs \
   --out-dir /tmp/coldsearch-conformance-<provider>-<path>
 ```
 
+Publish the scoped coverage summary with the provider-facing change — for example, paste the machine-readable summary table into the PR or attach it as an artifact — so reviewers can inspect the pass/fail/blocked/waived rows. Temporary output alone is not evidence; keep the raw files outside the committed Gate 0 baseline directory.
+
 For scheduled coverage, inspect the workflow summary produced by the canary. Run `node scripts/provider-pass-through.mjs --all` against the committed Gate 0 evidence directory only under the full-matrix conditions listed in Scope.
 
 What these prove:
@@ -89,6 +95,7 @@ Expected:
 - Ordinary PR validation remains offline.
 - Only affected provider/path rows are called manually for a provider-facing change.
 - Scoped checks never overwrite the committed Gate 0 baseline evidence.
+- Scoped run results are published where reviewers can inspect them instead of existing only in a temporary directory.
 - The scheduled report enumerates coverage instead of presenting a misleading binary green/red result.
 - No conformance output claims which provider was most useful.
 

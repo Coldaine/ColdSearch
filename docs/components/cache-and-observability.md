@@ -41,7 +41,7 @@ History must survive cache expiry and `cache clear`. Expiring or clearing replay
 The initial history surface is:
 
 - `coldsearch history recent` — list recent top-level executions newest first. Show enough metadata to recognize the work: execution ID, time, command, abbreviated input, providers, live/cache source, outcome, and result count. Use a bounded default and support `--limit` and `--json`.
-- `coldsearch history search <query>` — local-only retrieval over prior executions. Search the original request most strongly, then result titles and URLs/domains, then snippets/content and provider/tool metadata. Return matching executions with the fields/results that caused the match. Do not search arbitrary raw provider JSON by default and do not call providers.
+- `coldsearch history search <query>` — local-only retrieval over prior executions. Search the original request most strongly, then result titles and URLs/domains, then snippets/content and provider/tool metadata. Return matching executions with the fields/results that caused the match. Do not search arbitrary raw provider JSON by default and do not call providers. Use a bounded default and support `--limit` and `--json`.
 - `coldsearch history show <execution-id>` — reconstruct one execution: request, routing, cache provenance, provider attempts, final normalized output, and errors. If raw provider detail was not preserved on that execution path, say it is unavailable rather than reconstructing it.
 - `coldsearch history show <execution-id> --by-provider` — for stored fanout work, show each provider's pre-merge results/errors and the final merged/reranked output. Simple URL overlap/unique counts may be computed from stored data; do not rank providers or make new calls.
 - `coldsearch history clear --all` — explicitly delete all local history records without touching replay-cache entries. Require `--all` so the destructive operation is deliberate and report how many records were removed.
@@ -87,3 +87,7 @@ Observability should be rich enough to reconstruct observable application behavi
 ## Non-Secret Rule
 
 Logs, cache metadata, and history records must not persist secret values. Key usage is recorded by safe reference only.
+
+Provider-supplied content — including error bodies that may echo a credential — is scrubbed of resolved credential values before it is persisted; content that cannot be scrubbed safely is recorded as unavailable.
+
+A failed history write is surfaced as an observable, non-secret warning; history records are never silently dropped the way a cache miss is tolerated.
