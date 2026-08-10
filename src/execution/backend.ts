@@ -154,8 +154,13 @@ export class LocalExecutionBackend implements ExecutionBackend {
     };
   }
 
-  private static toAttempts(attempts: FanoutAttempt[]): ProviderAttempt[] {
-    return attempts.map((attempt) => ({ ...attempt }));
+  private static toAttempts(attempts: FanoutAttempt[], secrets: string[] = []): ProviderAttempt[] {
+    return attempts.map((attempt) => ({
+      ...attempt,
+      // Provider errors can echo credentials (adapters embed provider-supplied
+      // error bodies); scrub them like the errors map before persistence.
+      error: attempt.error === undefined ? undefined : redactSensitive(attempt.error, secrets),
+    }));
   }
 
   private cacheProvenance(meta: CacheEntryMeta): ExecutionRecord["cache"] {
@@ -225,7 +230,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
             reranker
           ),
           source: "live",
-          attempts: LocalExecutionBackend.toAttempts(result.attempts),
+          attempts: LocalExecutionBackend.toAttempts(result.attempts, secrets),
           partitions: redactSensitive(result.partitions, secrets),
           result: redactForPersistence(result.results, secrets) ?? undefined,
           result_count: result.results.length,
@@ -317,7 +322,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
             result.attempts.map((a) => a.provider)
           ),
           source: "live",
-          attempts: LocalExecutionBackend.toAttempts(result.attempts),
+          attempts: LocalExecutionBackend.toAttempts(result.attempts, secrets),
           result: redactForPersistence(result.result, secrets) ?? undefined,
           result_count: result.result ? 1 : 0,
           raw_available: false,
@@ -375,7 +380,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
             result.attempts.map((a) => a.provider)
           ),
           source: "live",
-          attempts: LocalExecutionBackend.toAttempts(result.attempts),
+          attempts: LocalExecutionBackend.toAttempts(result.attempts, secrets),
           result: redactForPersistence(result.results, secrets) ?? undefined,
           result_count: result.results.length,
           raw_available: false,
@@ -421,7 +426,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
         (allFailed?.attempts ?? []).map((a) => a.provider)
       ),
       source: "live",
-      attempts: allFailed ? LocalExecutionBackend.toAttempts(allFailed.attempts) : [],
+      attempts: allFailed ? LocalExecutionBackend.toAttempts(allFailed.attempts, secrets) : [],
       raw_available: false,
       errors: redactSensitive(errors, secrets),
       duration_ms: Math.round(performance.now() - start),

@@ -18,10 +18,10 @@
 - Provider-tool exact replay exists only for tools on the explicit
   replay-safe allowlist (`src/tools/replay.ts`); all other provider tools are
   history-only and always execute live. Crawl replay remains disabled.
-- Records and cached payloads are scrubbed before persistence: resolved
-  credential values, signed-URL tokens, and credential fields are redacted;
-  unscrubbable raw detail is recorded as unavailable. Failed history writes
-  surface as observable warnings.
+- History records and tool-cache payloads are scrubbed before persistence:
+  resolved credential values, signed-URL tokens, and credential fields are
+  redacted; unscrubbable raw detail is recorded as unavailable. Failed
+  history writes surface as observable warnings.
 - Usage logging exists as JSONL.
 - Agent and provider paths have some structured errors and timings.
 

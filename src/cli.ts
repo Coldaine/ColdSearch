@@ -1221,7 +1221,8 @@ function runCacheCommand(options: ExtendedCLIOptions): void {
 /**
  * Main CLI entry point.
  */
-async function main(): Promise<void> {  try {
+async function main(): Promise<void> {
+  try {
     const args = process.argv.slice(2);
 
     if (args.length === 0) {

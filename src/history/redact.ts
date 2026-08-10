@@ -26,6 +26,14 @@ const SENSITIVE_FIELD_PATTERN =
   /(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|authorization|credential|pass(word|phrase)|secret|signature|bearer)/i;
 
 /**
+ * Exact field names that are credential material on their own — e.g. a
+ * `token` or `key` field inside `tool call --json-input`. Kept separate from
+ * the substring pattern above so ordinary fields like `monkey` or
+ * `tokenizer` are not mangled.
+ */
+const SENSITIVE_EXACT_FIELD_PATTERN = /^(token|key|jwt|sig|session(id)?)$/i;
+
+/**
  * URL query parameters whose values are signature/credential material.
  * Matched exactly (case-insensitive) against the param name.
  */
@@ -91,7 +99,10 @@ export function redactSensitive<T>(value: T, secrets: string[] = []): T {
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, fieldValue] of Object.entries(value as Record<string, unknown>)) {
-      if (typeof fieldValue === "string" && SENSITIVE_FIELD_PATTERN.test(key)) {
+      if (
+        typeof fieldValue === "string" &&
+        (SENSITIVE_FIELD_PATTERN.test(key) || SENSITIVE_EXACT_FIELD_PATTERN.test(key))
+      ) {
         out[key] = REDACTED;
       } else {
         out[key] = redactSensitive(fieldValue, secrets);

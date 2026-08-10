@@ -621,3 +621,77 @@ test("persistence never contains raw secret values from provider errors", async 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("redactSensitive redacts standalone token/key fields without mangling ordinary fields", () => {
+  const scrubbed = redactSensitive(
+    {
+      query: "x",
+      token: "caller-token-value-123",
+      key: "caller-key-123",
+      monkey: "stays",
+      tokenizer: "stays",
+    },
+    []
+  );
+  assert.equal(scrubbed.token, REDACTED);
+  assert.equal(scrubbed.key, REDACTED);
+  assert.equal(scrubbed.monkey, "stays");
+  assert.equal(scrubbed.tokenizer, "stays");
+  assert.equal(scrubbed.query, "x");
+});
+
+test("provider attempt error strings are redacted before persistence", async () => {
+  // Firecrawl embeds the provider-supplied error body in the thrown message
+  // (src/adapters/firecrawl.ts), so a credential echoed there must not reach
+  // the durable attempts[].error field.
+  const dir = makeTempDir();
+  const historyPath = join(dir, "history.jsonl");
+  const cacheDir = join(dir, "cache");
+  const configPath = join(dir, "config.toml");
+  const secretKey = "fc-literal-key-ABCDEFGHIJ";
+  writeFileSync(
+    configPath,
+    `
+[capabilities.extract]
+providers = ["firecrawl"]
+strategy = "all"
+
+[providers.firecrawl]
+[providers.firecrawl.keyPool]
+keys = [${JSON.stringify(secretKey)}]
+
+[cache]
+enabled = true
+search_ttl = "6h"
+extract_ttl = "24h"
+path = ${JSON.stringify(cacheDir)}
+
+[history]
+path = ${JSON.stringify(historyPath)}
+`,
+    "utf8"
+  );
+
+  const restore = installFetchMock({
+    "*": async () => jsonResponse({ success: false, error: `invalid api key ${secretKey}` }),
+  });
+
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    await assert.rejects(() => backend.extract("https://example.com", {}));
+
+    const rawHistory = existsSync(historyPath) ? readFileSync(historyPath, "utf8") : "";
+    assert.ok(rawHistory.length > 0, "failed execution was recorded");
+    assert.equal(
+      rawHistory.includes(secretKey),
+      false,
+      "attempt error never persists the credential"
+    );
+    const record = readRecords(historyPath)[0];
+    assert.equal(record.outcome, "failed");
+    assert.ok(record.attempts[0].error.includes(REDACTED));
+  } finally {
+    restore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
