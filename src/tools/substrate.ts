@@ -468,6 +468,38 @@ export interface ToolCallOptions {
    * ignored (with a warning) for everything else.
    */
   freshness?: string;
+  /**
+   * Per-invocation `--no-cache` bypass: skip both the exact-replay lookup AND
+   * the cache store for this call. History recording still happens as a
+   * normal live execution.
+   */
+  noCache?: boolean;
+}
+
+/**
+ * Non-secret request-shaping provider config that must participate in an
+ * exact tool cache key. A provider's resolved endpoint (configured base URL or
+ * `<PROVIDER>_BASE_URL` env fallback) decides which instance answers the
+ * request; a cache entry sourced from one instance would replay stale results
+ * after the endpoint changes. Only endpoint-like option values are included —
+ * never credential material. Kept generic: any configured endpoint-like option
+ * shapes the key, not a searxng-specific carve-out.
+ */
+function endpointKeyMaterial(config: Config, provider: string): Record<string, string> {
+  const options = (config.providers[provider]?.options ?? {}) as Record<string, unknown>;
+  const material: Record<string, string> = {};
+  for (const [name, value] of Object.entries(options)) {
+    if (typeof value !== "string" || value === "") continue;
+    if (!/(base|endpoint|api|url|host|origin)/i.test(name)) continue;
+    // Endpoint-like NAME only: exclude anything that could be credential
+    // material (e.g. an api_key option) from the key material.
+    if (/(key|token|secret|credential|password|authorization)/i.test(name)) continue;
+    material[name] = value;
+  }
+  const envName = `${provider.toUpperCase()}_BASE_URL`;
+  const envValue = process.env[envName];
+  if (envValue) material[envName] = envValue;
+  return material;
 }
 
 function isFreshEntry(meta: CacheEntryMeta, ttlSeconds: number): boolean {
@@ -514,23 +546,29 @@ export async function executeToolCall(
   }
 
   const cacheEnabled = config.cache?.enabled !== false;
+  const noCache = options?.noCache === true;
   const toolTtl = parseDuration(config.cache?.tool_ttl ?? "6h", 21600);
   const effectiveTtl = options?.freshness
     ? parseDuration(options.freshness, toolTtl)
     : toolTtl;
 
-  const cache =
-    replaySafe && cacheEnabled
-      ? new CacheStore({ enabled: true, path: config.cache?.path })
-      : null;
-  const key = cache ? cacheKey("tool", toolId, params) : null;
+  // --no-cache bypasses both the lookup and the store for this invocation;
+  // history recording below is untouched.
+  const cache = replaySafe && cacheEnabled && !noCache
+    ? new CacheStore({ enabled: true, path: config.cache?.path })
+    : null;
+  const key = cache
+    ? cacheKey("tool", toolId, { ...params, ...endpointKeyMaterial(config, provider) })
+    : null;
 
   const recordExecution = (record: ExecutionRecord): void => {
     try {
       history.append(record);
     } catch (error) {
       warnings.push(
-        `Execution ${record.id} was not recorded in history: ${(error as Error).message}`
+        `Execution ${record.id} was not recorded in history: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       );
     }
   };
@@ -630,9 +668,17 @@ export async function executeToolCall(
   // The entry always records the CONFIG TTL: --freshness decides only whether
   // THIS invocation may read an entry; it must never persist into the entry.
   if (cache && key && result.ok) {
-    cache.set("tool", key, redactSensitive(result, secrets), toolTtl, {
-      originExecutionId: executionId,
-    });
+    // An exact replay must be an exact equivalent of the live response. If
+    // scrubbing CHANGED the payload (e.g. a signed URL inside the response),
+    // a later replay would return a different value than the live call did —
+    // worse than no replay. Skip exact caching in that case; history above
+    // still records the scrubbed copy, and the next invocation executes live.
+    const scrubbed = redactSensitive(result, secrets);
+    if (JSON.stringify(scrubbed) === JSON.stringify(result)) {
+      cache.set("tool", key, scrubbed, toolTtl, {
+        originExecutionId: executionId,
+      });
+    }
   }
 
   if (warnings.length > 0) {

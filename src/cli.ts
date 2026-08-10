@@ -218,7 +218,7 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
         break;
 
       case "--all":
-        if (!options.historyCommand) {
+        if (!options.historyCommand || options.historyCommand.sub !== "clear") {
           throw new Error("--all is only valid with 'history clear'");
         }
         options.historyCommand.all = true;
@@ -376,7 +376,8 @@ Options:
     -p, --pretty         Pretty print JSON output
     -j, --json           Force JSON output
     -c, --config PATH    Use custom config file
-    --no-cache           Bypass the read-through result cache (search/extract)
+    --no-cache           Bypass the read-through result cache
+                         (search/extract/tool call)
     --freshness DURATION Per-invocation cache TTL override, e.g. 30m, 6h, 2d
                          (search/extract and replay-safe provider tools)
     -h, --help           Show this help
@@ -535,6 +536,16 @@ async function runExtractMode(options: ExtendedCLIOptions): Promise<void> {
  * Run crawl mode.
  */
 async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
+  // Exact crawl replay is disabled by design (broad site snapshots are
+  // sensitive to site state, depth, and limit), so a --freshness override
+  // would be silently ignored — make that visible instead of accepting it
+  // without effect.
+  if (options.freshness) {
+    console.error(
+      "Warning: --freshness ignored for crawl: exact crawl replay is disabled by design."
+    );
+  }
+
   if (options.dryRun) {
     const plan = buildExecutionPlan("crawl", options);
     console.log(formatOutput(plan, options));
@@ -895,6 +906,7 @@ async function runToolCall(options: ExtendedCLIOptions): Promise<void> {
   const config = loadConfig(options.config);
   const result = await executeToolCall(provider, tool, params, config, {
     freshness: options.freshness,
+    noCache: options.noCache,
   });
 
   // History/replay notices (failed history writes, ignored --freshness) are
@@ -1062,6 +1074,26 @@ function formatShowHuman(record: ExecutionRecord): string {
         (attempt.result_count !== undefined ? ` results=${attempt.result_count}` : "") +
         (attempt.key_ref ? ` key=${attempt.key_ref}` : "")
     );
+  }
+  if (record.result === undefined || record.result === null) {
+    lines.push(`  Result:    (no result recorded)`);
+  } else if (Array.isArray(record.result)) {
+    const shown = record.result.slice(0, 10);
+    for (const [index, item] of shown.entries()) {
+      const row = item as Record<string, unknown> | null;
+      const title = row && typeof row.title === "string" ? row.title : "";
+      const url = row && typeof row.url === "string" ? row.url : "";
+      lines.push(`  Result[${index}]: ${[title, url].filter(Boolean).join("  ")}`.trimEnd());
+    }
+    if (record.result.length > 10) {
+      lines.push(`  ... +${record.result.length - 10} more results`);
+    }
+  } else {
+    // Non-array result (extracted document, merged object, ...): bounded
+    // pretty-print so the main reconstruction data stays readable inline.
+    const pretty = JSON.stringify(record.result, null, 2);
+    const bounded = pretty.length > 600 ? `${pretty.slice(0, 597)}...` : pretty;
+    lines.push(`  Result:\n${bounded.split("\n").map((l) => `    ${l}`).join("\n")}`);
   }
   if (record.errors) {
     for (const [provider, message] of Object.entries(record.errors)) {

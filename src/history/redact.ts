@@ -99,10 +99,12 @@ export function redactSensitive<T>(value: T, secrets: string[] = []): T {
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, fieldValue] of Object.entries(value as Record<string, unknown>)) {
-      if (
-        typeof fieldValue === "string" &&
-        (SENSITIVE_FIELD_PATTERN.test(key) || SENSITIVE_EXACT_FIELD_PATTERN.test(key))
-      ) {
+      // A matching field NAME is credential material on its own: replace the
+      // entire value with REDACTED regardless of its type (arrays, objects,
+      // numbers included) and do not recurse into it. Otherwise a value like
+      // `{"authorization": ["Bearer customer-secret"]}` would survive into
+      // history through a non-string container.
+      if (SENSITIVE_FIELD_PATTERN.test(key) || SENSITIVE_EXACT_FIELD_PATTERN.test(key)) {
         out[key] = REDACTED;
       } else {
         out[key] = redactSensitive(fieldValue, secrets);

@@ -132,8 +132,23 @@ export class LocalExecutionBackend implements ExecutionBackend {
       this.history.append(record);
     } catch (error) {
       warnings.push(
-        `Execution ${record.id} was not recorded in history: ${(error as Error).message}`
+        `Execution ${record.id} was not recorded in history: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       );
+    }
+  }
+
+  /**
+   * Surface accumulated non-secret warnings on stderr. Called when an
+   * execution is about to throw: the caller (CLI/agent) sees only the error,
+   * so without this flush an audit-loss warning pushed during `recordExecution`
+   * would be discarded and the lost history record would never be observable.
+   */
+  private flushWarnings(warnings: string[]): void {
+    if (warnings.length === 0) return;
+    for (const warning of warnings) {
+      console.error(`Warning: ${warning}`);
     }
   }
 
@@ -277,6 +292,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
       };
     } catch (error) {
       this.recordExecution(this.failedRecord("search", query, options, error, start), warnings);
+      this.flushWarnings(warnings);
       throw error;
     }
   }
@@ -366,6 +382,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
       };
     } catch (error) {
       this.recordExecution(this.failedRecord("extract", url, options, error, start), warnings);
+      this.flushWarnings(warnings);
       throw error;
     }
   }
@@ -412,6 +429,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
       };
     } catch (error) {
       this.recordExecution(this.failedRecord("crawl", url, options, error, start), warnings);
+      this.flushWarnings(warnings);
       throw error;
     }
   }
@@ -426,7 +444,9 @@ export class LocalExecutionBackend implements ExecutionBackend {
   ): ExecutionRecord {
     const allFailed = error instanceof AllProvidersFailedError ? error : null;
     const secrets = allFailed?.secretsUsed ?? [];
-    const errors = allFailed?.providerErrors ?? { error: (error as Error).message };
+    const errors = allFailed?.providerErrors ?? {
+      error: error instanceof Error ? error.message : String(error),
+    };
     return {
       id: newExecutionId(),
       timestamp: new Date().toISOString(),

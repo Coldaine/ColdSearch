@@ -297,14 +297,32 @@ export class CacheStore {
         continue;
       }
 
-      for (const file of readdirSync(capDir)) {
+      // A directory that cannot be enumerated must not abort the whole clear
+      // after other directories were already partially deleted: report it as a
+      // non-secret error and continue with the remaining capability
+      // directories.
+      let files: string[];
+      try {
+        files = readdirSync(capDir);
+      } catch (error) {
+        result.errors.push(
+          `could not enumerate ${capability}/: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        continue;
+      }
+
+      for (const file of files) {
         if (!file.endsWith(".json")) continue;
         try {
           unlinkSync(join(capDir, file));
           result.removed += 1;
         } catch (error) {
           result.errors.push(
-            `could not remove ${capability}/${file}: ${(error as Error).message}`
+            `could not remove ${capability}/${file}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
           );
         }
       }

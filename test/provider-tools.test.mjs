@@ -411,3 +411,193 @@ test("a malformed tool cache entry is a miss, and --freshness never persists int
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Regression tests: PR 54 bot review findings
+// ---------------------------------------------------------------------------
+
+test("tool replay key includes the provider endpoint identity (review #4)", async () => {
+  const makeSearxngServer = (url) =>
+    new Promise((resolve) => {
+      const server = http.createServer((req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ results: [{ url, title: "T" }] }));
+      });
+      server.listen(0, "127.0.0.1", () => resolve(server));
+    });
+
+  const serverA = await makeSearxngServer("https://a.example");
+  const serverB = await makeSearxngServer("https://b.example");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-endpoint-"));
+  const cacheDir = path.join(dir, "cache");
+  const historyPath = path.join(dir, "history.jsonl");
+
+  try {
+    const base = {
+      capabilities: {},
+      cache: { enabled: true, path: cacheDir },
+      history: { path: historyPath },
+    };
+    const configA = {
+      ...base,
+      providers: {
+        searxng: {
+          keyPool: { keys: [] },
+          options: { baseUrl: `http://127.0.0.1:${serverA.address().port}` },
+        },
+      },
+    };
+    const configB = {
+      ...base,
+      providers: {
+        searxng: {
+          keyPool: { keys: [] },
+          options: { baseUrl: `http://127.0.0.1:${serverB.address().port}` },
+        },
+      },
+    };
+
+    const params = { q: "same query" };
+    const first = await executeToolCall("searxng", "search", params, configA, { freshness: "1h" });
+    assert.equal(first.ok, true, first.error?.message);
+    assert.equal(first.raw.results[0].url, "https://a.example");
+
+    // The same request against a DIFFERENT searxng instance must not replay
+    // instance A's cached result: the resolved endpoint shapes the cache key.
+    const second = await executeToolCall("searxng", "search", params, configB, { freshness: "1h" });
+    assert.equal(second.ok, true, second.error?.message);
+    assert.equal(
+      second.raw.results[0].url,
+      "https://b.example",
+      "switching instances executes live instead of replaying stale results"
+    );
+
+    const records = readHistory(historyPath);
+    assert.equal(records.length, 2);
+    assert.ok(records.every((r) => r.source === "live"), "both endpoint calls were live");
+  } finally {
+    serverA.close();
+    serverB.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--no-cache bypasses both tool replay lookup and store (review #7)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-nocache-"));
+  const cacheDir = path.join(dir, "cache");
+  const historyPath = path.join(dir, "history.jsonl");
+  const config = {
+    capabilities: {},
+    providers: { exa: { keyPool: { keys: ["env:EXA_API_KEY"] } } },
+    cache: { enabled: true, path: cacheDir },
+    history: { path: historyPath },
+  };
+  process.env.EXA_API_KEY = "test-exa-key";
+
+  const { server, counts } = makeToolServer();
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const originalFetch = global.fetch;
+  global.fetch = (input, init) => {
+    const u = input.toString().replace("https://api.exa.ai", `http://127.0.0.1:${server.address().port}`);
+    return originalFetch(u, init);
+  };
+
+  try {
+    const params = { query: "strix halo", numResults: 3 };
+    const first = await executeToolCall("exa", "search", params, config, { freshness: "1h" });
+    assert.equal(first.ok, true, first.error?.message);
+
+    const second = await executeToolCall("exa", "search", params, config, {
+      freshness: "1h",
+      noCache: true,
+    });
+    assert.equal(second.ok, true, second.error?.message);
+    assert.equal(counts.search, 2, "--no-cache executes live, skipping the replay lookup");
+
+    const third = await executeToolCall("exa", "search", params, config, { freshness: "1h" });
+    assert.equal(third.ok, true, third.error?.message);
+    assert.equal(
+      counts.search,
+      2,
+      "the entry from the first call is still served after the noCache call"
+    );
+
+    const records = readHistory(historyPath);
+    assert.equal(records.length, 3, "noCache still records history as a live execution");
+    assert.deepEqual(
+      records.map((r) => r.source),
+      ["live", "live", "cache"]
+    );
+  } finally {
+    global.fetch = originalFetch;
+    delete process.env.EXA_API_KEY;
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a tool result that changes under redaction is never exact-cached (review #9)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-scrub-"));
+  const cacheDir = path.join(dir, "cache");
+  const historyPath = path.join(dir, "history.jsonl");
+  const config = {
+    capabilities: {},
+    providers: { exa: { keyPool: { keys: ["env:EXA_API_KEY"] } } },
+    cache: { enabled: true, path: cacheDir },
+    history: { path: historyPath },
+  };
+  process.env.EXA_API_KEY = "test-exa-key";
+
+  let calls = 0;
+  const server = http.createServer((req, res) => {
+    calls++;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        results: [{ url: "https://x.example/?token=supersecret-token-123", title: "T" }],
+      })
+    );
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const originalFetch = global.fetch;
+  global.fetch = (input, init) => {
+    const u = input.toString().replace("https://api.exa.ai", `http://127.0.0.1:${server.address().port}`);
+    return originalFetch(u, init);
+  };
+
+  try {
+    const params = { query: "strix halo", numResults: 3 };
+    const first = await executeToolCall("exa", "search", params, config, { freshness: "1h" });
+    assert.equal(first.ok, true, first.error?.message);
+    assert.equal(calls, 1);
+
+    // The live response carried a signed URL, so scrubbing changes the stored
+    // payload: an exact replay would return a different value than the live
+    // call, so nothing may be cached and the next call must run live.
+    const second = await executeToolCall("exa", "search", params, config, { freshness: "1h" });
+    assert.equal(second.ok, true, second.error?.message);
+    assert.equal(calls, 2, "scrub-altered result is never served from exact replay");
+
+    const toolDir = path.join(cacheDir, "tool");
+    assert.equal(
+      fs.existsSync(toolDir) && fs.readdirSync(toolDir).length > 0,
+      false,
+      "no entry cached when scrubbing would change the payload"
+    );
+
+    const records = readHistory(historyPath);
+    assert.equal(records.length, 2, "every invocation is still recorded in history");
+    assert.ok(records.every((r) => r.source === "live"));
+    const rawHistory = fs.readFileSync(historyPath, "utf8");
+    assert.equal(
+      rawHistory.includes("supersecret-token-123"),
+      false,
+      "history stores the scrubbed copy, never the raw token"
+    );
+  } finally {
+    global.fetch = originalFetch;
+    delete process.env.EXA_API_KEY;
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -22,6 +22,27 @@ function expandHome(p: string): string {
 }
 
 /**
+ * Minimal ExecutionRecord shape guard for listing. Consumers rely on these
+ * fields directly (`formatRecentRow` pads `command`/`source`/`outcome`,
+ * `searchHistory` maps `attempts`), so a JSON line that parses but lacks them
+ * would crash display. Such lines are skipped like corrupt lines — the store
+ * stays corruption-tolerant while never emitting half-shaped records.
+ */
+function isValidRecord(record: unknown): record is ExecutionRecord {
+  if (!record || typeof record !== "object") return false;
+  const r = record as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.timestamp === "string" &&
+    typeof r.command === "string" &&
+    typeof r.input === "string" &&
+    typeof r.source === "string" &&
+    typeof r.outcome === "string" &&
+    Array.isArray(r.attempts)
+  );
+}
+
+/**
  * Durable execution-history store: one JSONL file, one top-level
  * `ExecutionRecord` per line, appended in invocation order.
  *
@@ -72,8 +93,11 @@ export class HistoryStore {
   }
 
   /**
-   * Read every record, oldest first. Corrupt lines are skipped — one bad line
-   * must not make the whole history unreadable.
+   * Read every record, oldest first. A missing history file is an empty list;
+   * an EXISTING but unreadable file is a real failure that must surface
+   * (commands would otherwise report "no executions" while the audit trail
+   * exists). Corrupt lines are skipped — one bad line must not make the whole
+   * history unreadable.
    */
   list(): ExecutionRecord[] {
     if (!existsSync(this.path)) return [];
@@ -81,8 +105,12 @@ export class HistoryStore {
     let raw: string;
     try {
       raw = readFileSync(this.path, "utf8");
-    } catch {
-      return [];
+    } catch (error) {
+      throw new Error(
+        `Cannot read history file ${this.path}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
 
     const records: ExecutionRecord[] = [];
@@ -91,7 +119,7 @@ export class HistoryStore {
       if (!trimmed) continue;
       try {
         const record = JSON.parse(trimmed) as ExecutionRecord;
-        if (record && typeof record.id === "string" && typeof record.timestamp === "string") {
+        if (isValidRecord(record)) {
           records.push(record);
         }
       } catch {

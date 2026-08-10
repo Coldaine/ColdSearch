@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -753,4 +754,280 @@ test("a malformed cache payload is a miss, not a crash", async () => {
     restore();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Regression tests: PR 54 bot review findings
+// ---------------------------------------------------------------------------
+
+test("redactSensitive replaces non-string sensitive values wholesale (review #6)", () => {
+  const scrubbed = redactSensitive(
+    {
+      authorization: ["Bearer customer-secret"],
+      api_key: ["x", "y"],
+      key: { nested: "value" },
+      passphrase: 12345,
+      safe: { token: "nested-token-xyz", note: "kept" },
+    },
+    []
+  );
+  // A matching field NAME is credential material on its own: the entire value
+  // is replaced regardless of type — an array/object/number container must
+  // never smuggle a secret into history.
+  assert.equal(scrubbed.authorization, REDACTED);
+  assert.equal(scrubbed.api_key, REDACTED);
+  assert.equal(scrubbed.key, REDACTED);
+  assert.equal(scrubbed.passphrase, REDACTED);
+  // Non-sensitive fields still recurse normally.
+  assert.equal(scrubbed.safe.token, REDACTED);
+  assert.equal(scrubbed.safe.note, "kept");
+  // Nothing survived the array value.
+  assert.equal(JSON.stringify(scrubbed).includes("customer-secret"), false);
+});
+
+test("a non-Error provider failure is recorded with a usable error string (review #2)", async () => {
+  const { dir, historyPath, configPath } = writeTempConfig();
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    // Simulate a provider leg throwing a raw non-Error value (a string) so the
+    // search catch records it via failedRecord.
+    backend.engine.search = async () => {
+      throw "boom-non-error";
+    };
+
+    let caught;
+    try {
+      await backend.search("non-error throw", { limit: 10, rerankStrategy: "rrf" });
+    } catch (error) {
+      caught = error;
+    }
+    assert.equal(caught, "boom-non-error", "the original value is rethrown");
+
+    const record = readRecords(historyPath)[0];
+    assert.equal(record.outcome, "failed");
+    assert.equal(record.errors.error, "boom-non-error", "coerced via String(), not undefined");
+    assert.ok(!JSON.stringify(record).includes("undefined"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an existing but unreadable history file throws instead of reporting empty (review #11)", () => {
+  const dir = makeTempDir();
+  try {
+    // A DIRECTORY where the history file should be: existsSync passes but
+    // readFileSync cannot read it.
+    const dirPath = join(dir, "history.jsonl");
+    mkdirSync(dirPath);
+    const store = new HistoryStore({ path: dirPath });
+    assert.throws(() => store.list(), /Cannot read history file/);
+    assert.throws(() => store.clear(), /Cannot read history file/);
+
+    // A genuinely missing file is still an empty list.
+    const missing = new HistoryStore({ path: join(dir, "absent.jsonl") });
+    assert.deepEqual(missing.list(), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("list skips parseable lines that lack the minimal record shape (review #12)", () => {
+  const dir = makeTempDir();
+  try {
+    const path = join(dir, "history.jsonl");
+    const store = new HistoryStore({ path });
+    const base = {
+      timestamp: new Date().toISOString(),
+      command: "search",
+      input: "q",
+      source: "live",
+      attempts: [],
+      raw_available: false,
+      duration_ms: 1,
+      outcome: "success",
+    };
+    store.append({ ...base, id: "exec-ok" });
+    // Parseable JSON that is not a usable ExecutionRecord: id+timestamp only,
+    // and id+timestamp+command with no attempts. Both must be skipped like
+    // corrupt lines, never surfaced to consumers that would crash on them.
+    writeFileSync(
+      path,
+      JSON.stringify({ id: "exec-min", timestamp: "2026-08-10T00:00:00.000Z" }) + "\n",
+      { flag: "a" }
+    );
+    writeFileSync(
+      path,
+      JSON.stringify({
+        id: "exec-noattempts",
+        timestamp: "2026-08-10T00:00:00.000Z",
+        command: "search",
+        input: "q",
+        source: "live",
+        outcome: "success",
+      }) + "\n",
+      { flag: "a" }
+    );
+
+    const records = store.list();
+    assert.deepEqual(
+      records.map((r) => r.id),
+      ["exec-ok"]
+    );
+    assert.deepEqual(store.recent(10).map((r) => r.id), ["exec-ok"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Make a directory unlistable for the cache-clear regression test.
+ * Windows needs an ACL deny (readdirSync throws EPERM, statSync still works);
+ * POSIX needs a chmod drop (readdirSync throws EACCES).
+ */
+function denyDirectoryListing(dir) {
+  if (process.platform === "win32") {
+    const who = spawnSync("whoami", { encoding: "utf8" }).stdout.trim();
+    const res = spawnSync("icacls", [dir, "/deny", `${who}:(OI)(CI)RD`], { encoding: "utf8" });
+    if (res.status !== 0) {
+      throw new Error(`icacls deny failed: ${res.stderr || res.stdout}`);
+    }
+  } else {
+    chmodSync(dir, 0o000);
+  }
+}
+
+function restoreDirectoryListing(dir) {
+  if (process.platform === "win32") {
+    const who = spawnSync("whoami", { encoding: "utf8" }).stdout.trim();
+    const res = spawnSync("icacls", [dir, "/remove:d", who], { encoding: "utf8" });
+    if (res.status !== 0) {
+      throw new Error(`icacls restore failed: ${res.stderr || res.stdout}`);
+    }
+  } else {
+    try {
+      chmodSync(dir, 0o755);
+    } catch {
+      // Best-effort restore.
+    }
+  }
+}
+
+test("cache clear survives an unreadable capability directory and reports it (review #8)", (t) => {
+  const dir = makeTempDir();
+  try {
+    const cacheDir = join(dir, "cache");
+    mkdirSync(join(cacheDir, "search"), { recursive: true });
+    mkdirSync(join(cacheDir, "locked"), { recursive: true });
+    writeFileSync(join(cacheDir, "search", "a.json"), "{}");
+    writeFileSync(join(cacheDir, "locked", "b.json"), "{}");
+
+    const lockedDir = join(cacheDir, "locked");
+    try {
+      denyDirectoryListing(lockedDir);
+    } catch (error) {
+      t.skip(`cannot make a directory unreadable on this platform: ${error.message}`);
+      return;
+    }
+
+    try {
+      const result = new CacheStore({ path: cacheDir }).clear();
+      assert.equal(result.removed, 1, "the readable capability directory is still cleared");
+      assert.equal(result.errors.length, 1, "the unreadable directory is reported, not fatal");
+      assert.match(result.errors[0], /could not enumerate locked/);
+      assert.equal(
+        readdirSync(join(cacheDir, "search")).length,
+        0,
+        "remaining directories are processed after the failure"
+      );
+    } finally {
+      restoreDirectoryListing(lockedDir);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a failed history write surfaces on stderr when every provider also fails (review #5)", async () => {
+  const dir = makeTempDir();
+  // History path whose parent is an existing FILE: mkdir/append must fail.
+  const blockerFile = join(dir, "blocker");
+  writeFileSync(blockerFile, "not a directory", "utf8");
+
+  const cacheDir = join(dir, "cache");
+  const configPath = join(dir, "config.toml");
+  writeFileSync(
+    configPath,
+    `
+[capabilities.search]
+providers = ["brave", "serper"]
+strategy = "all"
+
+[capabilities.extract]
+providers = ["jina"]
+strategy = "all"
+
+[capabilities.crawl]
+providers = ["exa"]
+strategy = "all"
+
+[providers.brave]
+[providers.brave.keyPool]
+keys = ["k"]
+
+[providers.serper]
+[providers.serper.keyPool]
+keys = ["k"]
+
+[providers.jina]
+[providers.jina.keyPool]
+keys = []
+
+[providers.exa]
+[providers.exa.keyPool]
+keys = ["k"]
+
+[cache]
+enabled = false
+
+[history]
+path = ${JSON.stringify(join(blockerFile, "history.jsonl"))}
+`,
+    "utf8"
+  );
+
+  const restore = installFetchMock({
+    "*": async () => jsonResponse({ error: "down" }, { status: 500 }),
+  });
+
+  const stderrLines = [];
+  const originalError = console.error;
+  console.error = (msg) => stderrLines.push(String(msg));
+
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    await assert.rejects(
+      () => backend.search("unrecorded failed execution", { limit: 10, rerankStrategy: "rrf" }),
+      /All providers failed/
+    );
+  } finally {
+    console.error = originalError;
+    restore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  // The audit-loss warning pushed inside recordExecution must not be discarded
+  // by the rethrow: it has to be observable on stderr.
+  assert.ok(
+    stderrLines.some((line) => line.includes("not recorded in history")),
+    "audit-loss warning is flushed to stderr before rethrowing"
+  );
+  assert.ok(
+    stderrLines.some((line) => /^Warning: Execution exec-/.test(line)),
+    "the warning names the execution"
+  );
+  assert.equal(
+    JSON.stringify(stderrLines).includes('"k"'),
+    false,
+    "flushed warnings are non-secret"
+  );
 });

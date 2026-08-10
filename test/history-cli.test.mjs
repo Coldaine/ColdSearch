@@ -474,3 +474,145 @@ test("cache stats describes replay-cache state; cache clear removes entries and 
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Regression tests: PR 54 bot review findings
+// ---------------------------------------------------------------------------
+
+test("--all is rejected for history subcommands other than clear (review #1)", () => {
+  const dir = makeDir();
+  try {
+    seedHistory(path.join(dir, "history.jsonl"));
+    const configPath = writeConfig(dir);
+
+    for (const args of [
+      ["history", "recent", "--config", configPath, "--all"],
+      ["history", "search", "--config", configPath, "--all", "strix"],
+      ["history", "show", "--config", configPath, "--all", "exec-1"],
+    ]) {
+      const result = runCli(args);
+      assert.equal(result.status, 1, `${args.join(" ")} must be rejected`);
+      assert.match(result.stderr, /--all is only valid with 'history clear'/);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("crawl --freshness warns that exact crawl replay is disabled (review #3)", () => {
+  const dir = makeDir();
+  try {
+    const configPath = path.join(dir, "config.toml");
+    fs.writeFileSync(
+      configPath,
+      `
+[capabilities.crawl]
+providers = ["exa"]
+strategy = "all"
+
+[providers.exa]
+[providers.exa.keyPool]
+keys = ["k"]
+
+[history]
+path = ${JSON.stringify(path.join(dir, "history.jsonl"))}
+`.trim() + "\n",
+      "utf8"
+    );
+
+    // Dry-run keeps the test hermetic: the warning fires before the plan is
+    // printed, and no network call is made.
+    const result = runCli([
+      "crawl",
+      "--config",
+      configPath,
+      "--freshness",
+      "1h",
+      "--dry-run",
+      "--json",
+      "https://example.com",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /--freshness ignored for crawl/);
+    const out = JSON.parse(result.stdout);
+    assert.equal(out.capability, "crawl");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("history show (human) renders the final result (review #10)", () => {
+  const dir = makeDir();
+  try {
+    seedHistory(path.join(dir, "history.jsonl"));
+    // Add a record with more than 10 array results to exercise the bound.
+    fs.appendFileSync(
+      path.join(dir, "history.jsonl"),
+      JSON.stringify({
+        id: "exec-many",
+        timestamp: "2026-08-10T17:00:00.000Z",
+        command: "search",
+        input: "bounded",
+        routing: { providers_attempted: ["brave"] },
+        source: "live",
+        attempts: [{ provider: "brave", success: true }],
+        result: Array.from({ length: 12 }, (_, i) => ({
+          title: `T${i}`,
+          url: `https://n.example/${i}`,
+        })),
+        result_count: 12,
+        raw_available: false,
+        duration_ms: 10,
+        outcome: "success",
+      }) + "\n",
+      "utf8"
+    );
+    const configPath = writeConfig(dir);
+
+    // Array result: index/title/url.
+    const array = runCli(["history", "show", "exec-1", "--config", configPath]);
+    assert.equal(array.status, 0, array.stderr);
+    assert.match(array.stdout, /Result\[0\]: B\s+https:\/\/b\.example/);
+    assert.match(array.stdout, /Result\[1\]: S\s+https:\/\/s\.example/);
+
+    // Non-array result: bounded pretty-print.
+    const object = runCli(["history", "show", "exec-3", "--config", configPath]);
+    assert.equal(object.status, 0, object.stderr);
+    assert.match(object.stdout, /Result:\s*\n\s*\{\s*\n\s*"title"/);
+    assert.match(object.stdout, /"content": "deep dive on strix halo thermals"/);
+
+    // Absent result: stated explicitly.
+    const absent = runCli(["history", "show", "exec-4", "--config", configPath]);
+    assert.equal(absent.status, 0, absent.stderr);
+    assert.match(absent.stdout, /Result:\s+\(no result recorded\)/);
+
+    // Bounded: first 10 shown, "+N more" for the rest.
+    const bounded = runCli(["history", "show", "exec-many", "--config", configPath]);
+    assert.equal(bounded.status, 0, bounded.stderr);
+    assert.match(bounded.stdout, /Result\[9\]: T9\s+https:\/\/n\.example\/9/);
+    assert.match(bounded.stdout, /\+2 more results/);
+    assert.doesNotMatch(bounded.stdout, /Result\[10\]/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("history commands fail loudly when the history file exists but cannot be read (review #11)", () => {
+  const dir = makeDir();
+  try {
+    // A DIRECTORY where the history file should be: it "exists" but cannot be
+    // read, so commands must error instead of reporting zero executions.
+    fs.mkdirSync(path.join(dir, "history.jsonl"));
+    const configPath = writeConfig(dir);
+
+    const recent = runCli(["history", "recent", "--config", configPath]);
+    assert.equal(recent.status, 1);
+    assert.match(recent.stderr, /Cannot read history file/);
+
+    const cleared = runCli(["history", "clear", "--config", configPath, "--json", "--all"]);
+    assert.equal(cleared.status, 1);
+    assert.match(cleared.stderr, /Cannot read history file/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
