@@ -22,6 +22,17 @@ function configuredString(
   return undefined;
 }
 
+function configuredPositiveInteger(config: Config, key: string, fallback: number): number {
+  const value = config.providers.brightdata?.options?.[key];
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === "string" && /^\d+$/.test(value) && Number(value) > 0) {
+    return Number(value);
+  }
+  return fallback;
+}
+
 function requireValue(value: unknown, name: string): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`Bright Data ${name} is required`);
@@ -58,11 +69,24 @@ function searchUrlFromQuery(query: string, engine: string): string {
   }
 }
 
-function inputsFromParams(params: Record<string, any>): unknown[] {
-  if (Array.isArray(params.inputs)) return params.inputs;
-  if (Array.isArray(params.input)) return params.input;
-  if (params.input && typeof params.input === "object") return [params.input];
-  throw new Error("Bright Data scraper tool requires input or inputs");
+function inputsFromParams(params: Record<string, any>, config: Config): unknown[] {
+  let inputs: unknown[];
+  if (Array.isArray(params.inputs)) inputs = params.inputs;
+  else if (Array.isArray(params.input)) inputs = params.input;
+  else if (params.input && typeof params.input === "object") inputs = [params.input];
+  else throw new Error("Bright Data scraper tool requires input or inputs");
+
+  const maxInputs = configuredPositiveInteger(config, "maxStructuredInputsPerCall", 25);
+  if (inputs.length === 0) {
+    throw new Error("Bright Data scraper tool requires at least one input record");
+  }
+  if (inputs.length > maxInputs) {
+    throw new Error(
+      `Bright Data structured request has ${inputs.length} inputs; configured maximum is ${maxInputs}. ` +
+        "Increase providers.brightdata.options.maxStructuredInputsPerCall deliberately for larger paid runs."
+    );
+  }
+  return inputs;
 }
 
 /** Build an authenticated provider-native Bright Data HTTP request. */
@@ -168,7 +192,7 @@ export function buildBrightDataToolRequest(
       url: requestUrl.toString(),
       method: "POST",
       headers,
-      body: JSON.stringify(inputsFromParams(params)),
+      body: JSON.stringify(inputsFromParams(params, config)),
       useTextParser: format !== "json",
     };
   }
@@ -188,7 +212,7 @@ export function buildBrightDataToolRequest(
       url: requestUrl.toString(),
       method: "POST",
       headers,
-      body: JSON.stringify(inputsFromParams(params)),
+      body: JSON.stringify(inputsFromParams(params, config)),
       useTextParser: false,
     };
   }
@@ -237,6 +261,7 @@ export function buildBrightDataSummary(
       results_count: raw.organic?.length ?? 0,
       search_engine: raw.general?.search_engine ?? null,
       query: raw.general?.query ?? null,
+      cost_usd: typeof raw.cost === "number" ? raw.cost : null,
     };
   }
 
@@ -258,12 +283,14 @@ export function buildBrightDataSummary(
   if (tool === "scrape") {
     return {
       records_count: Array.isArray(raw) ? raw.length : raw ? 1 : 0,
+      cost_usd: typeof raw?.cost === "number" ? raw.cost : null,
     };
   }
 
   if (tool === "trigger" || tool === "crawl") {
     return {
       snapshot_id: raw.snapshot_id ?? raw.id ?? null,
+      cost_usd: typeof raw.cost === "number" ? raw.cost : null,
     };
   }
 
@@ -277,6 +304,7 @@ export function buildBrightDataSummary(
     return {
       task_id: raw.task_id ?? null,
       status: raw.status ?? null,
+      cost_usd: typeof raw.cost === "number" ? raw.cost : null,
     };
   }
 
@@ -288,6 +316,7 @@ export function buildBrightDataSummary(
           : typeof raw.body === "string"
             ? raw.body.length
             : 0,
+      cost_usd: typeof raw?.cost === "number" ? raw.cost : null,
     };
   }
 
