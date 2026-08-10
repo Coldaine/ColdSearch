@@ -83,6 +83,11 @@ export interface Config {
     enabled?: boolean;
     search_ttl?: string;
     extract_ttl?: string;
+    /** TTL for explicitly replay-safe provider-tool results. */
+    tool_ttl?: string;
+    path?: string;
+  };
+  history?: {
     path?: string;
   };
 }

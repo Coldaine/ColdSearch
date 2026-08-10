@@ -1,0 +1,120 @@
+/**
+ * Recursive credential redaction for anything persisted to history or the
+ * replay cache.
+ *
+ * Two threat shapes are covered:
+ *
+ * 1. Resolved credential values (API keys resolved from doppler:/env:/literal
+ *    refs). Provider error bodies and raw payloads can echo them back, and
+ *    callers can paste them into request inputs. Any string containing a
+ *    resolved secret has the secret substring replaced before persistence.
+ *
+ * 2. Signed URLs and credential-bearing fields. Caller-supplied URLs (and
+ *    URLs adapters echo into normalized/final results) can carry signature
+ *    tokens in query params; request options can carry credential fields.
+ *    Sensitive query-param values and object fields are replaced by name.
+ *
+ * Redaction is fail-closed at the call site: if a value cannot be scrubbed
+ * (e.g. not JSON-serializable), the caller marks that content unavailable
+ * instead of persisting it.
+ */
+
+export const REDACTED = "[REDACTED]";
+
+/** Object field names whose string values are always redacted. */
+const SENSITIVE_FIELD_PATTERN =
+  /(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|authorization|credential|pass(word|phrase)|secret|signature|bearer)/i;
+
+/**
+ * URL query parameters whose values are signature/credential material.
+ * Matched exactly (case-insensitive) against the param name.
+ */
+const SENSITIVE_URL_PARAMS = [
+  "access_token",
+  "api_key",
+  "apikey",
+  "auth_token",
+  "client_secret",
+  "credential",
+  "jwt",
+  "key",
+  "password",
+  "secret",
+  "sessionid",
+  "sig",
+  "signature",
+  "token",
+  "x-amz-credential",
+  "x-amz-security-token",
+  "x-amz-signature",
+];
+
+const URL_PARAM_PATTERN = new RegExp(
+  `([?&](?:${SENSITIVE_URL_PARAMS.join("|")})=)[^&\\s"'\\])}]*`,
+  "gi"
+);
+
+/**
+ * Secrets shorter than this are not substring-replaced inside larger strings:
+ * a short value would mangle unrelated content (e.g. a 4-char literal key).
+ * Exact full-string matches are still redacted regardless of length.
+ */
+const MIN_SUBSTRING_SECRET_LENGTH = 8;
+
+function redactString(text: string, secrets: string[]): string {
+  let out = text;
+  for (const secret of secrets) {
+    if (!secret) continue;
+    if (out === secret) return REDACTED;
+    if (secret.length >= MIN_SUBSTRING_SECRET_LENGTH && out.includes(secret)) {
+      out = out.split(secret).join(REDACTED);
+    }
+  }
+  return out.replace(URL_PARAM_PATTERN, `$1${REDACTED}`);
+}
+
+/**
+ * Return a redacted deep copy of `value`. Never mutates the input.
+ * `secrets` are resolved credential values to scrub wherever they appear.
+ */
+export function redactSensitive<T>(value: T, secrets: string[] = []): T {
+  if (value === null || value === undefined) return value;
+
+  if (typeof value === "string") {
+    return redactString(value, secrets) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSensitive(item, secrets)) as T;
+  }
+
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, fieldValue] of Object.entries(value as Record<string, unknown>)) {
+      if (typeof fieldValue === "string" && SENSITIVE_FIELD_PATTERN.test(key)) {
+        out[key] = REDACTED;
+      } else {
+        out[key] = redactSensitive(fieldValue, secrets);
+      }
+    }
+    return out as T;
+  }
+
+  // numbers, booleans, etc. carry no credential material
+  return value;
+}
+
+/**
+ * Redact for persistence, fail-closed: returns the scrubbed value, or null
+ * when the value cannot be scrubbed safely (not JSON-serializable). A null
+ * result must be recorded as "unavailable", never persisted verbatim.
+ */
+export function redactForPersistence(value: unknown, secrets: string[] = []): unknown | null {
+  try {
+    const scrubbed = redactSensitive(value, secrets);
+    JSON.stringify(scrubbed);
+    return scrubbed;
+  } catch {
+    return null;
+  }
+}
