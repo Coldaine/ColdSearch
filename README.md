@@ -88,15 +88,21 @@ npm test
 
 ## Documentation
 
-- `docs/contributing/testing.md` - What to test (and what not to duplicate)
 - `docs/NORTH_STAR.md` - Product direction and goals (authority)
 - `docs/architecture.md` - Technical shape, status labels, invariants
-- `plans/` - Active implementation plans (informational)
-- `docs/CONFIGURATION.md` - Configuration reference and precedence
 - `docs/PROVIDERS.md` - Capability + tool matrix and per-provider coverage (single source of truth)
+- `docs/CONFIGURATION.md` - Configuration reference and precedence
+- `docs/reviews/2026-07-16-project-review-and-bright-data.md` - Dated project, GitHub, memory, and Bright Data review
+- `plans/2026-06-22-remaining-implementation-master-plan.md` - Active implementation sequence (informational)
+- `docs/contributing/testing.md` - What to test (and what not to duplicate)
+
+Dated reviews are evidence snapshots. They do not override the North Star,
+architecture, provider matrix, code, or current GitHub state.
 
 ## Roadmap
 
-- Operator bootstrap and OpenAI-compatible agent LLM base URL (see GitHub issues)
-- Harden request lifecycle: timeouts, retries, normalized errors
-- Prepare a future hybrid execution model for agent-mode async jobs
+- Build searchable recent-result memory and harden cache persistence/operations
+- Add batch execution after cache and memory behavior are stable
+- Add agent run IDs and step-level trace correlation
+- Finish guided configuration/status UX and normalized error classification
+- Keep remote/hybrid execution deferred until the local audit and workflow surfaces are trustworthy

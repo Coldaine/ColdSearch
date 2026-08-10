@@ -78,7 +78,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 
 ## Open Architecture Questions
 
-- Resolved: provider tools are modeled as profiles backing ColdSearch category views, discoverable via `coldsearch tool <list|info>`, with networked `tool call` execution as the next step (`docs/ADRs/005-provider-tool-profiles.md`).
+- Resolved: provider tools are modeled as profiles backing ColdSearch category views, discoverable via `coldsearch tool <list|info>`, with networked `tool call` execution implemented (`docs/ADRs/005-provider-tool-profiles.md`). The next active product work is searchable result memory/cache operations, followed by batch execution, operator UX, and agent trace correlation.
 - Which entrypoint ships first after CLI: HTTP API, MCP server, or both?
 - What cache freshness defaults balance hits vs stale results in agent loops?
 - Should Doppler become documented as the default bootstrap path in `docs/CONFIGURATION.md` and `docs/KEY_MANAGEMENT.md`, with BWS retained as an optional explicit resolver?

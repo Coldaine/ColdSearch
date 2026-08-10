@@ -96,6 +96,32 @@ yet live-checked · `—` = not applicable.
 Only Serper and SearXNG search remain un-live-verified, and only because no key /
 endpoint was available in the verification environment — not because of code.
 
+## Candidate provider: Bright Data
+
+**Status: candidate, not implemented.** Bright Data has no ColdSearch adapter,
+provider registry entry, provider-tool profiles, configured credentials, default
+pool membership, or live ColdSearch verification. It is intentionally absent from
+the machine-checked Dual Matrix until those implementation facts change.
+
+Potential category and tool mappings:
+
+| Bright Data surface | ColdSearch fit | Adoption boundary |
+|---------------------|----------------|-------------------|
+| SERP/search products | `search` category backer | Explicit-provider benchmark before pool eligibility |
+| Web Unlocker / page retrieval | `extract` category backer | Explicit-only fallback until cost and quality are measured |
+| Crawling products | `crawl` category backer | Requires polling, cancellation, output, and spend characterization |
+| Structured scrapers and datasets | Provider-native tools | Preserve native schema and raw output |
+| Browser and proxy products | High-cost provider-native tools | Explicit opt-in with hard run caps; never default routing |
+
+Promotion beyond candidate requires an adapter/profile, secret-safe configuration,
+request and dollar caps, cost-aware usage logging, provider-native parity evidence,
+offline tests, an explicit manual live-verification record, and no paid live CI.
+Default routing remains disabled until measured quality and cost justify it.
+
+The dated account and adoption assessment lives in
+`docs/reviews/2026-07-16-project-review-and-bright-data.md`; volatile balances and
+promotional terms do not belong in this evergreen matrix.
+
 ## Vendor tool surface
 
 What each vendor's API offers, and what ColdSearch wires. `✅` wired ·
