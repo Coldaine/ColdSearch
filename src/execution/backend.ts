@@ -108,6 +108,29 @@ export class LocalExecutionBackend implements ExecutionBackend {
   }
 
   /**
+   * Capability/preflight validation is part of the audit surface: a rejected
+   * invocation is recorded as a failed execution (mirroring the tool path's
+   * preflight records) instead of exiting without a history trace.
+   */
+  private validateAndRecord(
+    capability: CapabilityName,
+    input: string,
+    options: FanoutOptions
+  ): void {
+    try {
+      this.validateCapability(capability, options);
+    } catch (error) {
+      const warnings: string[] = [];
+      this.recordExecution(
+        this.failedRecord(capability, input, options, error, performance.now()),
+        warnings
+      );
+      this.flushWarnings(warnings);
+      throw error;
+    }
+  }
+
+  /**
    * Effective TTL for this invocation: config `[cache]` TTLs are the default;
    * a `--freshness <duration>` flag wins for this invocation only (it neither
    * persists nor changes the configured defaults).
@@ -197,7 +220,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
   }
 
   async search(query: string, options: FanoutOptions): Promise<SearchResult> {
-    this.validateCapability("search", options);
+    this.validateAndRecord("search", query, options);
     const useCache = this.shouldUseCache(options);
     const warnings: string[] = [];
     const ttl = this.effectiveTtl(this.searchTtl, options);
@@ -298,7 +321,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
   }
 
   async extract(url: string, options: FanoutOptions): Promise<ExtractOutcome> {
-    this.validateCapability("extract", options);
+    this.validateAndRecord("extract", url, options);
     const useCache = this.shouldUseCache(options);
     const warnings: string[] = [];
     const ttl = this.effectiveTtl(this.extractTtl, options);
@@ -390,7 +413,7 @@ export class LocalExecutionBackend implements ExecutionBackend {
   async crawl(url: string, options: FanoutOptions): Promise<CrawlOutcome> {
     // Exact crawl replay stays disabled in PR 2 (broad site snapshots are
     // sensitive to site state/depth/limit) — but every crawl is recorded.
-    this.validateCapability("crawl", options);
+    this.validateAndRecord("crawl", url, options);
     const warnings: string[] = [];
     const start = performance.now();
 

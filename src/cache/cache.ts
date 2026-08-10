@@ -97,7 +97,15 @@ export class CacheStore {
 
   /**
    * Return the stored payload and provenance for a key, or null on
-   * miss / expiry / corruption. Never throws.
+   * miss / corruption. Never throws.
+   *
+   * Expiry is deliberately NOT enforced here: freshness is the caller's
+   * decision (isFresh against the invocation's effective TTL), so a
+   * per-invocation `--freshness` override can also WIDEN the accepted
+   * window. Deleting an "expired" entry at read time would persist the
+   * stored TTL's policy into later invocations and make longer overrides
+   * impossible. Expired entries are reported by `stats()` and removed by
+   * `clear()`.
    */
   getEntry<T = unknown>(
     capability: string,
@@ -122,17 +130,6 @@ export class CacheStore {
         return null;
       }
 
-      const expiresAt = entry.created_at + entry.ttl_seconds * 1000;
-      if (expiresAt < Date.now()) {
-        // Lazy eviction: best-effort unlink of the expired entry.
-        try {
-          unlinkSync(file);
-        } catch {
-          // Ignore — expiry is still honored by returning null below.
-        }
-        return null;
-      }
-
       return {
         payload: entry.payload,
         meta: {
@@ -151,8 +148,8 @@ export class CacheStore {
   }
 
   /**
-   * Return the stored payload for a key, or null on miss / expiry / corruption.
-   * Never throws.
+   * Return the stored payload for a key, or null on miss / corruption.
+   * Never throws. Freshness is the caller's decision — see getEntry.
    */
   get<T = unknown>(capability: string, key: string): T | null {
     return this.getEntry<T>(capability, key)?.payload ?? null;

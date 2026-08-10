@@ -1031,3 +1031,87 @@ path = ${JSON.stringify(join(blockerFile, "history.jsonl"))}
     "flushed warnings are non-secret"
   );
 });
+
+test("resolved credentials never appear on the serialized thrown error", async () => {
+  const { dir, configPath } = writeTempConfig();
+  const secretKey = "literal-key-ABCDEFGHIJ";
+  const toml = readFileSync(configPath, "utf8").replaceAll('"k"', JSON.stringify(secretKey));
+  writeFileSync(configPath, toml, "utf8");
+
+  const restore = installFetchMock({
+    "*": async () => jsonResponse({ error: "down" }, { status: 500 }),
+  });
+
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    const error = await backend
+      .search("serialized error", { limit: 10, rerankStrategy: "rrf" })
+      .then(() => null, (e) => e);
+    assert.ok(error, "execution failed");
+    assert.equal(
+      JSON.stringify(error).includes(secretKey),
+      false,
+      "secretsUsed stays off the serialized error surface"
+    );
+    // But the redaction context is still available in memory for history.
+    assert.ok(Array.isArray(error.secretsUsed));
+  } finally {
+    restore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a longer --freshness window is honored for the invocation", async () => {
+  const { dir, cacheDir, configPath } = writeTempConfig();
+  // Tighten the config TTL to 1h so the override can be longer than config.
+  const toml = readFileSync(configPath, "utf8").replace('search_ttl = "6h"', 'search_ttl = "1h"');
+  writeFileSync(configPath, toml, "utf8");
+
+  const counter = { calls: 0 };
+  const restore = installFetchMock(makeSearchMock(counter));
+
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    const opts = { limit: 10, rerankStrategy: "rrf" };
+    await backend.search("wide freshness", opts);
+    assert.equal(counter.calls, 2);
+
+    // Age the stored entry to 2h — beyond the 1h config TTL, inside 6h.
+    const searchDir = join(cacheDir, "search");
+    const file = join(searchDir, readdirSync(searchDir)[0]);
+    const entry = JSON.parse(readFileSync(file, "utf8"));
+    entry.created_at = Date.now() - 2 * 3600 * 1000;
+    writeFileSync(file, JSON.stringify(entry), "utf8");
+
+    // --freshness 6h wins for this invocation: the 2h-old entry replays.
+    await backend.search("wide freshness", { ...opts, freshness: "6h" });
+    assert.equal(counter.calls, 2, "longer --freshness honors the widened window");
+
+    // A default invocation still applies the 1h config TTL: entry is stale.
+    await backend.search("wide freshness", opts);
+    assert.equal(counter.calls, 4, "default read still enforces the config TTL");
+  } finally {
+    restore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("capability-validation failures are recorded as failed executions", async () => {
+  const { dir, historyPath, configPath } = writeTempConfig();
+
+  try {
+    const backend = new LocalExecutionBackend(configPath);
+    await assert.rejects(() =>
+      backend.search("bad provider", { providers: ["nosuchprovider"] })
+    );
+
+    const record = readRecords(historyPath)[0];
+    assert.ok(record, "validation failure was recorded");
+    assert.equal(record.outcome, "failed");
+    assert.equal(record.command, "search");
+    assert.deepEqual(record.attempts, [], "no provider was attempted");
+    assert.ok(record.errors?.error, "the validation error is inspectable");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

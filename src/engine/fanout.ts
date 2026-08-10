@@ -90,6 +90,11 @@ export class AllProvidersFailedError extends Error {
     this.providerErrors = errors;
     this.attempts = attempts;
     this.secretsUsed = secretsUsed;
+    // In-memory redaction context only: keep resolved credentials off the
+    // serialized surface. JSON.stringify on a caught error picks up
+    // enumerable own properties, so an enumerable secretsUsed would leak
+    // every resolved key to any wrapper/structured logger that serializes it.
+    Object.defineProperty(this, "secretsUsed", { enumerable: false });
   }
 }
 
