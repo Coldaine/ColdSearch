@@ -65,6 +65,54 @@ async function walk(dir, files = []) {
   return files;
 }
 
+function workflowHasPushOrPrTrigger(text) {
+  const lines = text.split(/\r?\n/);
+  const forbiddenEvents = new Set(["push", "pull_request", "pull_request_target"]);
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^(\s*)(?:on|"on"|'on')\s*:\s*(.*?)\s*$/);
+    if (!match) continue;
+
+    const baseIndent = match[1].length;
+    const inline = match[2].replace(/\s+#.*$/, "").trim();
+    if (inline) {
+      for (const event of forbiddenEvents) {
+        if (new RegExp(`\\b${event}\\b`).test(inline)) return true;
+      }
+      return false;
+    }
+
+    for (let j = i + 1; j < lines.length; j++) {
+      const raw = lines[j];
+      if (/^\s*(?:#.*)?$/.test(raw)) continue;
+
+      const indent = (raw.match(/^(\s*)/) || ["", ""])[1].length;
+      if (indent <= baseIndent) break;
+
+      const eventMatch = raw.trim().match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*:/);
+      if (eventMatch && forbiddenEvents.has(eventMatch[1])) return true;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
+function workflowContainsDirectLiveProviderCommand(text) {
+  return /scripts\/(?:smoke|provider-pass-through)\.mjs/.test(text);
+}
+
+function localReusableWorkflowRefs(text) {
+  const refs = [];
+  const regex = /uses:\s*\.\/\.github\/workflows\/([^\s#]+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    refs.push(`.github/workflows/${match[1]}`);
+  }
+  return refs;
+}
+
 const planFiles = [
   "plans/2026-06-22-pr1-provider-tool-surface.md",
   "plans/2026-06-22-pr2-cache-a2.md",
@@ -139,9 +187,6 @@ for (const file of planFiles) {
       fail(`${file} is missing ${section}`);
     }
   }
-  // Scope the contract check to the body of the `## Validation` section
-  // (stop at the next `##`/`#` heading) so an `Expected:`/`What these prove:`
-  // appearing in a later section like `## Success Criteria` can't satisfy it.
   const validationSection = (text.match(/## Validation\b([\s\S]*?)(?=\n#{1,2} |$)/) || [])[1] || "";
   if (!/\bWhat these prove:/.test(validationSection) || !/\bExpected:/.test(validationSection)) {
     fail(`${file} must explain what its validation proves: include a "What these prove:" and an "Expected:" block inside its ## Validation section.`);
@@ -189,8 +234,8 @@ if (!architecture.includes("| Remote / hybrid worker implementation | Deferred |
   fail("architecture.md must mark remote/hybrid worker implementation as Deferred.");
 }
 
-// Validate operational boundaries directly rather than making particular prose
-// in planning documents a build contract.
+// Validate operational boundaries directly rather than making policy prose a
+// build contract.
 const packageJson = JSON.parse(await read("package.json"));
 for (const scriptName of ["test", "test:docs"]) {
   const command = packageJson.scripts?.[scriptName] ?? "";
@@ -199,14 +244,39 @@ for (const scriptName of ["test", "test:docs"]) {
   }
 }
 
-const canaryWorkflow = await read(".github/workflows/canary.yml");
-if (/^\s{2}(push|pull_request):/m.test(canaryWorkflow)) {
-  fail("Live provider canary must not run on push or pull_request.");
+const workflowFiles = (await walk(".github/workflows")).filter((file) => /\.ya?ml$/.test(file));
+const workflowText = new Map();
+for (const file of workflowFiles) {
+  workflowText.set(file, await read(file));
+}
+
+function workflowOrLocalDependenciesContainLiveProviderCommand(file, seen = new Set()) {
+  if (seen.has(file)) return false;
+  seen.add(file);
+
+  const text = workflowText.get(file) || "";
+  if (workflowContainsDirectLiveProviderCommand(text)) return true;
+
+  for (const ref of localReusableWorkflowRefs(text)) {
+    if (workflowText.has(ref) && workflowOrLocalDependenciesContainLiveProviderCommand(ref, seen)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+for (const file of workflowFiles) {
+  const text = workflowText.get(file) || "";
+  if (
+    workflowHasPushOrPrTrigger(text) &&
+    workflowOrLocalDependenciesContainLiveProviderCommand(file)
+  ) {
+    fail(`${file} is push/PR-triggered and runs live provider checks directly or through a local reusable workflow.`);
+  }
 }
 
 const rootEntries = await readdir(root);
-// Config files that legitimately live at the repo root. The rule targets stray
-// research/result JSON dumps, not tooling config.
 const allowedRootJson = new Set([
   "package.json",
   "package-lock.json",
