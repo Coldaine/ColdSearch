@@ -65,6 +65,48 @@ async function walk(dir, files = []) {
   return files;
 }
 
+/**
+ * Enough YAML trigger parsing to enforce the canary's narrow contract without
+ * turning documentation validation into a general workflow/static-analysis
+ * engine. Handles inline, mapping, and sequence forms of `on`.
+ */
+function workflowHasPushOrPrTrigger(text) {
+  const lines = text.split(/\r?\n/);
+  const forbiddenEvents = new Set(["push", "pull_request", "pull_request_target"]);
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^(\s*)(?:on|"on"|'on')\s*:\s*(.*?)\s*$/);
+    if (!match) continue;
+
+    const baseIndent = match[1].length;
+    const inline = match[2].replace(/\s+#.*$/, "").trim();
+    if (inline) {
+      for (const event of forbiddenEvents) {
+        if (new RegExp(`\\b${event}\\b`).test(inline)) return true;
+      }
+      return false;
+    }
+
+    for (let j = i + 1; j < lines.length; j++) {
+      const raw = lines[j];
+      if (/^\s*(?:#.*)?$/.test(raw)) continue;
+
+      const indent = (raw.match(/^(\s*)/) || ["", ""])[1].length;
+      if (indent <= baseIndent) break;
+
+      const trimmed = raw.trim();
+      const mappingEvent = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*:/)?.[1];
+      const sequenceEvent = trimmed.match(/^-\s*([A-Za-z_][A-Za-z0-9_-]*)(?:\s*:.*)?$/)?.[1];
+      const event = mappingEvent || sequenceEvent;
+      if (event && forbiddenEvents.has(event)) return true;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
 const planFiles = [
   "plans/2026-06-22-pr1-provider-tool-surface.md",
   "plans/2026-06-22-pr2-cache-a2.md",
@@ -76,6 +118,7 @@ const planFiles = [
 for (const file of [
   "plans/2026-06-22-remaining-implementation-master-plan.md",
   "plans/2026-06-23-gate-0-provider-pass-through-proof.md",
+  "plans/2026-08-10-live-provider-conformance.md",
   ...planFiles,
   "plans/2026-06-22-epic-5-remote-agentic-execution.md",
   "docs/NORTH_STAR.md",
@@ -99,8 +142,8 @@ if (!master.includes("2026-06-23-gate-0-provider-pass-through-proof.md")) {
   fail("Master plan does not link the Gate 0 provider pass-through proof plan.");
 }
 
-if (!master.includes("Provider Pass-Through Proof")) {
-  fail("Master plan is missing Gate 0 provider pass-through proof.");
+if (!master.includes("2026-08-10-live-provider-conformance.md")) {
+  fail("Master plan does not link ongoing live provider conformance.");
 }
 
 if (!gate0.includes("provider-native") || !gate0.includes("ColdSearch")) {
@@ -138,15 +181,28 @@ for (const file of planFiles) {
       fail(`${file} is missing ${section}`);
     }
   }
-  // Scope the contract check to the body of the `## Validation` section
-  // (stop at the next `##`/`#` heading) so an `Expected:`/`What these prove:`
-  // appearing in a later section like `## Success Criteria` can't satisfy it.
   const validationSection = (text.match(/## Validation\b([\s\S]*?)(?=\n#{1,2} |$)/) || [])[1] || "";
   if (!/\bWhat these prove:/.test(validationSection) || !/\bExpected:/.test(validationSection)) {
     fail(`${file} must explain what its validation proves: include a "What these prove:" and an "Expected:" block inside its ## Validation section.`);
   }
   if (!/Do not start PR \d+ until PR \d+ is merged unless the user explicitly authorizes parallel work/.test(text) && !/Merge PR 5 only after/.test(text)) {
     fail(`${file} does not enforce the review pause before the next PR.`);
+  }
+}
+
+const pr2 = await read("plans/2026-06-22-pr2-cache-a2.md");
+for (const command of [
+  "coldsearch history recent",
+  "coldsearch history search <query>",
+  "coldsearch history show <execution-id>",
+  "coldsearch history show <execution-id> --by-provider",
+  "coldsearch history clear --all",
+  "coldsearch cache stats",
+  "coldsearch cache clear",
+  "--freshness <duration>",
+]) {
+  if (!pr2.includes(command)) {
+    fail(`PR 2 plan is missing required operator surface: ${command}`);
   }
 }
 
@@ -173,9 +229,24 @@ if (!architecture.includes("| Remote / hybrid worker implementation | Deferred |
   fail("architecture.md must mark remote/hybrid worker implementation as Deferred.");
 }
 
+// Enforce the concrete normal-test boundary. Do not attempt to statically follow
+// arbitrary shell/npm indirection from every workflow; that would turn this
+// documentation validator into a brittle workflow execution analyzer.
+const packageJson = JSON.parse(await read("package.json"));
+for (const scriptName of ["test", "test:docs"]) {
+  const command = packageJson.scripts?.[scriptName] ?? "";
+  if (/provider-pass-through|smoke\.mjs/.test(command)) {
+    fail(`${scriptName} must not run live provider conformance or smoke checks.`);
+  }
+}
+
+// The dedicated live canary itself must remain schedule/manual only.
+const canaryWorkflow = await read(".github/workflows/canary.yml");
+if (workflowHasPushOrPrTrigger(canaryWorkflow)) {
+  fail("Live provider canary must not run on push, pull_request, or pull_request_target.");
+}
+
 const rootEntries = await readdir(root);
-// Config files that legitimately live at the repo root. The rule targets stray
-// research/result JSON dumps, not tooling config.
 const allowedRootJson = new Set([
   "package.json",
   "package-lock.json",

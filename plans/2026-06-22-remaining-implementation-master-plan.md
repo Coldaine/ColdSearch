@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement each linked PR plan task-by-task. Do not collapse these PRs into one change unless the user explicitly changes the goal.
 
-**Goal:** Finish the known remaining ColdSearch implementation work through five reviewable PRs, with a hard review pause after each PR.
+**Goal:** Track the merged provider-tool foundation, its remaining live-verification follow-up, and finish the remaining ColdSearch implementation work through PRs 2–5 with a hard review pause after each PR.
 
 **Architecture:** Keep `coldsearch` as the stable CLI. Add missing behavior behind the existing local seams: provider adapters, provider-tool registry, `LocalExecutionBackend`, `CacheStore`, `UsageLogger`, `FanoutEngine`, `SearchAgent`, and the config loader. Documentation changes travel with the implementation PR that changes the operator-facing surface.
 
@@ -33,25 +33,25 @@ candidate, but it does not roll back the merged provider-tool surface.
 The dated reconciliation, including issue and Bright Data assessment, is in
 `docs/reviews/2026-07-16-project-review-and-bright-data.md`.
 
-## Answer: Five PRs Fit
+## Current Sequence
 
-Four PRs was too narrow because it left broad provider-tool expansion outside the active sequence. The corrected scope fits into five PRs:
+The PR 1 implementation is merged on `main`; PRs 2–5 remain. PR 1's required provider-native parity evidence is not complete for every in-scope provider tool, so distinguish **implementation merged** from **live verification complete**.
 
-1. [PR 1: Provider Tool Surface](./2026-06-22-pr1-provider-tool-surface.md)
-2. [PR 2: Searchable Cache, Cache Operations, and Cache Hygiene](./2026-06-22-pr2-cache-a2.md)
+1. [PR 1: Provider Tool Surface](./2026-06-22-pr1-provider-tool-surface.md) — implementation merged; live parity follow-up remains
+2. [PR 2: Search History and Research Memory](./2026-06-22-pr2-cache-a2.md)
 3. [PR 3: Batch Runner for Search, Extract, Crawl, and Provider Tools](./2026-06-22-pr3-batch-runner.md)
 4. [PR 4: Operator Config and Status UX](./2026-06-22-pr4-config-status-ux.md)
 5. [PR 5: Agent Run IDs and Trace Correlation](./2026-06-22-pr5-agent-run-ids.md)
 
 This split is natural because each PR has a different owner surface:
 
-- PR 1 owns the missing provider-tool command/registry surface.
-- PR 2 owns searchable recent-result memory, cache operations, cache logging, and persistence hygiene.
+- PR 1 delivered the provider-tool profile registry, `tool list`, `tool info`, networked `tool call`, raw-payload preservation, and safe usage logging; missing live parity evidence is tracked as conformance follow-up rather than pretending the code is absent.
+- PR 2 owns durable execution history, local history exploration, stored fanout inspection, and the cache/persistence work that supports them.
 - PR 3 owns high-volume execution workflows across normalized capabilities and provider tools.
 - PR 4 owns operator setup, diagnostics, and status.
 - PR 5 owns agent traceability.
 
-Do not add remote execution or cross-process key coordination to these five PRs. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Do add broadly useful provider tools; defer only niche verticals or high-risk tools that are explicitly named in the PR 1 plan.
+Do not add remote execution or cross-process key coordination to the remaining sequence. Epic 5 (remote agentic execution) is documented and deferred — see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md). Provider tools not currently wired remain visible through the registry; provider tools that are implemented but not live-verified must not be described as live-verified.
 
 ## Historical Baseline Recorded 2026-06-22
 
@@ -69,23 +69,23 @@ Functional now:
 - Exact read-through cache for `search` and `extract`
 - `--no-cache`
 - Live provider canary workflow
+- Provider-tool profile registry and offline `tool list`/`tool info`
+- Networked `tool call <provider>.<tool>`
+- Provider-tool raw-payload preservation and safe usage/audit logging
+- Provider registry/docs drift checks
 
 Missing as recorded on 2026-06-22:
 
-- Baseline provider-native vs ColdSearch pass-through evidence for every real provider path
-- Controlled provider-tool registry and CLI surface
-- Broad provider tools such as Tavily map/answer/research, Firecrawl map/structured extract/batch scrape, Exa findSimilar/answer/research, Brave verticals, Serper verticals, Jina search/rerank, and SearXNG category variants
-- Provider-tool raw payload preservation
-- Provider-tool usage/audit logs
-- Provider-tool drift checks between registry and docs
-- Searchable recent-result cache/memory
-- `coldsearch cache search`
-- `coldsearch cache recent`
-- `coldsearch cache stats`
-- `coldsearch cache clear`
-- `--freshness`
-- Cache lookup/search/hit/miss logs with selected prior item references
-- Atomic cache writes and restrictive cache-file permissions
+- Two normalized Gate 0 rows remain unresolved because Serper/SearXNG evidence is blocked by missing configuration rather than passed/waived
+- Provider-native parity evidence required by PR 1 is not committed for every in-scope provider tool
+- Durable execution records shared by normalized and provider-tool paths
+- `coldsearch history recent`, `history search`, `history show`, provider-partition inspection, and explicit history deletion
+- Local discovery of related prior requests/results with visible match provenance
+- Stored pre-merge fanout provider partitions plus merged output
+- Cache-hit history that references the originating execution without calling providers
+- History retention independent from cache expiry and `cache clear`
+- `coldsearch cache stats`, `coldsearch cache clear`, and exact-replay freshness controls including explicit provider-tool replay eligibility
+- Atomic history/cache writes and restrictive file permissions
 - `coldsearch batch`
 - Batch resumability by stable `id`
 - Batch controlled concurrency
@@ -115,13 +115,16 @@ What these do not prove:
 - They do not prove that ColdSearch hits real provider APIs.
 - They do not prove provider-native parity.
 - They do not prove a new CLI workflow is ergonomic or useful.
-- They do not prove cache, batch, provider-tool, or agent observability behavior unless focused tests for those behaviors were added.
+- They do not prove cache, history, batch, provider-tool, or agent observability behavior unless focused tests for those behaviors were added.
 
-## Gate 0: Provider Pass-Through Proof
+## Live Provider Conformance
 
-Plan: [2026-06-23-gate-0-provider-pass-through-proof.md](./2026-06-23-gate-0-provider-pass-through-proof.md)
+Plans:
 
-Do this before PR 1. This gate exists because mocked tests and generic smoke checks do not prove that ColdSearch is a useful provider pass-through.
+- [Gate 0: Initial Live Provider Conformance Baseline](./2026-06-23-gate-0-provider-pass-through-proof.md)
+- [Ongoing Live Provider Conformance](./2026-08-10-live-provider-conformance.md)
+
+Gate 0 was executed and committed evidence records **11 passes and 2 `blocked_missing_secret` rows**. Under Gate 0's own success criteria, that means the full baseline is **not complete** until the blocked Serper and SearXNG rows are either passed or explicitly waived by the user. Do not describe those rows as verified. This historical incompleteness does not require rerunning the full matrix after unrelated changes; complete the missing rows when the required key/endpoint is available or record an explicit waiver. Ongoing checks remain integration conformance, not benchmarking or a recurring release gate.
 
 Goal:
 
@@ -181,10 +184,10 @@ After each implementation PR:
 - [ ] Run the required validation from that PR plan before opening the PR.
 - [ ] Wait for GitHub checks to complete.
 - [ ] Read required checks and advisory checks before characterizing failures.
-- [ ] Read all review surfaces: inline review threads, flat PR comments, bot comments, and CI summaries.
+- [ ] Read all review surfaces: inline review threads, flat comments, bot comments, and CI summaries.
 - [ ] Address valid findings with follow-up commits.
 - [ ] Re-run the validation that proves the changed behavior after follow-up commits. Include `npm test` for runtime/code changes and `npm run test:docs` for docs, provider matrix, registry, or plan-validator changes.
-- [ ] Wait again for checks and reviews after every push.
+- [ ] Wait again after every push.
 - [ ] Do not start the next PR until the current PR is merged, or until the user explicitly authorizes parallel work.
 - [ ] Do not post the merge attestation until it is true:
 
@@ -196,75 +199,72 @@ This pause is part of the plan. Skipping it is a plan failure.
 
 ## Sequence
 
-### Before PR 1
+### Provider-tool foundation merged; conformance follow-up remains
 
-- [ ] Start from current `origin/main`, not the stale local branch.
-- [ ] Complete Gate 0 provider pass-through proof.
-- [ ] Create a feature branch for PR 1.
-- [ ] Run Gate 0 provider pass-through proof.
-- [ ] Run `npm test` only as a baseline offline regression check.
-- [ ] Run `npm run test:docs` only as a docs/registry consistency check.
+- [x] Provider-tool profile registry and generic call substrate merged to `main`.
+- [x] `tool list`, `tool info`, and `tool call` are implemented.
+- [x] Raw provider payload and safe provider-tool usage logging are implemented.
+- [x] Offline provider-tool and drift tests are present.
+- [ ] Complete or explicitly waive the remaining normalized Gate 0 blocked rows.
+- [ ] Record the provider-native comparison evidence required by PR 1 for in-scope provider-tool calls that are not yet live-verified.
 
-Success looks like:
+Do not conflate these states:
 
-- The branch starts clean from current `origin/main`.
-- Gate 0 has evidence for each implemented provider path.
-- Gate 0 proves real provider pass-through before implementation begins.
-- The existing offline suite and docs/registry checks are green before implementation begins.
+- the provider-tool **implementation foundation is merged**;
+- not every provider/tool path has the **live parity evidence** required by the historical PR 1 acceptance criteria.
 
-### PR 1: Provider Tool Surface
+### PR 1: Provider Tool Surface — implementation merged, verification incomplete
 
 Plan: [2026-06-22-pr1-provider-tool-surface.md](./2026-06-22-pr1-provider-tool-surface.md)
 
-Success looks like:
+Implemented on `main`:
 
 - `coldsearch tool list` exists.
 - `coldsearch tool call <provider>.<tool>` exists.
-- Broadly useful tools from each configured provider are reachable through ColdSearch.
-- Niche or high-risk tools are explicitly deferred in docs.
 - Provider-tool calls preserve raw provider payloads.
 - Provider-tool calls produce safe usage/audit logs.
 - Provider-tool docs and registry stay in sync under a docs/registry drift check.
-- Offline tests prove the provider-tool registry, CLI parser, raw payload preservation, and safe usage logging.
-- Provider-native comparison evidence proves every in-scope tool actually reaches the real provider path.
+- Offline tests cover the provider-tool registry, CLI parser, raw payload preservation, and safe usage logging.
 
-Review pause:
+Still required before describing the PR 1 acceptance evidence as complete:
 
-- [ ] Open PR 1.
-- [ ] Wait for review and checks.
-- [ ] Address all valid findings.
-- [ ] Merge PR 1 before starting PR 2 unless the user explicitly authorizes parallel work.
+- provider-native comparison evidence for each in-scope provider tool required by the PR 1 plan, or an explicit documented waiver where appropriate.
+
+Do not block unrelated PR 2 history work on manufacturing provider comparisons. Carry the missing live evidence as conformance follow-up and do not claim unverified tools are live-verified.
 
 ### Between PR 1 and PR 2
 
 - [ ] Update local `main` from `origin/main`.
-- [ ] Confirm PR 1 changes are present on `main`.
+- [ ] Confirm the PR 1 implementation changes are present on `main`.
 - [ ] Create a fresh branch for PR 2.
 - [ ] Run `npm test` because PR 2 starts from runtime behavior changed by PR 1.
 - [ ] Run `npm run test:docs` because PR 2 relies on current provider/tool documentation and config docs.
 
 Success looks like:
 
-- Cache work starts on top of the finalized provider-tool surface.
-- The relevant offline and docs/registry checks are green before cache A2 implementation begins.
+- Research-memory work starts on top of the merged provider-tool implementation foundation.
+- The relevant offline and docs/registry checks are green before execution-history implementation begins.
+- Outstanding provider live-parity evidence remains accurately tracked rather than silently treated as complete.
 
-### PR 2: Searchable Cache, Cache Operations, and Cache Hygiene
+### PR 2: Search History and Research Memory
 
 Plan: [2026-06-22-pr2-cache-a2.md](./2026-06-22-pr2-cache-a2.md)
 
 Success looks like:
 
-- `coldsearch cache stats` works.
-- `coldsearch cache search` works and surfaces relevant recent prior items.
-- `coldsearch cache recent` works and surfaces newest prior items.
-- `coldsearch cache clear` works.
-- `--freshness` works for cached `search`, `extract`, and provider-tool results where freshness policy allows reuse.
-- Cache lookup/search/hit/miss behavior is logged without secret values.
-- Cache writes are atomic.
-- Cache files/directories use restrictive permissions where supported.
-- Crawl cache is explicitly decided and documented.
-- Offline tests prove cache search, recent listing, stats, clear, freshness, atomic writes, and safe cache logging.
-- Docs/config checks prove operator-facing cache documentation matches the implemented flags.
+- Every `search`, `extract`, `crawl`, and provider-tool invocation produces one top-level execution record.
+- `coldsearch history recent`, `history search`, and `history show` work entirely from local stored records.
+- `history show --by-provider` exposes stored fanout provider partitions and the final merged result.
+- `history clear --all` provides explicit deletion of durable research history without touching replay cache.
+- History stores observable request/routing/result/error/timing provenance the runtime actually has; raw provider detail is shown only where already preserved.
+- Exact cache hits create new history executions that reference their origin when available and record zero provider calls.
+- Cache expiry and `cache clear` never erase execution history.
+- `cache stats`, `cache clear`, freshness controls, atomic writes, permissions, and crawl replay policy remain supporting cache work.
+- Provider-tool exact replay/freshness is implemented only for explicitly replay-safe tools with stable request keys; other tools remain history-only/live.
+- Approximate history retrieval never silently replaces a live provider request.
+- Run-ID and agent-step generation/propagation remain PR 5 work rather than a PR 2 prerequisite.
+- Offline tests prove record shape, retrieval, fanout inspection, cache/history separation, provider-tool freshness eligibility, redaction, and persistence without live provider calls.
+- No history validation initiates paid provider comparisons or benchmark workloads.
 
 Review pause:
 
@@ -283,7 +283,7 @@ Review pause:
 
 Success looks like:
 
-- Batch work starts on top of merged provider-tool and cache behavior.
+- Batch work starts on top of merged provider-tool, history, and cache behavior.
 - The relevant offline and docs/registry checks are green before batch implementation begins.
 
 ### PR 3: Batch Runner for Search, Extract, Crawl, and Provider Tools
@@ -300,7 +300,7 @@ Success looks like:
 - Controlled concurrency works.
 - Duplicate handling is deterministic.
 - Per-item success/error output is present.
-- Existing exact cache and searchable recent-result memory are used for batch `search`, `extract`, and eligible provider-tool records.
+- Existing exact cache and execution history are available to batch `search`, `extract`, and eligible provider-tool records without silently treating approximate history matches as replay hits.
 - Offline tests prove JSONL validation, resumability, duplicate handling, concurrency, mixed record execution, and cache reuse.
 - Docs/config checks prove batch documentation matches the implemented flags.
 
@@ -391,13 +391,15 @@ Review pause:
 - [ ] Run `npm test` as the final offline regression check.
 - [ ] Run `npm run test:docs` as the final docs/registry consistency check.
 - [ ] Check open GitHub issues and close or update #6, #14, #31 as appropriate.
+- [ ] Reconcile any remaining blocked/waived live-conformance rows and provider-tool parity evidence before claiming full live verification.
 - [ ] Epic 5 stays deferred until you choose to start it; see [2026-06-22-epic-5-remote-agentic-execution.md](./2026-06-22-epic-5-remote-agentic-execution.md).
 
 Success looks like:
 
-- The five-PR implementation sequence is complete.
-- Broadly useful tools from configured providers are usable through ColdSearch.
-- The active backlog no longer lists provider-tool expansion, cache A2, batch, config bootstrap/status UX, or run IDs as missing.
+- The PR 2–5 implementation sequence is complete.
+- Broadly useful implemented tools from configured providers are usable through ColdSearch.
+- The active implementation backlog no longer lists search history, batch, config bootstrap/status UX, or run IDs as missing.
+- Any remaining live-conformance evidence gaps are explicitly tracked and are not mislabeled as passes.
 - Deferred epics remain explicitly deferred, not accidentally forgotten.
 
 ## Validation Adequacy Rule
@@ -406,9 +408,9 @@ Validation is evidence, not ceremony. A command belongs in a PR plan only when t
 
 Use this rule at every PR boundary:
 
-- Run `npm test` for runtime, CLI, adapter, cache, batch, agent, logging, or config changes. It proves the built project and offline test contracts still hold.
+- Run `npm test` for runtime, CLI, adapter, cache, history, batch, agent, logging, or config changes. It proves the built project and offline test contracts still hold.
 - Run `npm run test:docs` for provider matrix, registry, config docs, architecture docs, or plan-validator changes. It proves documented surfaces and code registries have not drifted.
-- Run provider-native comparison evidence for any provider path or provider tool touched by the PR. This is the only proof that ColdSearch is a real provider pass-through.
+- Run scoped provider-native conformance only for provider-facing paths touched by the PR. Use the full matrix only for the deliberate baseline, a shared-transport change affecting every path, or an explicit user request.
 - Run targeted CLI checks when the PR creates or changes a user-facing command. These checks must use temp configs/files and assert parseable useful output.
 - Do not use `scripts/smoke.mjs` as proof of a provider-tool or Gate 0 contract. It is only a live canary because it can skip missing credentials and does not compare native output to ColdSearch output.
 
@@ -416,10 +418,12 @@ A PR is not ready for review until:
 
 - Its new behavior has focused tests that can fail for a real implementation bug.
 - Existing behavior affected by the change remains covered.
-- Its new request/cache/provider/agent flow writes enough safe logs to reconstruct what happened.
-- Any live provider proof required by the change has explicit pass/fail/blocked/waived rows.
+- Its new request/cache/history/provider/agent flow writes enough safe observable provenance to reconstruct what happened.
+- Any scoped live conformance required by a provider-facing change has explicit pass/fail/blocked/waived rows.
 - Documentation and provider/tool matrix drift checks run only when they prove something changed in docs or registry.
 - Manual review evidence is recorded when automation cannot prove the contract.
+
+Provider-effectiveness evaluation is observational, not a release gate. Do not run benchmark workloads or paid multi-provider comparisons as routine validation; inspect accumulated execution history unless the task explicitly concerns provider selection, routing quality, or search effectiveness.
 
 ## Deferred Epics
 
