@@ -36,17 +36,24 @@ Every supported provider/path must be visible in the scheduled/manual report as 
 
 A workflow may complete successfully while some rows are blocked or not run, but its summary must show those rows and totals. “Workflow succeeded” must never imply “all supported provider integrations passed.” Reuse the Gate 0 status semantics and provider/path inventory rather than creating a second harness or status model.
 
+## Evidence Isolation
+
+The committed Gate 0 directory under `plans/evidence/2026-06-23-provider-pass-through/` is the historical full-matrix baseline. Ongoing scoped checks must **not** write there because the harness clears its selected output directory before writing new evidence.
+
+For manual scoped checks, always provide a separate temporary/output directory. Scheduled coverage should likewise write ephemeral workflow artifacts or another non-baseline location.
+
 ## Tasks
 
-- [ ] Extend `scripts/provider-pass-through.mjs` with scoped provider/path selection while preserving `--all` for the deliberate Gate 0 baseline.
+- [ ] Extend/reuse `scripts/provider-pass-through.mjs` scoped provider/path selection while preserving `--all` for the deliberate Gate 0 baseline.
 - [ ] Make the harness emit one machine-readable row per provider/path in scope.
 - [ ] Make omitted supported paths explicit as `not_run` in coverage summaries.
 - [ ] Reuse `pass`, `fail`, `blocked_missing_secret`, `blocked_provider`, and `waived_by_user` semantics from Gate 0.
 - [ ] Update `scripts/smoke.mjs` or a thin reporter around it to emit the same provider/path coverage vocabulary; do not invent a separate live harness.
 - [ ] Publish totals and the provider/path table in the scheduled workflow summary.
-- [ ] Keep the scheduled workflow non-gating and absent from push/PR triggers.
+- [ ] Keep scheduled/manual live workflows non-gating and absent from push/PR triggers.
 - [ ] Document the scoped manual command in contributor testing guidance.
 - [ ] Ensure missing credentials remain visible rather than being treated as tested passes.
+- [ ] Ensure scoped/manual runs use an output directory separate from the committed Gate 0 baseline.
 
 ## Required Tests
 
@@ -55,28 +62,33 @@ A workflow may complete successfully while some rows are blocked or not run, but
 - [ ] Offline tests prove a successful workflow summary can still disclose blocked/not-run rows without calling them passes.
 - [ ] Offline tests prove secrets and signed URLs are redacted from evidence and summaries.
 - [ ] Workflow/config tests prove live coverage is scheduled/manual only and does not gate PRs.
+- [ ] Offline tests or command-contract checks prove scoped runs do not overwrite the committed Gate 0 evidence directory.
 
 ## Validation
 
-For a provider-facing change, run only the affected rows after offline tests:
+For a provider-facing change, run only the affected rows after offline tests and write them outside the committed baseline:
 
 ```bash
 npm test
-node scripts/provider-pass-through.mjs --provider <provider> --path <path>
+node scripts/provider-pass-through.mjs \
+  --provider <provider> \
+  --path <path> \
+  --out-dir /tmp/coldsearch-conformance-<provider>-<path>
 ```
 
-For scheduled coverage, inspect the workflow summary produced by the canary. Run `node scripts/provider-pass-through.mjs --all` only under the full-matrix conditions listed in Scope.
+For scheduled coverage, inspect the workflow summary produced by the canary. Run `node scripts/provider-pass-through.mjs --all` against the committed Gate 0 evidence directory only under the full-matrix conditions listed in Scope.
 
 What these prove:
 
-- `npm test` proves harness selection, coverage reporting, redaction, and offline behavior without spending provider credits.
-- The scoped native-vs-ColdSearch command proves the changed integration path against the real provider when credentials are available.
-- The scheduled summary makes tested, blocked, and untested coverage visible over time.
+- `npm test` proves harness selection, coverage reporting, redaction, evidence isolation, and offline behavior without spending provider credits.
+- The scoped native-vs-ColdSearch command proves the changed integration path against the real provider when credentials are available without replacing the historical full-matrix baseline.
+- The scheduled summary makes tested, blocked, waived, and untested coverage visible over time.
 
 Expected:
 
 - Ordinary PR validation remains offline.
 - Only affected provider/path rows are called manually for a provider-facing change.
+- Scoped checks never overwrite the committed Gate 0 baseline evidence.
 - The scheduled report enumerates coverage instead of presenting a misleading binary green/red result.
 - No conformance output claims which provider was most useful.
 
@@ -86,4 +98,5 @@ Expected:
 - Live coverage is visible by provider and path.
 - Missing credentials/endpoints and intentionally unrun paths are explicit.
 - Paid calls are not a merge gate, default completion step, or routine validation ritual.
+- Scoped/manual evidence cannot overwrite the committed Gate 0 full-matrix baseline.
 - Provider-effectiveness evidence continues to come from accumulated real executions unless a task explicitly requests comparative evaluation.
