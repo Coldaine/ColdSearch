@@ -139,12 +139,30 @@ keys = ["doppler:FIRECRAWL_API_KEY"]
 # ============================================
 # RESULT CACHE (OPTIONAL)
 # ============================================
-# Read-through cache for `search` and `extract`. On by default; a hit serves
-# without calling any provider. Bypass per-call with --no-cache, or disable
-# entirely with enabled = false. Crawl is never cached in A1.
+# Read-through exact-replay cache for `search` and `extract`, plus provider
+# tools with an explicit replay-safe policy. On by default; a hit serves
+# without calling any provider. Bypass per-call with --no-cache, override the
+# TTL per-call with --freshness <duration> (e.g. --freshness 30m), or disable
+# entirely with enabled = false. Crawl is never cached in A2.
+# `coldsearch cache stats` describes this storage; `coldsearch cache clear`
+# empties it (history records are never touched).
 # Default storage path: ~/.config/coldsearch/cache
 [cache]
 enabled = true
 search_ttl = "6h"
 extract_ttl = "24h"
+# TTL for explicitly replay-safe provider-tool results (tool call).
+tool_ttl = "6h"
 # path = "~/.config/coldsearch/cache"
+
+# ============================================
+# EXECUTION HISTORY (OPTIONAL)
+# ============================================
+# Durable record of every search/extract/crawl/tool-call invocation (JSONL).
+# History is independent of the replay cache: cache expiry and `cache clear`
+# never erase it, and it is only deleted explicitly via
+# `coldsearch history clear --all`. Browse it with `coldsearch history recent`,
+# `history search <query>`, and `history show <execution-id>`.
+# Default path: ~/.config/coldsearch/history.jsonl
+#[history]
+#path = "~/.config/coldsearch/history.jsonl"

@@ -32,7 +32,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 | Config-driven routing | Current | `~/.config/coldsearch/config.toml`; provider pools per capability |
 | Key and secret resolution | Current | Doppler-injected environment variables preferred; env refs, optional BWS refs, and keyless providers supported; per-process pools |
 | Basic cache store | Current | Read-through file cache for search/extract |
-| Search history / research memory | Planned | Durable execution records; recent/search/show exploration; stored fanout inspection and related prior work |
+| Search history / research memory | Current | Durable execution records; recent/search/show exploration; stored fanout inspection and related prior work |
 | Usage and audit logging | Current | JSONL usage log; richer flow logs and trace correlation Planned |
 | Agent mode | Current | ReAct loop; OpenAI-compatible LLM dispatch |
 | Service / API / MCP entrypoints | Planned | Same core, thin wrappers |
@@ -52,7 +52,7 @@ Normalized capabilities (`search`, `extract`, `crawl`) are **category views** ov
 | Provider registry | Current | Capability matrix in code | `src/providers.ts` |
 | Provider-tool profile registry | Current | Native tool params, common-view mappings, feature predicates | `docs/ADRs/005-provider-tool-profiles.md`, `src/registry/tool-profiles.ts` |
 | Cache store | Current | Read-through JSON cache | `src/cache/` |
-| Execution history and observability | Planned | Durable, searchable execution history plus provider-partition inspection | `docs/components/cache-and-observability.md` |
+| Execution history and observability | Current | Durable, searchable execution history plus provider-partition inspection | `docs/components/cache-and-observability.md` |
 | Agent | Current | ReAct + SSRF-safe fetch | `docs/ADRs/003-react-agent.md`, `docs/ADRs/004-ssrf-protection.md` |
 
 ## Architectural Invariants

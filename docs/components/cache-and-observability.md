@@ -2,7 +2,26 @@
 
 ## Current
 
-- Basic read-through file cache exists for search/extract.
+- Durable execution history exists: every `search` / `extract` / `crawl` /
+  `tool call` invocation is recorded as one top-level JSONL execution record
+  (`~/.config/coldsearch/history.jsonl`, configurable via `[history].path`).
+  Records cover live executions, exact-cache replays (with origin linkage),
+  partial successes, and failures — including stored pre-merge fanout
+  partitions and per-provider attempts.
+- History exploration exists: `coldsearch history recent`, `history search`,
+  `history show [--by-provider]`, and `history clear --all`. Retrieval is
+  local-only and never suppresses a live provider call.
+- The exact-replay cache is separate from history: `cache stats` / `cache
+  clear`, config `[cache]` TTLs plus the per-invocation `--freshness
+  <duration>` override, atomic writes, and restrictive permissions. Cache
+  entries carry provenance (creation time, origin execution ID where known).
+- Provider-tool exact replay exists only for tools on the explicit
+  replay-safe allowlist (`src/tools/replay.ts`); all other provider tools are
+  history-only and always execute live. Crawl replay remains disabled.
+- Records and cached payloads are scrubbed before persistence: resolved
+  credential values, signed-URL tokens, and credential fields are redacted;
+  unscrubbable raw detail is recorded as unavailable. Failed history writes
+  surface as observable warnings.
 - Usage logging exists as JSONL.
 - Agent and provider paths have some structured errors and timings.
 
