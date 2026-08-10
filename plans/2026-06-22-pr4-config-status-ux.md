@@ -86,7 +86,7 @@ Do not hide the original message. Add category next to it.
 - [ ] Add usage path to status output.
 - [ ] Add missing env var warnings to status output.
 - [ ] Add provider capability coverage to status output.
-- [ ] Add provider-tool coverage to status output.
+- [ ] Add provider-tool coverage to status output. Coverage means registry state only: counts/listing of tool profiles by wiring status (`wired` / `direct` / `available` / `deferred`). It is not live provider health and must not contact providers.
 - [ ] Add TOML agent LLM base URL support.
 - [ ] Preserve CLI flag precedence over TOML.
 - [ ] Add error classification helpers.
