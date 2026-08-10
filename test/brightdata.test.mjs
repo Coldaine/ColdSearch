@@ -53,7 +53,7 @@ test("Bright Data is registered for search and extract but not crawl", () => {
   assert.equal(typeof providerRegistry.brightdata.createAdapter().extract, "function");
 });
 
-test("Bright Data normalized backers are wired while structured scrapers stay provider-native", () => {
+test("Bright Data normalized backers are wired while structured scrapers stay direct/provider-native", () => {
   assert.equal(getToolProfile("brightdata.serp")?.status, "wired");
   assert.equal(getToolProfile("brightdata.serp")?.adapterMethod, "search");
   assert.equal(getToolProfile("brightdata.unlocker")?.status, "wired");
@@ -61,7 +61,7 @@ test("Bright Data normalized backers are wired while structured scrapers stay pr
 
   const scrape = getToolProfile("brightdata.scrape");
   assert.ok(scrape, "structured Bright Data scraper should be catalogued");
-  assert.equal(scrape.status, "available");
+  assert.equal(scrape.status, "direct");
   assert.deepEqual(scrape.categories, []);
 });
 
@@ -136,13 +136,15 @@ test("dataset discovery and metadata build account-scoped GET requests", () => {
   assert.match(metadata.url, /\/datasets\/gd_product\/metadata$/);
 });
 
-test("structured scrape separates dataset ID from input body", () => {
+test("structured scrape separates dataset ID from input body and preserves native query controls", () => {
   const request = buildBrightDataToolRequest(
     "scrape",
     {
       dataset_id: "gd_product",
       input: { url: "https://example.com/product" },
       format: "json",
+      type: "discover_new",
+      discover_by: "input_filters",
     },
     "secret",
     config()
@@ -152,6 +154,8 @@ test("structured scrape separates dataset ID from input body", () => {
   assert.equal(url.pathname, "/datasets/v3/scrape");
   assert.equal(url.searchParams.get("dataset_id"), "gd_product");
   assert.equal(url.searchParams.get("format"), "json");
+  assert.equal(url.searchParams.get("type"), "discover_new");
+  assert.equal(url.searchParams.get("discover_by"), "input_filters");
   assert.deepEqual(JSON.parse(request.body), [{ url: "https://example.com/product" }]);
 });
 
@@ -163,6 +167,7 @@ test("async trigger preserves snapshot lifecycle and native query controls", () 
       input: { keyword: "gpu" },
       include_errors: true,
       custom_output_fields: "url,title,price",
+      type: "discover_new",
     },
     "secret",
     config()
@@ -173,6 +178,7 @@ test("async trigger preserves snapshot lifecycle and native query controls", () 
   assert.equal(url.searchParams.get("dataset_id"), "gd_search");
   assert.equal(url.searchParams.get("include_errors"), "true");
   assert.equal(url.searchParams.get("custom_output_fields"), "url,title,price");
+  assert.equal(url.searchParams.get("type"), "discover_new");
   assert.deepEqual(JSON.parse(request.body), [{ keyword: "gpu" }]);
 
   assert.equal(
