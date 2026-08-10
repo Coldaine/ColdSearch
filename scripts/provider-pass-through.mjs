@@ -155,9 +155,9 @@ function printHelp() {
   console.log(`Gate 0 provider pass-through proof harness
 
 Usage:
-  node scripts/provider-pass-through.mjs --all
-  node scripts/provider-pass-through.mjs --provider firecrawl --path search
-  node scripts/provider-pass-through.mjs --provider jina --path extract
+  node scripts/provider-pass-through.mjs --all --overwrite-baseline
+  node scripts/provider-pass-through.mjs --provider firecrawl --path search --out-dir <dir>
+  node scripts/provider-pass-through.mjs --provider jina --path extract --out-dir <dir>
 
 Options:
   --all                 Run every required provider/path row
@@ -1013,7 +1013,7 @@ Generated: ${generatedAt}
 
 ## Commands
 
-- Baseline command for this evidence: \`node scripts/provider-pass-through.mjs --all\`
+- Baseline command for this evidence: \`node scripts/provider-pass-through.mjs --all --overwrite-baseline\`
 - Native provider calls use direct HTTP requests.
 - ColdSearch calls use \`node dist/cli.js <path> --providers <provider> --single-provider --json\`.
 - Agent mode is not executed by this gate.

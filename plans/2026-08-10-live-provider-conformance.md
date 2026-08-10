@@ -84,7 +84,7 @@ node scripts/provider-pass-through.mjs \
 
 Publish the scoped coverage summary with the provider-facing change — for example, paste the machine-readable summary table into the PR or attach it as an artifact — so reviewers can inspect the pass/fail/blocked/waived rows. Temporary output alone is not evidence; keep the raw files outside the committed Gate 0 baseline directory.
 
-For scheduled coverage, inspect the workflow summary produced by the canary. Run `node scripts/provider-pass-through.mjs --all` against the committed Gate 0 evidence directory only under the full-matrix conditions listed in Scope.
+For scheduled coverage, inspect the workflow summary produced by the canary. Run `node scripts/provider-pass-through.mjs --all --overwrite-baseline` against the committed Gate 0 evidence directory only under the full-matrix conditions listed in Scope; `--overwrite-baseline` is the explicit opt-in for regenerating the baseline in place.
 
 What these prove:
 
