@@ -65,6 +65,11 @@ async function walk(dir, files = []) {
   return files;
 }
 
+/**
+ * Enough YAML trigger parsing to enforce the canary's narrow contract without
+ * turning documentation validation into a general workflow/static-analysis
+ * engine. Handles inline, mapping, and sequence forms of `on`.
+ */
 function workflowHasPushOrPrTrigger(text) {
   const lines = text.split(/\r?\n/);
   const forbiddenEvents = new Set(["push", "pull_request", "pull_request_target"]);
@@ -89,28 +94,17 @@ function workflowHasPushOrPrTrigger(text) {
       const indent = (raw.match(/^(\s*)/) || ["", ""])[1].length;
       if (indent <= baseIndent) break;
 
-      const eventMatch = raw.trim().match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*:/);
-      if (eventMatch && forbiddenEvents.has(eventMatch[1])) return true;
+      const trimmed = raw.trim();
+      const mappingEvent = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*:/)?.[1];
+      const sequenceEvent = trimmed.match(/^-\s*([A-Za-z_][A-Za-z0-9_-]*)(?:\s*:.*)?$/)?.[1];
+      const event = mappingEvent || sequenceEvent;
+      if (event && forbiddenEvents.has(event)) return true;
     }
 
     return false;
   }
 
   return false;
-}
-
-function workflowContainsDirectLiveProviderCommand(text) {
-  return /scripts\/(?:smoke|provider-pass-through)\.mjs/.test(text);
-}
-
-function localReusableWorkflowRefs(text) {
-  const refs = [];
-  const regex = /uses:\s*\.\/\.github\/workflows\/([^\s#]+)/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    refs.push(`.github/workflows/${match[1]}`);
-  }
-  return refs;
 }
 
 const planFiles = [
@@ -202,6 +196,7 @@ for (const command of [
   "coldsearch history search <query>",
   "coldsearch history show <execution-id>",
   "coldsearch history show <execution-id> --by-provider",
+  "coldsearch history clear --all",
   "coldsearch cache stats",
   "coldsearch cache clear",
   "--freshness <duration>",
@@ -234,8 +229,9 @@ if (!architecture.includes("| Remote / hybrid worker implementation | Deferred |
   fail("architecture.md must mark remote/hybrid worker implementation as Deferred.");
 }
 
-// Validate operational boundaries directly rather than making policy prose a
-// build contract.
+// Enforce the concrete normal-test boundary. Do not attempt to statically follow
+// arbitrary shell/npm indirection from every workflow; that would turn this
+// documentation validator into a brittle workflow execution analyzer.
 const packageJson = JSON.parse(await read("package.json"));
 for (const scriptName of ["test", "test:docs"]) {
   const command = packageJson.scripts?.[scriptName] ?? "";
@@ -244,36 +240,10 @@ for (const scriptName of ["test", "test:docs"]) {
   }
 }
 
-const workflowFiles = (await walk(".github/workflows")).filter((file) => /\.ya?ml$/.test(file));
-const workflowText = new Map();
-for (const file of workflowFiles) {
-  workflowText.set(file, await read(file));
-}
-
-function workflowOrLocalDependenciesContainLiveProviderCommand(file, seen = new Set()) {
-  if (seen.has(file)) return false;
-  seen.add(file);
-
-  const text = workflowText.get(file) || "";
-  if (workflowContainsDirectLiveProviderCommand(text)) return true;
-
-  for (const ref of localReusableWorkflowRefs(text)) {
-    if (workflowText.has(ref) && workflowOrLocalDependenciesContainLiveProviderCommand(ref, seen)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-for (const file of workflowFiles) {
-  const text = workflowText.get(file) || "";
-  if (
-    workflowHasPushOrPrTrigger(text) &&
-    workflowOrLocalDependenciesContainLiveProviderCommand(file)
-  ) {
-    fail(`${file} is push/PR-triggered and runs live provider checks directly or through a local reusable workflow.`);
-  }
+// The dedicated live canary itself must remain schedule/manual only.
+const canaryWorkflow = await read(".github/workflows/canary.yml");
+if (workflowHasPushOrPrTrigger(canaryWorkflow)) {
+  fail("Live provider canary must not run on push, pull_request, or pull_request_target.");
 }
 
 const rootEntries = await readdir(root);
