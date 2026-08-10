@@ -169,8 +169,8 @@ Options:
   --waive provider:path Mark a row waived_by_user without running it
   --list                Print the required provider/path matrix as JSON
   --overwrite-baseline  Allow writing to the committed Gate 0 baseline evidence
-                        directory (only for deliberately regenerating the full
-                        baseline with --all)
+                        directory (requires --all; only for deliberately
+                        regenerating the full baseline)
 `);
 }
 
@@ -1079,14 +1079,14 @@ async function main() {
     : selectTargets({ provider: options.provider, path: options.path });
 
   if (
-    !options.overwriteBaseline &&
-    path.resolve(options.outDir) === path.resolve(defaultOutDir)
+    path.resolve(options.outDir) === path.resolve(defaultOutDir) &&
+    !(options.overwriteBaseline && options.all)
   ) {
     throw new Error(
       `Refusing to write to ${path.relative(repoRoot, defaultOutDir).replaceAll("\\", "/")}: ` +
         "this is the committed Gate 0 baseline evidence directory and the harness clears its output directory before writing. " +
         "Scoped/live runs must pass --out-dir <dir> pointing outside the baseline. " +
-        "Pass --overwrite-baseline only when deliberately regenerating the full baseline."
+        "Regenerating the baseline in place requires both --all and --overwrite-baseline, so a scoped selection can never replace the full baseline matrix."
     );
   }
 

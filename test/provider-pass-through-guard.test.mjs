@@ -51,6 +51,21 @@ test("--help exits successfully and documents --overwrite-baseline", () => {
   assert.match(result.stdout, /--out-dir/);
 });
 
+test("scoped run with --overwrite-baseline still refuses without --all", () => {
+  const before = fs.readFileSync(path.join(baselineDir, "results.jsonl"), "utf8");
+
+  const result = runScript(["--provider", "brave", "--overwrite-baseline"]);
+
+  assert.notEqual(result.status, 0, "expected a non-zero exit code");
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.match(output, /--all/, "expected the refusal to require --all");
+  assert.equal(
+    fs.readFileSync(path.join(baselineDir, "results.jsonl"), "utf8"),
+    before,
+    "baseline must be untouched"
+  );
+});
+
 test("--overwrite-baseline flag parses without network in --list mode", () => {
   const result = runScript(["--list", "--overwrite-baseline"]);
 
