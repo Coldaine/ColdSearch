@@ -75,11 +75,20 @@ export function loadConfig(configPath?: string): Config {
 
   // `[agent.llm] base_url` (snake_case) is the documented TOML spelling; the
   // runtime reads camelCase `baseUrl`, so normalize. Either spelling works —
-  // `baseUrl` wins if both are present.
-  const llm = (parsed as { agent?: { llm?: { base_url?: string; baseUrl?: string } } })
-    ?.agent?.llm;
-  if (llm?.base_url !== undefined && llm.baseUrl === undefined) {
-    llm.baseUrl = llm.base_url;
+  // `baseUrl` wins if both are present. Only normalize when `agent.llm` is a
+  // plain object: malformed shapes (string, array, …) are left for
+  // `config doctor` to report as a config error.
+  const llm = (parsed as { agent?: { llm?: unknown } }).agent?.llm;
+  if (
+    llm !== undefined &&
+    llm !== null &&
+    typeof llm === "object" &&
+    !Array.isArray(llm)
+  ) {
+    const llmCfg = llm as { base_url?: string; baseUrl?: string };
+    if (llmCfg.base_url !== undefined && llmCfg.baseUrl === undefined) {
+      llmCfg.baseUrl = llmCfg.base_url;
+    }
   }
 
   return parsed as unknown as Config;

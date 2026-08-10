@@ -776,11 +776,6 @@ async function runStatus(options: ExtendedCLIOptions): Promise<void> {
 function runConfigInit(options: ExtendedCLIOptions): void {
   const target = options.config ? path.resolve(options.config) : DEFAULT_CONFIG_PATH;
 
-  if (fs.existsSync(target)) {
-    throw new Error(
-      `Config file already exists: ${target}. Refusing to overwrite it.`
-    );
-  }
   if (!options.config && fs.existsSync(LEGACY_CONFIG_PATH)) {
     throw new Error(
       `Legacy config found at ${LEGACY_CONFIG_PATH}; ColdSearch already reads it. ` +
@@ -789,7 +784,18 @@ function runConfigInit(options: ExtendedCLIOptions): void {
   }
 
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, STARTER_CONFIG, "utf8");
+  try {
+    // Atomic exclusive create: a concurrent init racing this one fails with
+    // EEXIST instead of both passing an exists() check and overwriting.
+    fs.writeFileSync(target, STARTER_CONFIG, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(
+        `Config file already exists: ${target}. Refusing to overwrite it.`
+      );
+    }
+    throw error;
+  }
 
   printData(
     { command: "config init", config_path: target },

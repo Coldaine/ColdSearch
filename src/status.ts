@@ -21,6 +21,7 @@ import {
   listRegisteredProviders,
   providerSupportsCapability,
 } from "./providers.js";
+import { LLM_PROVIDERS } from "./agent/llm.js";
 
 /**
  * Status and `config doctor` output builders.
@@ -58,9 +59,17 @@ function isKeylessProvider(provider: string): boolean {
 // Status
 // ---------------------------------------------------------------------------
 
+/** Usage-log tail read window: ~2 MB so `status` never loads an unbounded
+ * append-only JSONL into memory; the window still covers the 5000-line cap
+ * with room to spare for realistic entries. */
+const USAGE_TAIL_BYTES = 2 * 1024 * 1024;
+
 /**
  * Read the usage JSONL (last 5000 lines, trailing 7 days) into a per-provider
  * call/success summary. Best-effort: parse or I/O failures yield an empty map.
+ * For logs larger than the read window only the tail bytes are read (the first
+ * partial line at the window start is dropped) — the summary is identical to a
+ * full read because the window is anchored at EOF.
  */
 function readUsageSummary(
   usagePath: string
@@ -69,7 +78,26 @@ function readUsageSummary(
   try {
     const resolved = expandHome(usagePath);
     if (resolved && fs.existsSync(resolved)) {
-      const allLines = fs.readFileSync(resolved, "utf8").split("\n").filter(Boolean);
+      const { size } = fs.statSync(resolved);
+      let text: string;
+      if (size > USAGE_TAIL_BYTES) {
+        const fd = fs.openSync(resolved, "r");
+        try {
+          const buffer = Buffer.alloc(USAGE_TAIL_BYTES);
+          const bytesRead = fs.readSync(fd, buffer, 0, USAGE_TAIL_BYTES, size - USAGE_TAIL_BYTES);
+          text = buffer.subarray(0, bytesRead).toString("utf8");
+        } finally {
+          fs.closeSync(fd);
+        }
+        // The window may start mid-line; drop the partial first line.
+        const firstNewline = text.indexOf("\n");
+        if (firstNewline !== -1) {
+          text = text.slice(firstNewline + 1);
+        }
+      } else {
+        text = fs.readFileSync(resolved, "utf8");
+      }
+      const allLines = text.split("\n").filter(Boolean);
       const lines = allLines.length > 5000 ? allLines.slice(-5000) : allLines;
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
@@ -438,6 +466,47 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
         errors.push({
           category: "config",
           message: `Provider 'searxng' baseUrl is not a valid http(s) URL`,
+        });
+      }
+    }
+  }
+
+  // Agent LLM endpoint: local validation only — no network, no secret echo.
+  // Malformed `[agent.llm]` shapes (non-table) and bad values surface here
+  // instead of failing only at agent runtime.
+  const llm = (config.agent as { llm?: unknown } | undefined)?.llm;
+  if (llm !== undefined) {
+    if (llm === null || typeof llm !== "object" || Array.isArray(llm)) {
+      errors.push({ category: "config", message: "[agent.llm] must be a table" });
+    } else {
+      const llmCfg = llm as Record<string, unknown>;
+      if (llmCfg.provider !== undefined) {
+        if (
+          typeof llmCfg.provider !== "string" ||
+          !(LLM_PROVIDERS as readonly unknown[]).includes(llmCfg.provider)
+        ) {
+          errors.push({
+            category: "config",
+            message: `[agent.llm] provider must be one of: ${LLM_PROVIDERS.join(", ")}`,
+          });
+        }
+      }
+      const baseUrlValue = llmCfg.baseUrl ?? llmCfg.base_url;
+      if (baseUrlValue !== undefined) {
+        if (typeof baseUrlValue !== "string" || !isHttpUrl(baseUrlValue)) {
+          errors.push({
+            category: "config",
+            message: "[agent.llm] base_url must be a valid http(s) URL",
+          });
+        }
+      }
+      if (
+        llmCfg.model !== undefined &&
+        (typeof llmCfg.model !== "string" || llmCfg.model.trim().length === 0)
+      ) {
+        errors.push({
+          category: "config",
+          message: "[agent.llm] model must be a non-empty string",
         });
       }
     }
