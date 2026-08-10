@@ -125,13 +125,15 @@ export type ToolExecutionMode = "sync" | "async-job" | "streaming";
 export type SemanticFit = "direct" | "partial" | "derived" | "not-recommended";
 
 /**
- * Whether a provider tool is reachable through ColdSearch today.
- * - `wired`     — implemented and reachable through an adapter method.
+ * How a provider tool is exposed through ColdSearch today.
+ * - `wired`     — implemented as an adapter-backed normalized category tool.
+ * - `direct`    — implemented and callable through `tool call`, but deliberately
+ *                 not a normalized category backer.
  * - `available` — upstream API exists and the profile is documented, but it is
- *                 not wired yet. Recorded so the registry cannot lie by omission.
+ *                 not implemented yet.
  * - `deferred`  — intentionally not built (niche vertical or high-risk action).
  */
-export type ToolWiringStatus = "wired" | "available" | "deferred";
+export type ToolWiringStatus = "wired" | "direct" | "available" | "deferred";
 
 /** Shape of the envelope a tool's result is normalized/preserved into. */
 export type ToolResultEnvelope =
