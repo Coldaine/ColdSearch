@@ -211,3 +211,15 @@ tool_ttl = "6h"
 # Default path: ~/.config/coldsearch/history.jsonl
 #[history]
 #path = "~/.config/coldsearch/history.jsonl"
+
+# ============================================
+# AGENT LLM ENDPOINT (OPTIONAL)
+# ============================================
+# Agent mode (`--agent`) uses an OpenAI-compatible chat completions endpoint.
+# These TOML values act as defaults; CLI flags --llm / --model /
+# --llm-base-url take precedence, and OPENAI_BASE_URL (or the provider's own
+# environment variable) remains the fallback below TOML.
+#[agent.llm]
+#provider = "openai"
+#model = "gpt-4o"
+#base_url = "https://api.openai.com/v1"

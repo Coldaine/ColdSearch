@@ -77,3 +77,16 @@ strategy = "random"
 ```
 
 But still makes overrides trivial when a provider, environment, or account needs a different secret name.
+
+## Local diagnostics never touch secrets
+
+`coldsearch config doctor` and `coldsearch status` validate key references
+**locally**:
+
+- Reference syntax is checked (`env:` / `doppler:` names must be non-empty;
+  removed `bws:` references are flagged).
+- `env:` references are reported when the variable is not set.
+- `doppler:` references are never resolved by these commands — no Doppler CLI
+  call, no provider API contact, no credit consumption.
+- Raw literal keys are flagged as discouraged **without ever echoing the
+  value**; secret values are never printed by any command.

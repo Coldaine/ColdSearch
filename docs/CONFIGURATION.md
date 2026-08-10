@@ -12,6 +12,87 @@ The config has three major parts:
 - **Provider configuration**: secrets and provider-specific options
 - **Operational logging**: optional usage logging output path
 
+Plus three operator-facing commands:
+
+- `coldsearch config init` — write a starter config (refuses to overwrite)
+- `coldsearch config doctor` — local diagnostics over the config file
+- `coldsearch status` — configured providers, paths, and provider-tool coverage
+
+## Config commands
+
+### `coldsearch config init`
+
+Writes a starter config and refuses to overwrite an existing one:
+
+```bash
+coldsearch config init                 # ~/.config/coldsearch/config.toml
+coldsearch config init --config ./config.toml
+```
+
+The starter is a valid, doctor-clean baseline with empty provider pools;
+fill in providers, key references, and options from this document.
+
+### `coldsearch config doctor`
+
+Local-only diagnostics over the effective config file. It checks TOML
+parseability, required sections, provider names, capability compatibility,
+key references, and the SearXNG base URL. It **never** contacts provider
+APIs, **never** consumes provider credits, **never** resolves `doppler:`
+references (syntax/presence only), and the SearXNG base URL check is
+presence/format only — not a liveness probe. Secret values are never printed.
+
+```bash
+coldsearch config doctor               # human-readable
+coldsearch config doctor --json        # machine-readable
+```
+
+JSON output:
+
+```json
+{
+  "command": "config doctor",
+  "config_path": "/home/you/.config/coldsearch/config.toml",
+  "valid": true,
+  "errors": [],
+  "warnings": [
+    { "category": "credentials", "message": "Provider 'brave' references unset environment variable BRAVE_API_KEY" }
+  ]
+}
+```
+
+`errors` are structural problems (exit code 1); `warnings` are operational
+gaps such as unset `env:` variables or unpopulated pools (exit code 0 for a
+structurally valid config). Categories follow the error classification:
+
+- `config` — TOML / schema / structure
+- `credentials` — key references and env-var presence
+- `network` — transport problems (never triggered by doctor)
+- `provider` — provider-level configuration (e.g. SearXNG base URL)
+- `unsupported_capability` — a capability no configured provider can back
+- `unsupported_tool` — provider-tool surface gaps (reported by status)
+
+## Status output
+
+`coldsearch status [--json]` reports local operator state without any
+provider calls. JSON fields:
+
+- `config_path` — effective config file path
+- `capabilities` — per-capability provider pools and strategy
+- `key_pools` — key count and strategy per configured provider
+- `cache` — `enabled` flag and on-disk replay-cache path
+- `usage_log` — usage JSONL path (see Operational logging)
+- `recent_usage_summary_7d` — last-7-days per-provider call/success summary
+- `missing_env_vars` — `env:` key references whose variable is not set
+- `provider_capabilities` — adapter-backed capability surface per registered
+  provider, with a `configured` flag
+- `tool_coverage` — provider-tool registry state: counts of tool profiles by
+  wiring status (`wired` / `direct` / `available` / `deferred`), per-provider
+  breakdown, and the full profile listing
+
+`tool_coverage` is registry state only — it is **not** live provider health
+and no provider is contacted. Key references are reported as counts, never
+resolved or printed.
+
 ## Capability routing
 
 ```toml
@@ -239,9 +320,24 @@ Behavior:
 
 ## Agent LLM
 
-Agent mode (`--agent`) uses an OpenAI-compatible chat completions endpoint:
+Agent mode (`--agent`) uses an OpenAI-compatible chat completions endpoint.
+The endpoint can be configured in three layers, in precedence order:
 
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL` (optional)
+1. CLI flags: `--llm` / `--model` / `--llm-base-url`
+2. TOML `[agent.llm]`
+3. Environment fallback and code defaults
+
+```toml
+[agent.llm]
+provider = "openai"
+model = "gpt-4o"
+base_url = "https://api.openai.com/v1"
+```
+
+Environment fallbacks: `OPENAI_API_KEY` (and provider-specific keys such as
+`GROQ_API_KEY`). `OPENAI_BASE_URL` overrides the base URL for
+`provider = "openai"` only — the alias providers (groq, openrouter, cerebras,
+xai) always use their own fixed base URLs, and a TOML/CLI `base_url` takes
+precedence over the environment fallback.
 
 This is separate from provider key resolution in `config.toml`.

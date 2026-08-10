@@ -90,7 +90,28 @@ export interface Config {
   history?: {
     path?: string;
   };
+  agent?: {
+    /** OpenAI-compatible agent LLM endpoint config (CLI flags override these). */
+    llm?: {
+      provider?: string;
+      model?: string;
+      baseUrl?: string;
+    };
+  };
 }
+
+/**
+ * Machine-readable error categories for status/doctor output and user-facing
+ * CLI errors. A category is added NEXT TO the original message — it never
+ * replaces the underlying error text.
+ */
+export type ErrorCategory =
+  | "config"
+  | "credentials"
+  | "network"
+  | "provider"
+  | "unsupported_capability"
+  | "unsupported_tool";
 
 export interface CLIOptions {
   command?: "search" | "extract" | "crawl";

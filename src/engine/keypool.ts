@@ -45,7 +45,12 @@ function resolveSecretCacheTtlMs(): number {
   return Math.floor(seconds * 1000);
 }
 
-const PROVIDER_DEFAULT_DOPPLER_SECRETS: Record<string, string> = {
+/**
+ * Per-provider default Doppler secret names used when a key pool has no
+ * explicit `keys` and no `defaultSecretName`. Shared with `config doctor` so
+ * diagnostics and runtime resolution never drift.
+ */
+export const PROVIDER_DEFAULT_DOPPLER_SECRETS: Record<string, string> = {
   tavily: "TAVILY_API_KEY",
   exa: "EXA_API_KEY",
   firecrawl: "FIRECRAWL_API_KEY",

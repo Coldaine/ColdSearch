@@ -2,9 +2,15 @@
 
 import { APP_NAME, LEGACY_APP_NAME, formatVersionString } from "./app.js";
 import { SearchAgent } from "./agent/agent.js";
-import type { LLMProvider } from "./agent/llm.js";
+import { resolveLlmConfig, type LLMProvider } from "./agent/llm.js";
 import { LocalExecutionBackend } from "./execution/backend.js";
-import { loadConfig } from "./config.js";
+import {
+  DEFAULT_CONFIG_PATH,
+  LEGACY_CONFIG_PATH,
+  STARTER_CONFIG,
+  loadConfig,
+  resolveConfigPath,
+} from "./config.js";
 import { resolveCapabilityProviders } from "./providers.js";
 import {
   getToolProfile,
@@ -19,9 +25,14 @@ import { searchHistory } from "./history/search.js";
 import { newExecutionId, type ExecutionRecord } from "./history/types.js";
 import { redactSensitive } from "./history/redact.js";
 import { CacheStore } from "./cache/cache.js";
+import { classifyError } from "./http.js";
+import {
+  buildDoctorReport,
+  buildStatus,
+  type DoctorReport,
+} from "./status.js";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import type { CapabilityCategory, CapabilityName, CLIOptions, Config } from "./types.js";
 
 /**
@@ -73,6 +84,10 @@ interface ExtendedCLIOptions extends CLIOptions {
   /** `coldsearch cache <sub>` replay-cache maintenance surface */
   cacheCommand?: {
     sub: "stats" | "clear";
+  };
+  /** `coldsearch config <sub>` operator config surface */
+  configCommand?: {
+    sub: "init" | "doctor";
   };
 }
 
@@ -137,6 +152,16 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
     // `batch --input <file.jsonl> --output <file.jsonl> [--concurrency N] [--retry-errors] [--dry-run]`
     options.batch = { input: undefined, output: undefined };
     i = 1;
+  } else if (args.length > 0 && args[0] === "config") {
+    // `config init` / `config doctor`
+    const sub = args[1];
+    if (sub !== "init" && sub !== "doctor") {
+      throw new Error(
+        `Unknown 'config' subcommand: ${sub ?? "(none)"}. Use 'config init' or 'config doctor'.`
+      );
+    }
+    options.configCommand = { sub };
+    i = 2;
   } else if (args.length > 0 && commands.includes(args[0])) {
     options.command = args[0] as "search" | "extract" | "crawl";
     if (args[0] === "status") {
@@ -178,6 +203,11 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--config":
       case "-c":
         i++;
+        if (!args[i] || args[i].startsWith("--")) {
+          throw new Error(
+            `Missing value for --config: expected a config file path, got ${args[i] ?? "(none)"}`
+          );
+        }
         options.config = args[i];
         break;
 
@@ -407,6 +437,8 @@ Commands:
   history clear --all         Delete all execution history (keeps replay cache)
   cache stats                 Describe replay-cache storage
   cache clear                 Delete replay-cache entries (keeps history)
+  config init                 Write a starter config (refuses to overwrite)
+  config doctor               Diagnose config locally (no provider contact)
   batch --input FILE --output FILE
                               Run a resumable JSONL batch of search/extract/
                               crawl/provider-tool records
@@ -653,11 +685,22 @@ async function runCrawlMode(options: ExtendedCLIOptions): Promise<void> {
  * Run Mode 2: Search Agent.
  */
 async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
+  // Agent LLM endpoint precedence: CLI flags (--llm/--model/--llm-base-url)
+  // > TOML [agent.llm] > environment fallback and code defaults (applied
+  // inside createLLMClient).
+  const config = loadConfig(options.config);
+  const llm = resolveLlmConfig(
+    { provider: options.llmProvider, model: options.model, baseUrl: options.llmBaseUrl },
+    config.agent?.llm as
+      | { provider?: LLMProvider; model?: string; baseUrl?: string }
+      | undefined
+  );
+
   const agent = new SearchAgent({
     configPath: options.config,
-    llmProvider: options.llmProvider,
-    model: options.model,
-    llmBaseUrl: options.llmBaseUrl,
+    llmProvider: llm.provider,
+    model: llm.model,
+    llmBaseUrl: llm.baseUrl,
     maxSteps: options.maxSteps,
     maxSources: options.maxSources,
     noCache: options.noCache,
@@ -726,76 +769,107 @@ function buildExecutionPlan(capability: "search" | "extract" | "crawl", options:
 
 async function runStatus(options: ExtendedCLIOptions): Promise<void> {
   const config = loadConfig(options.config);
+  const status = buildStatus(config, resolveConfigPath(options.config));
+  console.log(formatOutput({ command: "status", ...status }, options));
+}
 
-  const byCapability = Object.fromEntries(
-    Object.entries(config.capabilities).map(([capability, cfg]) => [
-      capability,
-      {
-        providers: cfg.providers,
-        strategy: cfg.strategy ?? null,
-        effective_strategy: cfg.strategy ?? "all",
-      },
-    ])
-  );
+/**
+ * `coldsearch config init` — write a starter config at the target path,
+ * refusing to overwrite any existing config (including a legacy-brand config
+ * that ColdSearch already reads).
+ */
+function runConfigInit(options: ExtendedCLIOptions): void {
+  const target = options.config ? path.resolve(options.config) : DEFAULT_CONFIG_PATH;
 
-  const keyPools = Object.fromEntries(
-    Object.entries(config.providers).map(([provider, cfg]) => [
-      provider,
-      {
-        keys: cfg.keyPool?.keys?.length ?? 0,
-        strategy: cfg.keyPool?.strategy || "round-robin",
-      },
-    ])
-  );
-
-  const usagePath = config.logging?.usage?.path || "~/.config/coldsearch/usage.jsonl";
-
-  const usageSummary: Record<string, { calls: number; successes: number; success_rate: number }> = {};
-
-  try {
-    const resolved = usagePath.startsWith("~/")
-      ? path.join(os.homedir(), usagePath.slice(2))
-      : usagePath;
-
-    if (resolved && fs.existsSync(resolved)) {
-      const allLines = fs.readFileSync(resolved, "utf8").split("\n").filter(Boolean);
-      const lines = allLines.length > 5000 ? allLines.slice(-5000) : allLines;
-      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-      for (const line of lines) {
-        let entry;
-        try {
-          entry = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        const ts = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
-        if (!Number.isFinite(ts) || ts < cutoff) continue;
-        const provider = entry.provider;
-        if (typeof provider !== "string") continue;
-        if (!usageSummary[provider]) {
-          usageSummary[provider] = { calls: 0, successes: 0, success_rate: 0 };
-        }
-        usageSummary[provider].calls += 1;
-        if (entry.success === true) usageSummary[provider].successes += 1;
-      }
-
-      for (const value of Object.values(usageSummary)) {
-        value.success_rate = value.calls > 0 ? value.successes / value.calls : 0;
-      }
-    }
-  } catch {
-    // best-effort: ignore usage parsing errors
+  if (!options.config && fs.existsSync(LEGACY_CONFIG_PATH)) {
+    throw new Error(
+      `Legacy config found at ${LEGACY_CONFIG_PATH}; ColdSearch already reads it. ` +
+        `Remove it or pass --config to initialize a new config elsewhere.`
+    );
   }
 
-  const status = {
-    capabilities: byCapability,
-    key_pools: keyPools,
-    usage_log: usagePath,
-    recent_usage_summary_7d: Object.keys(usageSummary).length ? usageSummary : undefined,
-  };
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  try {
+    // Atomic exclusive create: a concurrent init racing this one fails with
+    // EEXIST instead of both passing an exists() check and overwriting.
+    fs.writeFileSync(target, STARTER_CONFIG, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(
+        `Config file already exists: ${target}. Refusing to overwrite it.`
+      );
+    }
+    throw error;
+  }
 
-  console.log(formatOutput(status, options));
+  printData(
+    { command: "config init", config_path: target },
+    `Created config at ${target}`,
+    options
+  );
+}
+
+function formatDoctorHuman(report: DoctorReport): string {
+  const lines = [
+    `Config doctor: ${report.config_path}`,
+    `  valid: ${report.valid ? "yes" : "no"}`,
+  ];
+  if (report.errors.length > 0) {
+    lines.push(`  errors (${report.errors.length}):`);
+    for (const issue of report.errors) {
+      lines.push(`    - [${issue.category}] ${issue.message}`);
+    }
+  } else {
+    lines.push("  errors: none");
+  }
+  if (report.warnings.length > 0) {
+    lines.push(`  warnings (${report.warnings.length}):`);
+    for (const issue of report.warnings) {
+      lines.push(`    - [${issue.category}] ${issue.message}`);
+    }
+  } else {
+    lines.push("  warnings: none");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * `coldsearch config doctor` — local diagnostics only. Never contacts provider
+ * APIs, never consumes provider credits, never resolves `doppler:` references,
+ * and the SearXNG base URL check is presence/format only (no liveness probe).
+ * Secret values are never printed.
+ */
+function runConfigDoctor(options: ExtendedCLIOptions): void {
+  const configPath = resolveConfigPath(options.config);
+
+  let report: DoctorReport;
+  try {
+    const config = loadConfig(options.config);
+    report = buildDoctorReport(config, configPath);
+  } catch (error) {
+    report = {
+      config_path: configPath,
+      valid: false,
+      errors: [{ category: "config", message: (error as Error).message }],
+      warnings: [],
+    };
+  }
+
+  printData(
+    {
+      command: "config doctor",
+      config_path: report.config_path,
+      valid: report.valid,
+      errors: report.errors,
+      warnings: report.warnings,
+    },
+    formatDoctorHuman(report),
+    options
+  );
+
+  if (!report.valid) {
+    process.exitCode = 1;
+  }
 }
 
 /**
@@ -1455,6 +1529,15 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (options.configCommand) {
+      if (options.configCommand.sub === "init") {
+        runConfigInit(options);
+      } else {
+        runConfigDoctor(options);
+      }
+      return;
+    }
+
     if (options.batch) {
       await runBatchMode(options);
       return;
@@ -1482,7 +1565,10 @@ async function main(): Promise<void> {
       await runFanoutMode(options);
     }
   } catch (error) {
-    console.error(`Error: ${(error as Error).message}`);
+    // Classify the error next to (never replacing) the original message so
+    // operators and scripts get a machine-readable category on stderr.
+    const { category, message } = classifyError(error);
+    console.error(`Error (${category}): ${message}`);
     process.exit(1);
   }
 }

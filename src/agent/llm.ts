@@ -32,7 +32,39 @@ export interface LLMClient {
   complete(messages: LLMMessage[], options?: LLMOptions): Promise<LLMResponse>;
 }
 
-export type LLMProvider = "openai" | "groq" | "openrouter" | "cerebras" | "xai";
+/**
+ * Supported OpenAI-compatible LLM providers. Single source of truth for the
+ * accepted `--llm` / `[agent.llm] provider` values.
+ */
+export const LLM_PROVIDERS = ["openai", "groq", "openrouter", "cerebras", "xai"] as const;
+export type LLMProvider = (typeof LLM_PROVIDERS)[number];
+
+/** OpenAI-compatible LLM endpoint settings; subset of `[agent.llm]` in TOML. */
+export interface LLMEndpointConfig {
+  provider?: LLMProvider;
+  model?: string;
+  baseUrl?: string;
+}
+
+/**
+ * Resolve the effective agent LLM endpoint with CLI-flag precedence:
+ *
+ *   CLI flags (--llm / --model / --llm-base-url)
+ *     > TOML `[agent.llm]`
+ *     > environment fallback and code defaults (applied by createLLMClient)
+ *
+ * Pure and synchronous so precedence is testable without any network call.
+ */
+export function resolveLlmConfig(
+  cli: LLMEndpointConfig,
+  toml?: Pick<LLMEndpointConfig, "provider" | "model" | "baseUrl">
+): LLMEndpointConfig {
+  return {
+    provider: cli.provider ?? toml?.provider,
+    model: cli.model ?? toml?.model,
+    baseUrl: cli.baseUrl ?? toml?.baseUrl,
+  };
+}
 
 const PROVIDER_ALIASES: Record<
   Exclude<LLMProvider, "openai">,
