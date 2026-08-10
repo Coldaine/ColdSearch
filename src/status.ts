@@ -364,13 +364,23 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
       });
       continue;
     }
+    // Each capability entry must be a table; a scalar/array here crashes
+    // runtime provider resolution (it reads capConfig.providers.length).
+    if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) {
+      errors.push({
+        category: "config",
+        message: `Capability '${capability}' must be a table with providers and optional strategy`,
+      });
+      continue;
+    }
     // Strategy drives fanout semantics at runtime (src/engine): anything other
-    // than "random"/"all" is treated as fanout-to-all, so reject it here.
+    // than "random"/"all" is treated as fanout-to-all, so reject it here. The
+    // invalid value is never echoed — it could be a pasted credential.
     const strategy = cfg?.strategy;
     if (strategy !== undefined && strategy !== "all" && strategy !== "random") {
       errors.push({
         category: "config",
-        message: `Capability '${capability}' strategy must be "all" or "random", got '${String(strategy)}'`,
+        message: `Capability '${capability}' strategy must be "all" or "random"`,
       });
     }
     const rawProviders = cfg?.providers;

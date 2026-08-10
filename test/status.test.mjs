@@ -199,11 +199,37 @@ test("doctor rejects non-table [capabilities] and [providers] sections", () => {
   );
 });
 
+test("doctor rejects non-table capability entries as config errors", () => {
+  for (const bad of ["x", [], 42]) {
+    const report = buildDoctorReport(
+      {
+        capabilities: {
+          search: bad,
+          extract: { providers: [], strategy: "random" },
+          crawl: { providers: [], strategy: "random" },
+        },
+        providers: {
+          searxng: {
+            keyPool: { keys: [] },
+            options: { baseUrl: "https://search.example.internal" },
+          },
+        },
+      },
+      "/tmp/config.toml"
+    );
+    assert.equal(report.valid, false);
+    assert.match(
+      report.errors.map((e) => e.message).join("\n"),
+      /Capability 'search' must be a table/
+    );
+  }
+});
+
 test("doctor rejects unsupported capability strategies as config errors", () => {
   const report = buildDoctorReport(
     {
       capabilities: {
-        search: { providers: ["searxng"], strategy: "randmo" },
+        search: { providers: ["searxng"], strategy: "randmo-sk-pasted-credential" },
         extract: { providers: [], strategy: "random" },
         crawl: { providers: [], strategy: "random" },
       },
@@ -217,10 +243,10 @@ test("doctor rejects unsupported capability strategies as config errors", () => 
     "/tmp/config.toml"
   );
   assert.equal(report.valid, false);
-  assert.match(
-    report.errors.map((e) => e.message).join("\n"),
-    /Capability 'search' strategy must be "all" or "random", got 'randmo'/
-  );
+  const messages = report.errors.map((e) => e.message).join("\n");
+  assert.match(messages, /Capability 'search' strategy must be "all" or "random"/);
+  // The invalid value is never echoed — it could be a pasted credential.
+  assert.ok(!messages.includes("randmo-sk-pasted-credential"));
   assert.ok(report.errors.every((e) => e.category === "config"));
 
   // Absent strategy stays valid; supported values stay valid.
