@@ -320,16 +320,26 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
   const errors: DoctorIssue[] = [];
   const warnings: DoctorIssue[] = [];
 
-  // Required sections.
+  // Required sections. Routing indexes these by name at runtime, so they must
+  // be real tables: arrays/scalars parse but are unusable (structural error),
+  // while a genuinely absent section is just "missing".
   const caps = config.capabilities;
   const provs = config.providers;
-  if (!caps || typeof caps !== "object") {
-    errors.push({ category: "config", message: "Missing [capabilities] section" });
+  const capsIsTable = caps !== null && typeof caps === "object" && !Array.isArray(caps);
+  const provsIsTable = provs !== null && typeof provs === "object" && !Array.isArray(provs);
+  if (!capsIsTable) {
+    errors.push({
+      category: "config",
+      message: caps == null ? "Missing [capabilities] section" : "[capabilities] must be a table",
+    });
   }
-  if (!provs || typeof provs !== "object") {
-    errors.push({ category: "config", message: "Missing [providers] section" });
+  if (!provsIsTable) {
+    errors.push({
+      category: "config",
+      message: provs == null ? "Missing [providers] section" : "[providers] must be a table",
+    });
   }
-  if (!caps || !provs) {
+  if (!capsIsTable || !provsIsTable) {
     return { config_path: configPath, valid: errors.length === 0, errors, warnings };
   }
 
@@ -353,6 +363,15 @@ export function buildDoctorReport(config: Config, configPath: string): DoctorRep
         message: `Capability '${capability}' is not one of the built-in capabilities (search, extract, crawl)`,
       });
       continue;
+    }
+    // Strategy drives fanout semantics at runtime (src/engine): anything other
+    // than "random"/"all" is treated as fanout-to-all, so reject it here.
+    const strategy = cfg?.strategy;
+    if (strategy !== undefined && strategy !== "all" && strategy !== "random") {
+      errors.push({
+        category: "config",
+        message: `Capability '${capability}' strategy must be "all" or "random", got '${String(strategy)}'`,
+      });
     }
     const rawProviders = cfg?.providers;
     if (rawProviders !== undefined && !Array.isArray(rawProviders)) {
