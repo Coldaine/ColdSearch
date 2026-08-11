@@ -43,7 +43,15 @@ jobs:
         run: npm run build
 
       - name: Live smoke test
-        run: node scripts/smoke.mjs
+        # Publish totals and the smoke-only provider/path coverage table in the
+        # workflow summary, even when a check fails (the job still goes red), so
+        # a green workflow cannot be read as "all supported integrations passed".
+        run: |
+          set +e
+          node scripts/smoke.mjs 2>&1 | tee smoke-output.txt
+          status=${PIPESTATUS[0]}
+          cat smoke-output.txt >> "$GITHUB_STEP_SUMMARY"
+          exit $status
         env:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
