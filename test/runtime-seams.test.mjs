@@ -147,3 +147,26 @@ test("HTTP 401/403 classify as credentials; other HTTP errors as network", () =>
   );
   assert.equal(noStatus.category, "network");
 });
+
+test("fetchWithPolicy request timeouts classify as network", () => {
+  // Real message shapes produced by fetchWithPolicy when the internal timeout
+  // fires: `<label> timed out after <N>ms` (a plain Error, not an AbortError).
+  for (const message of [
+    "SearXNG timed out after 10000ms",
+    "Request timed out after 10000ms",
+  ]) {
+    const { category, message: returned } = classifyError(new Error(message));
+    assert.equal(category, "network", message);
+    assert.equal(returned, message);
+  }
+});
+
+test("empty provider pool classifies as config", () => {
+  // Exact runtime message from resolveCapabilityProviders when a capability
+  // has no providers configured — a setup problem, not a provider failure.
+  const { category, message } = classifyError(
+    new Error("No providers configured for search")
+  );
+  assert.equal(category, "config");
+  assert.equal(message, "No providers configured for search");
+});

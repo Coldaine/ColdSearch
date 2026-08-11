@@ -296,6 +296,11 @@ test("config init --config with a missing or flag value fails clearly", () => {
   assert.equal(flagResult.status, 1);
   assert.match(flagResult.stderr, /missing value for --config/i);
 
+  const shortFlagResult = runCli(["config", "init", "--config", "-j"]);
+  assert.equal(shortFlagResult.status, 1);
+  assert.match(shortFlagResult.stderr, /missing value for --config/i);
+  assert.ok(!fs.existsSync(path.join(repoRoot, "-j")), "no short-flag-named file written");
+
   const missingResult = runCli(["config", "init", "--config"]);
   assert.equal(missingResult.status, 1);
   assert.match(missingResult.stderr, /missing value for --config/i);

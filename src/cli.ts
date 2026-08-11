@@ -203,7 +203,7 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
       case "--config":
       case "-c":
         i++;
-        if (!args[i] || args[i].startsWith("--")) {
+        if (!args[i] || args[i].startsWith("-")) {
           throw new Error(
             `Missing value for --config: expected a config file path, got ${args[i] ?? "(none)"}`
           );
