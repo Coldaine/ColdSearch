@@ -220,6 +220,11 @@ export function classifyError(error: unknown): ClassifiedError {
   if (name === "TypeError" && /fetch|network|dns|lookup/i.test(message)) {
     return { category: "network", message };
   }
+  // fetchWithPolicy converts its internal abort into a plain Error whose
+  // message carries the timeout — not an AbortError, so match the message.
+  if (/timed out after \d+ms/i.test(message)) {
+    return { category: "network", message };
+  }
   if (
     error instanceof Error &&
     typeof (error as NodeJS.ErrnoException).code === "string" &&
@@ -245,7 +250,7 @@ export function classifyError(error: unknown): ClassifiedError {
     return { category: "provider", message };
   }
   if (
-    /unknown option|unknown '.*' subcommand|invalid limit|invalid rerank|invalid freshness|requires a .* argument|is only valid with|no configuration found for capability|not configured|config file|legacy config found|failed to parse config|invalid llm provider|unknown llm provider|unsupported llm provider|no execution found with id/i.test(
+    /unknown option|unknown '.*' subcommand|invalid limit|invalid rerank|invalid freshness|requires a .* argument|is only valid with|no configuration found for capability|not configured|config file|legacy config found|failed to parse config|invalid llm provider|unknown llm provider|unsupported llm provider|no execution found with id|no providers configured for/i.test(
       message
     )
   ) {

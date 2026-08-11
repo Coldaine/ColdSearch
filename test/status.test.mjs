@@ -158,6 +158,117 @@ test("doctor flags a non-array capability providers as a config error", () => {
   assert.equal(missingProviders.valid, true);
 });
 
+test("doctor rejects non-table [capabilities] and [providers] sections", () => {
+  // Arrays parse as TOML but are unusable by runtime routing, which indexes
+  // these sections by name — structural error, not a missing-section case.
+  const arrayReport = buildDoctorReport(
+    {
+      capabilities: [],
+      providers: [],
+    },
+    "/tmp/config.toml"
+  );
+  assert.equal(arrayReport.valid, false);
+  assert.match(
+    arrayReport.errors.map((e) => e.message).join("\n"),
+    /\[capabilities\] must be a table.*\[providers\] must be a table/s
+  );
+  assert.ok(arrayReport.errors.every((e) => e.category === "config"));
+
+  // Scalars are structural errors too, not just missing sections.
+  const scalarReport = buildDoctorReport(
+    {
+      capabilities: "search",
+      providers: 42,
+    },
+    "/tmp/config.toml"
+  );
+  assert.equal(scalarReport.valid, false);
+  assert.match(
+    scalarReport.errors.map((e) => e.message).join("\n"),
+    /\[capabilities\] must be a table.*\[providers\] must be a table/s
+  );
+  assert.ok(scalarReport.errors.every((e) => e.category === "config"));
+
+  // A genuinely absent section keeps the missing-section message.
+  const missingReport = buildDoctorReport({}, "/tmp/config.toml");
+  assert.equal(missingReport.valid, false);
+  assert.match(
+    missingReport.errors.map((e) => e.message).join("\n"),
+    /Missing \[capabilities\] section.*Missing \[providers\] section/s
+  );
+});
+
+test("doctor rejects non-table capability entries as config errors", () => {
+  for (const bad of ["x", [], 42]) {
+    const report = buildDoctorReport(
+      {
+        capabilities: {
+          search: bad,
+          extract: { providers: [], strategy: "random" },
+          crawl: { providers: [], strategy: "random" },
+        },
+        providers: {
+          searxng: {
+            keyPool: { keys: [] },
+            options: { baseUrl: "https://search.example.internal" },
+          },
+        },
+      },
+      "/tmp/config.toml"
+    );
+    assert.equal(report.valid, false);
+    assert.match(
+      report.errors.map((e) => e.message).join("\n"),
+      /Capability 'search' must be a table/
+    );
+  }
+});
+
+test("doctor rejects unsupported capability strategies as config errors", () => {
+  const report = buildDoctorReport(
+    {
+      capabilities: {
+        search: { providers: ["searxng"], strategy: "randmo-sk-pasted-credential" },
+        extract: { providers: [], strategy: "random" },
+        crawl: { providers: [], strategy: "random" },
+      },
+      providers: {
+        searxng: {
+          keyPool: { keys: [] },
+          options: { baseUrl: "https://search.example.internal" },
+        },
+      },
+    },
+    "/tmp/config.toml"
+  );
+  assert.equal(report.valid, false);
+  const messages = report.errors.map((e) => e.message).join("\n");
+  assert.match(messages, /Capability 'search' strategy must be "all" or "random"/);
+  // The invalid value is never echoed — it could be a pasted credential.
+  assert.ok(!messages.includes("randmo-sk-pasted-credential"));
+  assert.ok(report.errors.every((e) => e.category === "config"));
+
+  // Absent strategy stays valid; supported values stay valid.
+  const absent = buildDoctorReport(
+    {
+      capabilities: {
+        search: { providers: ["searxng"] },
+        extract: { providers: [], strategy: "random" },
+        crawl: { providers: [], strategy: "all" },
+      },
+      providers: {
+        searxng: {
+          keyPool: { keys: [] },
+          options: { baseUrl: "https://search.example.internal" },
+        },
+      },
+    },
+    "/tmp/config.toml"
+  );
+  assert.equal(absent.valid, true);
+});
+
 test("status summary is correct for a usage log larger than the read window", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coldsearch-status-"));
   try {
