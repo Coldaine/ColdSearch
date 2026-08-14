@@ -43,6 +43,9 @@ jobs:
         run: npm run build
 
       - name: Live smoke test
+        # PIPESTATUS is Bash-specific; pin the shell so the step keeps working
+        # if the runner's default shell changes.
+        shell: bash
         # Publish totals and the smoke-only provider/path coverage table in the
         # workflow summary, even when a check fails (the job still goes red), so
         # a green workflow cannot be read as "all supported integrations passed".
