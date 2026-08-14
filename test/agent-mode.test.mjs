@@ -127,6 +127,34 @@ test("explicit run ID is used in output", async () => {
   assert.equal(out2.run_id, "run_ctor_abc123");
 });
 
+test("explicit run ID is trimmed to a canonical value", async () => {
+  const calls = [];
+  const agent = new SearchAgent({
+    executionBackend: {
+      search: async (query, options) => {
+        calls.push({ query, options });
+        return { results: [], providersUsed: ["brave"], errors: {} };
+      },
+    },
+    llm: makeFakeLLM([
+      JSON.stringify({ type: "tool", tool: "search", args: ["query"] }),
+      JSON.stringify({ type: "final", answer: "done" }),
+    ]),
+  });
+
+  // Surrounding whitespace is stripped so the stored ID matches the value
+  // written to output, steps, and usage logs (a padded ID would silently
+  // break correlation).
+  const out = await agent.research("goal", { maxSteps: 2, runId: "  run_padded_abc  " });
+  assert.equal(out.run_id, "run_padded_abc");
+  for (const step of out.steps) {
+    assert.equal(step.run_id, "run_padded_abc");
+  }
+  for (const call of calls) {
+    assert.equal(call.options.runId, "run_padded_abc");
+  }
+});
+
 test("empty explicit run ID fails", async () => {
   const agent = new SearchAgent({
     executionBackend: { search: async () => ({ results: [], providersUsed: ["brave"], errors: {} }) },

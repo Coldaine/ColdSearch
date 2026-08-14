@@ -361,7 +361,9 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
             `Invalid --run-id: ${runId ?? "(none)"}. Use a non-empty run ID, e.g. --run-id run_20260622T173012Z_7f3a9c.`
           );
         }
-        options.runId = runId;
+        // Trim so the canonical ID never carries caller whitespace, which
+        // would silently break correlation across output/steps/usage logs.
+        options.runId = runId.trim();
         break;
 
       case "--help":
@@ -425,6 +427,13 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
     if (!options.batch.input || !options.batch.output) {
       throw new Error("'batch' requires --input <file.jsonl> and --output <file.jsonl>");
     }
+  }
+
+  // Run IDs are an agent-mode feature: non-agent commands never pass the ID
+  // into backend calls, so accepting it there would silently produce history
+  // and usage entries without the requested correlation ID.
+  if (options.runId !== undefined && !options.agent) {
+    throw new Error("--run-id requires --agent; run IDs only apply to agent mode.");
   }
 
   return options;

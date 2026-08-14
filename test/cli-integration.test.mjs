@@ -545,7 +545,7 @@ path = "${usagePath.replaceAll("\\", "/")}"
       [
         "--agent",
         "--run-id",
-        "run_cli_test_123",
+        "  run_cli_test_123  ",
         "--llm-base-url",
         llm.baseUrl,
         "--config",
@@ -713,4 +713,18 @@ test("--run-id rejects empty and whitespace-only values early", () => {
   const missing = runCli(["--agent", "--run-id"]);
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /invalid --run-id/i);
+});
+
+test("--run-id is rejected outside agent mode", () => {
+  // Run IDs are agent-mode only; non-agent commands silently ignore the ID,
+  // so accepting it there would mislead scripts into trusting correlation
+  // that never happens.
+  for (const args of [
+    ["--run-id", "run_non_agent", "--json", "goal"],
+    ["search", "--run-id", "run_non_agent", "--json", "goal"],
+  ]) {
+    const result = runCli(args);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /--run-id requires --agent/i);
+  }
 });

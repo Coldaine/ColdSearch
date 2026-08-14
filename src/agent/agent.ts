@@ -223,7 +223,9 @@ export class SearchAgent {
     if (explicitRunId !== undefined && explicitRunId.trim() === "") {
       throw new Error("Explicit run ID must not be empty or whitespace-only");
     }
-    const runId = explicitRunId ?? createRunId();
+    // Trim surrounding whitespace so the canonical ID is stable for
+    // correlation; a padded value would mismatch across logs and output.
+    const runId = explicitRunId?.trim() ?? createRunId();
 
     const context = new ResearchContext(goal, maxSources, runId);
     context.currentQuery = goal;
