@@ -1,7 +1,4 @@
 {
-  "description": "Opt into MooseGoose shared Renovate preset.",`n  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "github>MooseGooseConsulting/renovate-config"
-  ]
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>MooseGooseConsulting/renovate-config"]
 }
-
