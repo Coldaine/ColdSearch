@@ -350,6 +350,22 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
         options.maxSources = parseInt(args[i], 10);
         break;
 
+      case "--run-id":
+        i++;
+        const runId = args[i];
+        // Empty/whitespace-only explicit run IDs fail early: a generated ID
+        // is always non-empty, so a blank explicit value is a caller bug. A
+        // flag-looking token means the value was omitted (like --config).
+        if (runId === undefined || runId.startsWith("--") || runId.trim() === "") {
+          throw new Error(
+            `Invalid --run-id: ${runId ?? "(none)"}. Use a non-empty run ID, e.g. --run-id run_20260622T173012Z_7f3a9c.`
+          );
+        }
+        // Trim so the canonical ID never carries caller whitespace, which
+        // would silently break correlation across output/steps/usage logs.
+        options.runId = runId.trim();
+        break;
+
       case "--help":
       case "-h":
         printHelp();
@@ -413,6 +429,13 @@ function parseArgs(args: string[]): ExtendedCLIOptions {
     }
   }
 
+  // Run IDs are an agent-mode feature: non-agent commands never pass the ID
+  // into backend calls, so accepting it there would silently produce history
+  // and usage entries without the requested correlation ID.
+  if (options.runId !== undefined && !options.agent) {
+    throw new Error("--run-id requires --agent; run IDs only apply to agent mode.");
+  }
+
   return options;
 }
 
@@ -460,6 +483,8 @@ Options:
     --llm-base-url URL   Override OpenAI-compatible API base URL
     --max-steps N        Maximum research steps (default: 5)
     --max-sources N      Maximum sources to collect (default: 5)
+    --run-id ID          Explicit run ID for this agent run (e.g.
+                         run_20260622T173012Z_7f3a9c); generated when absent
     
   General Options:
     -l, --limit N        Return at most N results (default: 10; history: 20)
@@ -520,6 +545,7 @@ Examples:
   # Agent mode
   ${APP_NAME} --agent "explain quantum computing"
   ${APP_NAME} --agent --max-steps 10 "latest fusion energy developments"
+  ${APP_NAME} --agent --run-id run_20260622T173012Z_7f3a9c "research goal"
 `);
 }
 
@@ -704,16 +730,19 @@ async function runAgentMode(options: ExtendedCLIOptions): Promise<void> {
     maxSteps: options.maxSteps,
     maxSources: options.maxSources,
     noCache: options.noCache,
+    runId: options.runId,
   });
 
   const result = await agent.research(options.query, {
     maxSteps: options.maxSteps,
     maxSources: options.maxSources,
+    runId: options.runId,
   });
 
   const output = {
     mode: "agent",
     goal: options.query,
+    run_id: result.run_id,
     answer: result.answer,
     sources: result.sources,
     steps: result.steps.length,
